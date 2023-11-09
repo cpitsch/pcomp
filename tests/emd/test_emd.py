@@ -42,7 +42,7 @@ def test_emd_normal_example():
     distribution3 = [
         ((("a", 0), ("b", 0), ("d", 0), ("f", 0)), 20 / 100),
         ((("a", 0), ("c", 0), ("f", 0)), 70 / 100),
-        ((("a", 0), ("b", 0), ("1e", 0), ("f", 0)), 10 / 100),
+        ((("a", 0), ("b", 0), ("e", 0), ("f", 0)), 10 / 100),
     ]
 
     # Assert almost equal due to floating point arithmetic. 10^-9 is a very reasonable delta.
