@@ -3,6 +3,12 @@
 *.xes.gz
 *.csv
 
+# VSCode
+.vscode
+
+# "Playground" Scripts
+main.py
+
 # Languages: python (1)
 
 

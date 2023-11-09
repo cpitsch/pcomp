@@ -22,7 +22,7 @@ def test_postnormalized_weighted_lev_distance():
         cost_time_insert_delete=lambda x: x,
     )
     assert result == 1.5  # 6 / 4
-    
+
 
 def test_emd_normal_example():
     """Test that the EMD without time (all times are 0) is the same as what the paper has as example for non-time EMD.
@@ -42,12 +42,13 @@ def test_emd_normal_example():
     distribution3 = [
         ((("a", 0), ("b", 0), ("d", 0), ("f", 0)), 20 / 100),
         ((("a", 0), ("c", 0), ("f", 0)), 70 / 100),
-        ((("a", 0), ("b", 0), ("e", 0), ("f", 0)), 10 / 100),
+        ((("a", 0), ("b", 0), ("1e", 0), ("f", 0)), 10 / 100),
     ]
 
     # Assert almost equal due to floating point arithmetic. 10^-9 is a very reasonable delta.
     assert_almost_equal(calc_timing_emd(distribution1, distribution2), 0.05, 1e-9)
     assert_almost_equal(calc_timing_emd(distribution1, distribution3), 0.15, 1e-9)
+
 
 def assert_almost_equal(a, b, delta):
     assert abs(a - b) < delta
