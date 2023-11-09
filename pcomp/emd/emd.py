@@ -117,20 +117,18 @@ def weightedLevenshteinDistance(
     dist2 = weightedLevenshteinDistance(trace1,trace2[:-1],rename_cost,insertion_deletion_cost,cost_time_match_rename,cost_time_insert_delete)
     dist3 = weightedLevenshteinDistance(trace1[:-1],trace2,rename_cost,insertion_deletion_cost,cost_time_match_rename,cost_time_insert_delete)
 
-    if act1 == act2:
-        distance =  min(
+    distance =  min(
+        dist1 + rename_cost(act1,act2) + cost_time_match_rename(time1,time2),
+        dist2 + insertion_deletion_cost(act2) + cost_time_insert_delete(time2),
+        dist3 + insertion_deletion_cost(act1) + cost_time_insert_delete(time1)
+    )
+    if act1 == act2: # Also allow match
+        return min(
             dist1 + cost_time_match_rename(time1,time2),
-            dist1 + rename_cost(act1,act2) + cost_time_match_rename(time1,time2),
-            dist2 + insertion_deletion_cost(act2) + cost_time_insert_delete(time2),
-            dist3 + insertion_deletion_cost(act1) + cost_time_insert_delete(time1)
+            distance
         )
     else:
-        distance =  min(
-            dist1 + rename_cost(act1,act2) + cost_time_match_rename(time1,time2),
-            dist2 + insertion_deletion_cost(act2) + cost_time_insert_delete(time2),
-            dist3 + insertion_deletion_cost(act1) + cost_time_insert_delete(time1)
-        )
-    return distance
+        return distance
 
 def postNormalizedWeightedLevenshteinDistance(
         trace1: tuple[tuple[str, int], ...],
@@ -246,4 +244,5 @@ def process_comparison_emd(
     # Like this test if the distance we calculated could belong to the distribution of distances of the log to itself
     # If the p-value is small enough, this means that we calculated a distance to an event log that is different from the event log itself
     statistic, p_value = mannwhitneyu(emds, [emd], alternative="two-sided") # Alternatively, we could maybe use ttest_1samp: `statistic, p_value = ttest_1samp(emds, emd)`
+    # statistic, p_value = ttest_1samp(emds, emd)
     return p_value
