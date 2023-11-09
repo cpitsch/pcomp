@@ -1,3 +1,8 @@
+# Event Logs
+*.xes
+*.xes.gz
+*.csv
+
 # Languages: python (1)
 
 
