@@ -21,7 +21,11 @@ def split_log_cases(
     num_cases = log_len(log)
     num_sample_cases = int(num_cases * frac)
 
-    sample1 = sample_cases(log, num_sample_cases, case_id_key=traceid_key)
+    shuffled_log = log.sample(
+        frac=1
+    )  # Shuffle the event log so pm4py sample_cases is different every time
+
+    sample1 = sample_cases(shuffled_log, num_sample_cases, case_id_key=traceid_key)
     sample2 = log[~log[traceid_key].isin(sample1[traceid_key].unique())]
 
     return sample1, sample2
