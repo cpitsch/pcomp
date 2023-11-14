@@ -17,17 +17,6 @@ from tqdm.auto import tqdm
 from pcomp.utils import constants, log_len, split_log_cases
 
 
-def extract_traces(
-    log: pd.DataFrame,
-    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
-    activity_key: str = constants.DEFAULT_NAME_KEY,
-) -> np.ndarray:
-    out = np.empty(log_len(log, traceid_key), dtype=object)
-    for i, (_, trace) in enumerate(log.groupby(traceid_key)):
-        out[i] = tuple(trace[activity_key].values)
-    return out
-
-
 def extract_traces_activity_service_times(
     log: pd.DataFrame,
     num_bins: int = 3,
