@@ -197,7 +197,7 @@ def calc_timing_emd(
     distribution1: list[tuple[tuple[tuple[str, int], ...], float]],
     distribution2: list[tuple[tuple[tuple[str, int], ...], float]],
 ) -> float:
-    distances: dict[(int, int), float] = dict()
+    distances: dict[tuple[int, int], float] = dict()
     progress = tqdm(total=len(distribution1) * len(distribution2))
     for i, (trace1, _) in enumerate(distribution1):
         for j, (trace2, _) in enumerate(distribution2):
