@@ -82,54 +82,6 @@ def test_behavior_graph_complex_lifecycles(event_log):
     assert graph == expected
 
 
-# def test_extract_representation(simple_event_log: pd.DataFrame):
-#     rep: list[AnnotatedGraph] = extract_representation(simple_event_log)
-#     assert len(rep) == 1
-
-#     # Structure of the graph already tested in test_behavior_graph_simple
-#     graph = rep[0]
-
-#     vertices = [  # For simplicity of the assertions below
-#         Event(activity="a", instance_id="i1"),
-#         Event(activity="b", instance_id="i2"),
-#         Event(activity="c", instance_id="i3"),
-#         Event(activity="d", instance_id="i4"),
-#     ]
-#     assert graph.V == set(vertices)
-
-#     # Check node annotations
-#     assert graph.get_node_annotations(vertices[0]) == {
-#         "activity": "a",
-#         "service time": pd.Timedelta(days=0),
-#     }
-#     assert graph.get_node_annotations(vertices[1]) == {
-#         "activity": "b",
-#         "service time": pd.Timedelta(days=1),
-#     }
-#     assert graph.get_node_annotations(vertices[2]) == {
-#         "activity": "c",
-#         "service time": pd.Timedelta(days=1),
-#     }
-#     assert graph.get_node_annotations(vertices[3]) == {
-#         "activity": "d",
-#         "service time": pd.Timedelta(days=0),
-#     }
-
-#     # Check edge annotations (waiting times)
-#     assert graph.get_edge_annotations((vertices[0], vertices[1])) == {  # (a, b)
-#         "waiting time": pd.Timedelta(days=1)
-#     }
-#     assert graph.get_edge_annotations((vertices[0], vertices[2])) == {  # (a, c)
-#         "waiting time": pd.Timedelta(days=1)
-#     }
-#     assert graph.get_edge_annotations((vertices[1], vertices[3])) == {  # (b, d)
-#         "waiting time": pd.Timedelta(days=1)
-#     }
-#     assert graph.get_edge_annotations((vertices[2], vertices[3])) == {  # (c, d)
-#         "waiting time": pd.Timedelta(days=1)
-#     }
-
-
 def test_extract_representation(simple_event_log: pd.DataFrame):
     rep: list[AnnotatedGraph] = extract_representation(simple_event_log)
     assert len(rep) == 1
@@ -184,8 +136,10 @@ def test_discretize_populations(event_log):
     pop1 = extract_representation(log1)
     pop2 = extract_representation(log2)
 
-    assert True  # Ran without errors
-    with pytest.warns(UserWarning):  # Constant value --> replaced with 0
+    with pytest.warns(
+        UserWarning,
+        match=r"Feature \d is constant and will be replaced with \d\.",
+    ):
         transformed_pop1, transformed_pop2 = discretize_populations(pop1, pop2, 2)
 
     # Problem: Discretizing doesnt really do much here because we have only two distinct values...
