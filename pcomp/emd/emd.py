@@ -17,6 +17,18 @@ from tqdm.auto import tqdm
 from pcomp.utils import constants, log_len, split_log_cases
 
 
+import pydantic
+
+
+class ServiceTimeEvent(pydantic.BaseModel):
+    activity: str
+    duration: float
+
+
+class ServiceTimeTrace(pydantic.BaseModel):
+    events: tuple[ServiceTimeEvent, ...]
+
+
 def extract_traces_activity_service_times(
     log: pd.DataFrame,
     num_bins: int = 3,
@@ -25,7 +37,7 @@ def extract_traces_activity_service_times(
     start_time_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
     end_time_key: str = constants.DEFAULT_TIMESTAMP_KEY,
     seed: int | None = None,
-) -> np.ndarray:
+) -> np.ndarray[ServiceTimeTrace]:
     """Extract the traces from the event log with a special focus on service times, i.e., a view concerned only with the executed activity, and how long its execution took. Only defined for Interval Event Logs, i.e. each event has a Start and Complete timestamp
 
     Args:
@@ -37,19 +49,25 @@ def extract_traces_activity_service_times(
         end_time_key (str, optional): The key in the event log for the completion timestamp of the event. Defaults to xes.DEFAULT_TIMESTAMP_KEY.
         seed (int | None, optional): The seed for the random number generator for numpy sampling and scipy kmeans++
     Returns:
-        np.ndarray: A sequence of traces, represented as a tuple of Activities, but here the activities are tuples of the activity name and how long that activity took to complete. Same order as in the original event log.
+        np.ndarray[ServiceTimeTrace]: A sequence of traces, represented as a tuple of Activities, but here the activities are tuples of the activity name and how long that activity took to complete. Same order as in the original event log.
     """
 
     # For each case a tuple containing for each event a tuple of 1) Activity and 2) Duration
     out = (
         log.groupby("case:concept:name")
         .apply(
-            lambda group_df: tuple(
-                (
-                    evt[activity_key],
-                    (evt[end_time_key] - evt[start_time_key]).total_seconds(),
+            lambda group_df: ServiceTimeTrace(  # type: ignore [arg-type, return-value]
+                events=tuple(
+                    (
+                        ServiceTimeEvent(
+                            activity=evt[activity_key],
+                            duration=(
+                                evt[end_time_key] - evt[start_time_key]
+                            ).total_seconds(),
+                        )
+                    )
+                    for (_, evt) in group_df.sort_values(by=end_time_key).iterrows()
                 )
-                for (_, evt) in group_df.sort_values(by=end_time_key).iterrows()
             )
         )
         .to_numpy()
@@ -194,8 +212,8 @@ def postNormalizedWeightedLevenshteinDistance(
 
 
 def calc_timing_emd(
-    distribution1: list[tuple[tuple[tuple[str, int], ...], float]],
-    distribution2: list[tuple[tuple[tuple[str, int], ...], float]],
+    distribution1: list[tuple[ServiceTimeTrace, float]],
+    distribution2: list[tuple[ServiceTimeTrace, float]],
 ) -> float:
     distances: dict[tuple[int, int], float] = dict()
     progress = tqdm(total=len(distribution1) * len(distribution2))
@@ -249,12 +267,12 @@ def compare_logs_emd(
         float: The earth mover's distance between the two event logs.
     """
 
-    pop1 = Counter(
+    pop1: Counter[ServiceTimeTrace] = Counter(
         extract_traces_activity_service_times(
             log_1, 3, traceid_key, activity_key, start_time_key, end_time_key, seed
         )
     )
-    pop2 = Counter(
+    pop2: Counter[ServiceTimeTrace] = Counter(
         extract_traces_activity_service_times(
             log_2, 3, traceid_key, activity_key, start_time_key, end_time_key, seed
         )
