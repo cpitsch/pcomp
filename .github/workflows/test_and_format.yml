@@ -5,32 +5,31 @@ name: Test and Check Formatting of Python Library
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 permissions:
   contents: read
 
 jobs:
-  build:
-
+  run:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v3
-      with:
-        python-version: "3.10"
-    - uses: abatilo/actions-poetry@v2.3.0
-    - name: Install dependencies
-      run: |
-        poetry check
-        poetry install
-    - uses: psf/black@stable
-      with:
-        version: "23.11.0" # Same version as in poetry.toml file
-    - name: Test with pytest
-      run: |
-        poetry run pytest
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
+      - uses: abatilo/actions-poetry@v2.3.0
+      - name: Install dependencies
+        run: |
+          poetry check
+          poetry install
+      - name: Check Formatting with Black
+        run: |
+          poetry run black --check --diff .
+      - name: Test with pytest
+        run: |
+          poetry run pytest
