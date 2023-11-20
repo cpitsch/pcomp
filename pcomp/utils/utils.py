@@ -94,3 +94,51 @@ def convert_lifecycle_eventlog_to_start_timestamp_eventlog(
         )
         new_df = pd.concat([new_df, end_events])
     return new_df.reset_index(drop=True)
+
+
+def convert_atomic_eventlog_to_lifecycle_eventlog(
+    log: DataFrame,
+    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
+    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
+    instance_key: str = constants.DEFAULT_INSTANCE_KEY,
+) -> DataFrame:
+    """Convert an event log with no lifecycle information or start timestamps into an equivalent one with lifecycle information.
+    In particular, this adds a lifecycle column with value "complete" for each event, and an event instance column with unique values (signifying each event corresponds to a different activity execution)
+
+    The event instance id generated has the form `<caseid>:<idx>` where `idx` is the index of this event in the case
+
+    Args:
+        log (DataFrame): The Event Log.
+        traceid_key (str, optional): The column name for the trace id. Defaults to "case:concept:name".
+        lifecycle_key (str, optional): The column name to use for the lifecycle information. Defaults to "lifecycle:transition". If this column already exists, it will be overwritten.
+        instance_key (str, optional): The column name to use for the instance information. Defaults to "concept:instance". If this column already exists, it will be overwritten.
+    Returns:
+        DataFrame: The converted event log.
+    """
+    new_log = log.copy()
+    new_log[lifecycle_key] = "complete"
+    # TODO: Sort by timestamp first? To make sure the order is correct?
+    new_log[instance_key] = log.groupby(traceid_key).cumcount() + 1
+    new_log[instance_key] = (
+        new_log[traceid_key] + ":" + new_log[instance_key].astype(str)
+    )
+    return new_log
+
+
+def convert_atomic_eventlog_to_start_timestamp_eventlog(
+    log: DataFrame,
+    timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
+) -> DataFrame:
+    """Convert an event log with no lifecycle information or start timestamps into an equivalent one with a "start_timestamp" column for each event.
+    In particular, this adds a new column "start_timestamp" with the same values as the "time:timestamp" column.
+
+    Args:
+        log (DataFrame): The Event Log.
+        timestamp_key (str, optional): The column name for the timestamp of the event. Defaults to "time:timestamp".
+
+    Returns:
+        DataFrame: The converted event log
+    """
+    new_log = log.copy()
+    new_log[constants.DEFAULT_START_TIMESTAMP_KEY] = new_log[timestamp_key]
+    return new_log
