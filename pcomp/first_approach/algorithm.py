@@ -253,22 +253,25 @@ def calculate_behavior_graph(
     E: set[tuple[Event, Event]] = set()
 
     non_duplicated_instances = trace[instance_key].drop_duplicates(keep=False).tolist()
-    L: list[BehaviorGraphNode] = (
-        trace[trace[lifecycle_key].isin(LIFECYCLES)]
-        .apply(
-            lambda row: BehaviorGraphNode(
-                timestamp=row[timestamp_key],
-                event=Event(
-                    instance_id=row[instance_key],
-                    activity=row[activity_key],
-                ),
-                is_atomic=row[instance_key] in non_duplicated_instances,
-                is_start=row[lifecycle_key] == "start",
+
+    L: list[BehaviorGraphNode] = [
+        BehaviorGraphNode(
+            timestamp=timestamp,
+            event=Event(
+                instance_id=instance_id,
+                activity=activity,
             ),
-            axis=1,
+            is_atomic=instance_id in non_duplicated_instances,
+            is_start=lifecycle == "start",
         )
-        .tolist()
-    )
+        for (timestamp, instance_id, activity, lifecycle) in zip(
+            trace[timestamp_key],
+            trace[instance_key],
+            trace[activity_key],
+            trace[lifecycle_key],
+        )
+    ]
+
     L.sort(key=lambda x: x.timestamp)
 
     for i, node1 in enumerate(L):
