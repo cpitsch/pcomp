@@ -1,4 +1,8 @@
-from pcomp.emd.emd import postNormalizedWeightedLevenshteinDistance, calc_timing_emd
+from pcomp.emd.emd import (
+    postNormalizedWeightedLevenshteinDistance,
+    calc_timing_emd,
+    # weightedLevenshteinDistance,
+)
 
 
 def test_postnormalized_weighted_lev_distance():
@@ -22,6 +26,23 @@ def test_postnormalized_weighted_lev_distance():
         cost_time_insert_delete=lambda x: x,
     )
     assert result == 1.5  # 6 / 4
+
+
+# def test_weighted_lev_distance_example():
+#     """Test the post-normalized Levenshtein distance with the example from the paper."""
+#     trace1 = (("a", 1), ("b", 4))
+#     trace2 = (("a", 4), ("b", 2))
+#     trace3 = (("b", 2), ("a", 4))
+
+#     costs = {
+#         "rename_cost": lambda x, y: 2, # f_r = 2
+#         "insertion_deletion_cost": lambda x: 2, #f_id = 2
+#         "cost_time_match_rename": lambda x, y: abs(x - y),
+#         "cost_time_insert_delete": lambda x: x,
+#     }
+
+#     # assert weightedLevenshteinDistance(trace1, trace2, **costs) == 5
+#     # assert weightedLevenshteinDistance(trace1, trace3, **costs) == 4
 
 
 def test_emd_normal_example():
