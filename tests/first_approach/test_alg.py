@@ -53,7 +53,6 @@ def test_behavior_graph_complex_lifecycles(event_log):
     case1 = event_log[event_log[constants.DEFAULT_TRACEID_KEY] == "case1"]
 
     graph = calculate_behavior_graph(case1)
-    print(graph)
     vertices = [
         Event(activity="a", instance_id="i1_1"),
         Event(activity="b", instance_id="i1_2"),
@@ -78,7 +77,6 @@ def test_behavior_graph_complex_lifecycles(event_log):
             (vertices[2], vertices[3]),  # (c, d)
         },
     )
-    print(graph.V == expected.V, graph.E == expected.E)
     assert graph == expected
 
 
