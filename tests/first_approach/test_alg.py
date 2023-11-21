@@ -20,10 +20,10 @@ def test_behavior_graph_simple(simple_event_log):
 
     graph = calculate_behavior_graph(case1)
     vertices = [
-        Event(activity="a", instance_id="i1"),
-        Event(activity="b", instance_id="i2"),
-        Event(activity="c", instance_id="i3"),
-        Event(activity="d", instance_id="i4"),
+        Event(activity="a", index=0),
+        Event(activity="b", index=1),
+        Event(activity="c", index=2),
+        Event(activity="d", index=3),
     ]
 
     # Expected graph:
@@ -54,10 +54,10 @@ def test_behavior_graph_complex_lifecycles(event_log):
 
     graph = calculate_behavior_graph(case1)
     vertices = [
-        Event(activity="a", instance_id="i1_1"),
-        Event(activity="b", instance_id="i1_2"),
-        Event(activity="c", instance_id="i1_3"),
-        Event(activity="d", instance_id="i1_4"),
+        Event(activity="a", index=0),
+        Event(activity="b", index=2),  # B starts before C, but completes after
+        Event(activity="c", index=1),
+        Event(activity="d", index=3),
     ]
 
     # Expected graph:
@@ -88,10 +88,10 @@ def test_extract_representation(simple_event_log: pd.DataFrame):
     graph = rep[0]
 
     vertices = [  # For simplicity of the assertions below
-        Event(activity="a", instance_id="i1"),
-        Event(activity="b", instance_id="i2"),
-        Event(activity="c", instance_id="i3"),
-        Event(activity="d", instance_id="i4"),
+        Event(activity="a", index=0),
+        Event(activity="b", index=1),
+        Event(activity="c", index=2),
+        Event(activity="d", index=3),
     ]
     assert graph.V == set(vertices)
 

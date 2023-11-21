@@ -93,7 +93,7 @@ def convert_lifecycle_eventlog_to_start_timestamp_eventlog(
             lambda row: find_start_timestamp(row, start_events, use_instance), axis=1
         )
         new_df = pd.concat([new_df, end_events])
-    return new_df.reset_index(drop=True)
+    return new_df.sort_values(by=timestamp_key, ascending=True).reset_index(drop=True)
 
 
 def convert_atomic_eventlog_to_lifecycle_eventlog(
@@ -117,12 +117,7 @@ def convert_atomic_eventlog_to_lifecycle_eventlog(
     """
     new_log = log.copy()
     new_log[lifecycle_key] = "complete"
-    # TODO: Sort by timestamp first? To make sure the order is correct?
-    new_log[instance_key] = log.groupby(traceid_key).cumcount() + 1
-    new_log[instance_key] = (
-        new_log[traceid_key] + ":" + new_log[instance_key].astype(str)
-    )
-    return new_log
+    return add_event_instance_id_to_log(new_log, traceid_key, instance_key)
 
 
 def convert_atomic_eventlog_to_start_timestamp_eventlog(
@@ -141,4 +136,18 @@ def convert_atomic_eventlog_to_start_timestamp_eventlog(
     """
     new_log = log.copy()
     new_log[constants.DEFAULT_START_TIMESTAMP_KEY] = new_log[timestamp_key]
+    return new_log
+
+
+def add_event_instance_id_to_log(
+    log: pd.DataFrame,
+    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
+    instance_key: str = constants.DEFAULT_INSTANCE_KEY,
+) -> pd.DataFrame:
+    new_log = log.copy()
+    new_log[instance_key] = log.groupby(by=traceid_key).cumcount() + 1
+    new_log[instance_key] = (
+        new_log[traceid_key] + ":" + new_log[instance_key].astype(str)
+    )
+
     return new_log

@@ -3,27 +3,26 @@ from typing import TypeVar
 
 import numpy as np
 import pandas as pd
-import pydantic
+from dataclasses import dataclass, field
 from scipy.stats import chi2_contingency
 from pcomp.utils import constants
 from pcomp.utils.data import Binner, create_binner
+from pcomp.utils.utils import convert_lifecycle_eventlog_to_start_timestamp_eventlog
 
 T = TypeVar("T")
-LIFECYCLES = ["start", "complete", "ate_abort"]
 
 
-class Event(pydantic.BaseModel):
-    # Make immutable --> Hashable
-    model_config = pydantic.ConfigDict(frozen=True)
-
-    instance_id: str
+@dataclass(frozen=True)
+class Event:
+    index: int
     activity: str
 
     def __repr__(self):
-        return f"({self.activity}, {self.instance_id})"
+        return f"({self.activity}, {self.index})"
 
 
-class BehaviorGraphNode(pydantic.BaseModel, arbitrary_types_allowed=True):
+@dataclass
+class BehaviorGraphNode:
     """Used internally in the computation of the behavior graph."""
 
     timestamp: pd.Timestamp
@@ -32,24 +31,26 @@ class BehaviorGraphNode(pydantic.BaseModel, arbitrary_types_allowed=True):
     is_start: bool
 
 
-class NodeAnnotation(pydantic.BaseModel):
+@dataclass
+class NodeAnnotation:
     service_time: float
     activity: str
 
 
-class EdgeAnnotation(pydantic.BaseModel):
+@dataclass
+class EdgeAnnotation:
     waiting_time: float
 
 
-class AnnotatedGraph(pydantic.BaseModel):
+@dataclass
+class AnnotatedGraph:
     V: set[Event]
     E: set[tuple[Event, Event]]
 
-    node_annotations: dict[Event, NodeAnnotation]
-    edge_annotations: dict[tuple[Event, Event], EdgeAnnotation]
-
-    def __init__(self, V, E):
-        super().__init__(V=V, E=E, node_annotations=dict(), edge_annotations=dict())
+    node_annotations: dict[Event, NodeAnnotation] = field(default_factory=dict)
+    edge_annotations: dict[tuple[Event, Event], EdgeAnnotation] = field(
+        default_factory=dict
+    )
 
     def annotate_node(self, node: Event, annotation: NodeAnnotation):
         self.node_annotations[node] = annotation
@@ -69,17 +70,19 @@ def extract_representation(
     traceid_key: str = constants.DEFAULT_TRACEID_KEY,
     activity_key: str = constants.DEFAULT_NAME_KEY,
     timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
-    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
-    instance_key: str = constants.DEFAULT_INSTANCE_KEY,
+    start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
 ) -> list[AnnotatedGraph]:
+    if start_timestamp_key not in log.columns:
+        log = convert_lifecycle_eventlog_to_start_timestamp_eventlog(log)
+
     representations = []
     for _, trace in log.groupby(traceid_key):
         trace_representation = calculate_behavior_graph(
-            trace, activity_key, timestamp_key, lifecycle_key, instance_key
+            trace, activity_key, timestamp_key, start_timestamp_key
         )
         for event in trace_representation.V:
             start, end = get_event_timeframe(
-                event, trace, timestamp_key, lifecycle_key, instance_key
+                event.index, trace, timestamp_key, start_timestamp_key
             )
             trace_representation.annotate_node(
                 event,
@@ -95,7 +98,7 @@ def extract_representation(
                 if (event, e) in trace_representation.E
             ]:
                 start2, _ = get_event_timeframe(
-                    event2, trace, timestamp_key, lifecycle_key, instance_key
+                    event2.index, trace, timestamp_key, start_timestamp_key
                 )
                 trace_representation.annotate_edge(
                     (event, event2),
@@ -106,29 +109,13 @@ def extract_representation(
 
 
 def get_event_timeframe(
-    event: Event,
+    index_in_trace: int,
     trace: pd.DataFrame,
     timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
-    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
-    instance_key: str = constants.DEFAULT_INSTANCE_KEY,
+    start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
 ) -> tuple[pd.Timestamp, pd.Timestamp]:
-    """Get the start and end of the execution of an activity.
-
-    Args:
-        event (Event): The event whose instance id to extract the timeframe for
-        trace (pd.DataFrame): The trace to extract the timeframe from
-
-    Returns:
-        tuple[pd.Timestamp, pd.Timestamp]: The start and end of the execution of the activity
-    """
-    filtered_trace = trace[
-        (trace[lifecycle_key].isin(LIFECYCLES))
-        & (trace[instance_key] == event.instance_id)
-    ].sort_values(by=timestamp_key)
-    return (
-        filtered_trace.iloc[0][timestamp_key],
-        filtered_trace.iloc[-1][timestamp_key],
-    )
+    evt = trace.iloc[index_in_trace]
+    return evt[start_timestamp_key], evt[timestamp_key]
 
 
 def compare_pops(pop1: list[AnnotatedGraph], pop2: list[AnnotatedGraph]) -> float:
@@ -220,15 +207,13 @@ def compare_processes(
     traceid_key: str = constants.DEFAULT_TRACEID_KEY,
     activity_key: str = constants.DEFAULT_NAME_KEY,
     timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
-    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
-    instance_key: str = constants.DEFAULT_INSTANCE_KEY,
+    start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
 ) -> float:
     params: dict[str, str] = {
         "traceid_key": traceid_key,
         "activity_key": activity_key,
         "timestamp_key": timestamp_key,
-        "lifecycle_key": lifecycle_key,
-        "instance_key": instance_key,
+        "start_timestamp_key": start_timestamp_key,
     }
     pop1 = extract_representation(log1, **params)
     pop2 = extract_representation(log2, **params)
@@ -242,35 +227,42 @@ def calculate_behavior_graph(
     trace: pd.DataFrame,
     activity_key: str = constants.DEFAULT_NAME_KEY,
     timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
-    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
-    instance_key: str = constants.DEFAULT_INSTANCE_KEY,
+    start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
 ) -> AnnotatedGraph:
+    if start_timestamp_key not in trace.columns:
+        trace = convert_lifecycle_eventlog_to_start_timestamp_eventlog(trace)
+
     V: set[Event] = {
-        Event(instance_id=e[instance_key], activity=e[activity_key])
-        for (_, e) in trace.iterrows()
-        if e[lifecycle_key] in ["complete", "ate_abort"]
+        Event(activity=activity, index=idx)
+        for idx, activity in enumerate(trace[activity_key])
     }
     E: set[tuple[Event, Event]] = set()
 
-    non_duplicated_instances = trace[instance_key].drop_duplicates(keep=False).tolist()
+    L: list[BehaviorGraphNode] = []
+    for idx, (activity, start_timestamp, timestamp) in enumerate(
+        zip(trace[activity_key], trace[start_timestamp_key], trace[timestamp_key])
+    ):
+        is_atomic = start_timestamp == timestamp
 
-    L: list[BehaviorGraphNode] = [
-        BehaviorGraphNode(
+        end_event_node = BehaviorGraphNode(
             timestamp=timestamp,
-            event=Event(
-                instance_id=instance_id,
-                activity=activity,
-            ),
-            is_atomic=instance_id in non_duplicated_instances,
-            is_start=lifecycle == "start",
+            event=Event(activity=activity, index=idx),
+            is_atomic=is_atomic,
+            is_start=False,
         )
-        for (timestamp, instance_id, activity, lifecycle) in zip(
-            trace[timestamp_key],
-            trace[instance_key],
-            trace[activity_key],
-            trace[lifecycle_key],
-        )
-    ]
+
+        if is_atomic:
+            L.append(end_event_node)
+        else:  # Also add a node for the start event
+            L += [
+                end_event_node,
+                BehaviorGraphNode(
+                    timestamp=start_timestamp,
+                    event=end_event_node.event,
+                    is_atomic=is_atomic,
+                    is_start=True,
+                ),
+            ]
 
     L.sort(key=lambda x: x.timestamp)
 
