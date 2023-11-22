@@ -65,172 +65,6 @@ class AnnotatedGraph:
         return self.edge_annotations.get(edge, None)
 
 
-def extract_representation(
-    log: pd.DataFrame,
-    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
-    activity_key: str = constants.DEFAULT_NAME_KEY,
-    timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
-    start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
-    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
-) -> list[AnnotatedGraph]:
-    # If necessary, convert the log to the internal format
-    log = ensure_start_timestamp_column(log, start_timestamp_key, lifecycle_key)
-
-    representations = []
-    for _, trace in log.groupby(traceid_key):
-        trace_representation = calculate_behavior_graph(
-            trace, activity_key, timestamp_key, start_timestamp_key, lifecycle_key
-        )
-        for event in trace_representation.V:
-            start, end = get_event_timeframe(
-                event.index, trace, timestamp_key, start_timestamp_key
-            )
-            trace_representation.annotate_node(
-                event,
-                NodeAnnotation(
-                    service_time=(end - start).total_seconds(),
-                    activity=event.activity,
-                ),
-            )
-
-            for event2 in [
-                e
-                for e in trace_representation.V
-                if (event, e) in trace_representation.E
-            ]:
-                start2, _ = get_event_timeframe(
-                    event2.index, trace, timestamp_key, start_timestamp_key
-                )
-                trace_representation.annotate_edge(
-                    (event, event2),
-                    EdgeAnnotation(waiting_time=(start2 - end).total_seconds()),
-                )
-        representations.append(trace_representation)
-    return representations
-
-
-def get_event_timeframe(
-    index_in_trace: int,
-    trace: pd.DataFrame,
-    timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
-    start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
-) -> tuple[pd.Timestamp, pd.Timestamp]:
-    evt = trace.iloc[index_in_trace]
-    return evt[start_timestamp_key], evt[timestamp_key]
-
-
-def compare_pops(pop1: list[AnnotatedGraph], pop2: list[AnnotatedGraph]) -> float:
-    return chi_square(pop1, pop2)
-
-
-def summarize_dicts(dicts: list[dict[str, T]]) -> dict[str, list[T]]:
-    """Summarize a list of dicts.
-
-    Args:
-        dicts (list[dict[str, T]]): The dicts to summarize
-
-    Returns:
-        dict[str, list[T]]: The summarized dict
-    """
-    keys = {key for d in dicts for key in d.keys()}
-    return {key: [d[key] for d in dicts if key in d] for key in keys}
-
-
-def apply_binners(graph: AnnotatedGraph, node_binners: dict[str, Binner], edge_binner):
-    for node in graph.V:
-        node_annotation = graph.get_node_annotation(node)
-        if node_annotation is not None:
-            new_value = node_binners[node_annotation.activity].transform_one(
-                node_annotation.service_time
-            )
-            graph.node_annotations[node].service_time = new_value
-
-    for edge in graph.E:
-        edge_annotation = graph.get_edge_annotation(edge)
-        if edge_annotation is not None:
-            old_value = edge_annotation.waiting_time
-            new_value = edge_binner.transform_one(old_value)
-            graph.edge_annotations[edge].waiting_time = new_value
-
-
-def discretize_populations(
-    pop1: list[AnnotatedGraph], pop2: list[AnnotatedGraph], num_bins: int = 10
-) -> tuple[list[AnnotatedGraph], list[AnnotatedGraph]]:
-    both = pop1 + pop2
-    all_activities = {e.activity for p in both for e in p.V}
-    all_edges = {(u.activity, v.activity) for p in both for (u, v) in p.E}
-
-    activity_service_times = {
-        activity: [
-            annotation.service_time
-            for graph in both
-            for evt in graph.V
-            if (annotation := graph.get_node_annotation(evt)) is not None
-            if evt.activity == activity
-        ]
-        for activity in all_activities
-    }
-
-    edge_waiting_times = {
-        edge: [
-            ann.waiting_time
-            for graph in both
-            for e in graph.E
-            if (ann := graph.get_edge_annotation(e)) is not None
-            if e[0].activity == edge[0] and e[1].activity == edge[1]
-        ]
-        for edge in all_edges
-    }
-
-    service_time_binners = {
-        activity: create_binner(times, num_bins)
-        for activity, times in activity_service_times.items()
-    }
-    waiting_time_binner = create_binner(
-        [time for times in edge_waiting_times.values() for time in times],
-        num_bins,
-    )
-
-    transformed_pop1 = [
-        apply_binners(p, service_time_binners, waiting_time_binner) for p in pop1
-    ]
-    transformed_pop2 = [
-        apply_binners(p, service_time_binners, waiting_time_binner) for p in pop2
-    ]
-
-    return transformed_pop1, transformed_pop2
-
-
-def compare_processes(
-    log1: pd.DataFrame,
-    log2: pd.DataFrame,
-    num_bins: int = 5,
-    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
-    activity_key: str = constants.DEFAULT_NAME_KEY,
-    timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
-    start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
-    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
-) -> float:
-    params: dict[str, str] = {
-        "traceid_key": traceid_key,
-        "activity_key": activity_key,
-        "timestamp_key": timestamp_key,
-        "start_timestamp_key": start_timestamp_key,
-        "lifecycle_key": lifecycle_key,
-    }
-
-    # Convert to internal format
-    log1 = ensure_start_timestamp_column(log1, start_timestamp_key, lifecycle_key)
-    log2 = ensure_start_timestamp_column(log2, start_timestamp_key, lifecycle_key)
-
-    pop1 = extract_representation(log1, **params)
-    pop2 = extract_representation(log2, **params)
-
-    transformed_pop1, transformed_pop2 = discretize_populations(pop1, pop2, num_bins)
-
-    return compare_pops(transformed_pop1, transformed_pop2)
-
-
 def calculate_behavior_graph(
     trace: pd.DataFrame,
     activity_key: str = constants.DEFAULT_NAME_KEY,
@@ -305,6 +139,125 @@ def calculate_behavior_graph(
     return AnnotatedGraph(V=V, E=E)
 
 
+def get_event_timeframe(
+    index_in_trace: int,
+    trace: pd.DataFrame,
+    timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
+    start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
+) -> tuple[pd.Timestamp, pd.Timestamp]:
+    evt = trace.iloc[index_in_trace]
+    return evt[start_timestamp_key], evt[timestamp_key]
+
+
+def extract_representation(
+    log: pd.DataFrame,
+    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
+    activity_key: str = constants.DEFAULT_NAME_KEY,
+    timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
+    start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
+    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
+) -> list[AnnotatedGraph]:
+    # If necessary, convert the log to the internal format
+    log = ensure_start_timestamp_column(log, start_timestamp_key, lifecycle_key)
+
+    representations = []
+    for _, trace in log.groupby(traceid_key):
+        trace_representation = calculate_behavior_graph(
+            trace, activity_key, timestamp_key, start_timestamp_key, lifecycle_key
+        )
+        for event in trace_representation.V:
+            start, end = get_event_timeframe(
+                event.index, trace, timestamp_key, start_timestamp_key
+            )
+            trace_representation.annotate_node(
+                event,
+                NodeAnnotation(
+                    service_time=(end - start).total_seconds(),
+                    activity=event.activity,
+                ),
+            )
+
+            for event2 in [
+                e
+                for e in trace_representation.V
+                if (event, e) in trace_representation.E
+            ]:
+                start2, _ = get_event_timeframe(
+                    event2.index, trace, timestamp_key, start_timestamp_key
+                )
+                trace_representation.annotate_edge(
+                    (event, event2),
+                    EdgeAnnotation(waiting_time=(start2 - end).total_seconds()),
+                )
+        representations.append(trace_representation)
+    return representations
+
+
+def apply_binners(graph: AnnotatedGraph, node_binners: dict[str, Binner], edge_binner):
+    for node in graph.V:
+        node_annotation = graph.get_node_annotation(node)
+        if node_annotation is not None:
+            new_value = node_binners[node_annotation.activity].transform_one(
+                node_annotation.service_time
+            )
+            graph.node_annotations[node].service_time = new_value
+
+    for edge in graph.E:
+        edge_annotation = graph.get_edge_annotation(edge)
+        if edge_annotation is not None:
+            old_value = edge_annotation.waiting_time
+            new_value = edge_binner.transform_one(old_value)
+            graph.edge_annotations[edge].waiting_time = new_value
+
+
+def discretize_populations(
+    pop1: list[AnnotatedGraph], pop2: list[AnnotatedGraph], num_bins: int = 10
+) -> tuple[list[AnnotatedGraph], list[AnnotatedGraph]]:
+    both = pop1 + pop2
+    all_activities = {e.activity for p in both for e in p.V}
+    all_edges = {(u.activity, v.activity) for p in both for (u, v) in p.E}
+
+    activity_service_times = {
+        activity: [
+            annotation.service_time
+            for graph in both
+            for evt in graph.V
+            if (annotation := graph.get_node_annotation(evt)) is not None
+            if evt.activity == activity
+        ]
+        for activity in all_activities
+    }
+
+    edge_waiting_times = {
+        edge: [
+            ann.waiting_time
+            for graph in both
+            for e in graph.E
+            if (ann := graph.get_edge_annotation(e)) is not None
+            if e[0].activity == edge[0] and e[1].activity == edge[1]
+        ]
+        for edge in all_edges
+    }
+
+    service_time_binners = {
+        activity: create_binner(times, num_bins)
+        for activity, times in activity_service_times.items()
+    }
+    waiting_time_binner = create_binner(
+        [time for times in edge_waiting_times.values() for time in times],
+        num_bins,
+    )
+
+    transformed_pop1 = [
+        apply_binners(p, service_time_binners, waiting_time_binner) for p in pop1
+    ]
+    transformed_pop2 = [
+        apply_binners(p, service_time_binners, waiting_time_binner) for p in pop2
+    ]
+
+    return transformed_pop1, transformed_pop2
+
+
 def chi_square(dist1: list[T], dist2: list[T]) -> float:
     """A helper function to compute Chi-Square Test for two populations by computing the contingency table and then using the `chi2_contingency` function from scipy
 
@@ -341,3 +294,37 @@ def chi_square(dist1: list[T], dist2: list[T]) -> float:
     # chi2, p, dof, expected <- these are the return values of chi2_contingency; We are only interested in the p-value
     _, p, _, _ = chi2_contingency(contingency)
     return p
+
+
+def compare_pops(pop1: list[AnnotatedGraph], pop2: list[AnnotatedGraph]) -> float:
+    return chi_square(pop1, pop2)
+
+
+def compare_processes(
+    log1: pd.DataFrame,
+    log2: pd.DataFrame,
+    num_bins: int = 5,
+    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
+    activity_key: str = constants.DEFAULT_NAME_KEY,
+    timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
+    start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
+    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
+) -> float:
+    params: dict[str, str] = {
+        "traceid_key": traceid_key,
+        "activity_key": activity_key,
+        "timestamp_key": timestamp_key,
+        "start_timestamp_key": start_timestamp_key,
+        "lifecycle_key": lifecycle_key,
+    }
+
+    # Convert to internal format
+    log1 = ensure_start_timestamp_column(log1, start_timestamp_key, lifecycle_key)
+    log2 = ensure_start_timestamp_column(log2, start_timestamp_key, lifecycle_key)
+
+    pop1 = extract_representation(log1, **params)
+    pop2 = extract_representation(log2, **params)
+
+    transformed_pop1, transformed_pop2 = discretize_populations(pop1, pop2, num_bins)
+
+    return compare_pops(transformed_pop1, transformed_pop2)
