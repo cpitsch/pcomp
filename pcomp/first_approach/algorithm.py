@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from scipy.stats import chi2_contingency
 from pcomp.utils import constants
 from pcomp.utils.data import Binner, create_binner
-from pcomp.utils.utils import convert_lifecycle_eventlog_to_start_timestamp_eventlog
+from pcomp.utils import ensure_start_timestamp_column
 
 T = TypeVar("T")
 
@@ -71,14 +71,15 @@ def extract_representation(
     activity_key: str = constants.DEFAULT_NAME_KEY,
     timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
     start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
+    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
 ) -> list[AnnotatedGraph]:
-    if start_timestamp_key not in log.columns:
-        log = convert_lifecycle_eventlog_to_start_timestamp_eventlog(log)
+    # If necessary, convert the log to the internal format
+    log = ensure_start_timestamp_column(log, start_timestamp_key, lifecycle_key)
 
     representations = []
     for _, trace in log.groupby(traceid_key):
         trace_representation = calculate_behavior_graph(
-            trace, activity_key, timestamp_key, start_timestamp_key
+            trace, activity_key, timestamp_key, start_timestamp_key, lifecycle_key
         )
         for event in trace_representation.V:
             start, end = get_event_timeframe(
@@ -208,13 +209,20 @@ def compare_processes(
     activity_key: str = constants.DEFAULT_NAME_KEY,
     timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
     start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
+    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
 ) -> float:
     params: dict[str, str] = {
         "traceid_key": traceid_key,
         "activity_key": activity_key,
         "timestamp_key": timestamp_key,
         "start_timestamp_key": start_timestamp_key,
+        "lifecycle_key": lifecycle_key,
     }
+
+    # Convert to internal format
+    log1 = ensure_start_timestamp_column(log1, start_timestamp_key, lifecycle_key)
+    log2 = ensure_start_timestamp_column(log2, start_timestamp_key, lifecycle_key)
+
     pop1 = extract_representation(log1, **params)
     pop2 = extract_representation(log2, **params)
 
@@ -228,9 +236,23 @@ def calculate_behavior_graph(
     activity_key: str = constants.DEFAULT_NAME_KEY,
     timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
     start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
+    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
 ) -> AnnotatedGraph:
-    if start_timestamp_key not in trace.columns:
-        trace = convert_lifecycle_eventlog_to_start_timestamp_eventlog(trace)
+    """Extract a behavior graph for a given trace.
+
+    Args:
+        trace (pd.DataFrame): The trace to extract the behavior graph from.
+        activity_key (str, optional): The name of the column containing the activity label. Defaults to "concept:name".
+        timestamp_key (str, optional): The name of the column containing the end timestamp of the events. Defaults to "time:timestamp.
+        start_timestamp_key (str, optional): The name of the column containing the start timestamp of an event.
+            Defaults to "start_timestamp". If the column is not present, it will be created using either lifecycle information
+            if `lifecycle_key` is an existing column, or by assuming the start timestamp is equal to the end timestamp.
+        lifecycle_key (str, optional): The column containing lifecycle information. Defaults to "lifecycle:transition".
+
+    Returns:
+        AnnotatedGraph: The extracted behavior graph.
+    """
+    trace = ensure_start_timestamp_column(trace, start_timestamp_key, lifecycle_key)
 
     V: set[Event] = {
         Event(activity=activity, index=idx)

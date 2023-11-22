@@ -151,3 +151,17 @@ def add_event_instance_id_to_log(
     )
 
     return new_log
+
+
+def ensure_start_timestamp_column(
+    df: pd.DataFrame,
+    start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
+    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
+) -> pd.DataFrame:
+    if start_timestamp_key not in df.columns:
+        if lifecycle_key in df.columns:
+            return convert_lifecycle_eventlog_to_start_timestamp_eventlog(df)
+        else:
+            return convert_atomic_eventlog_to_start_timestamp_eventlog(df)
+    else:
+        return df
