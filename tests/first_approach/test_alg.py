@@ -10,7 +10,6 @@ from pcomp.first_approach import (
 )
 from pcomp.utils import constants
 from pcomp.utils.utils import split_log_cases
-from tests.utils.fixtures import simple_event_log, event_log
 import pandas as pd
 import pytest
 
