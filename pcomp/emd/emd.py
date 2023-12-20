@@ -6,14 +6,14 @@ import math
 from collections import Counter
 from collections.abc import Callable
 from functools import cache
-from typing import Optional
+from typing import Optional, cast
+from itertools import groupby
 
 import numpy as np
 import pandas as pd
-import wasserstein
-from scipy.stats import mannwhitneyu, ttest_1samp
-from sklearn.cluster import kmeans_plusplus
-from tqdm.auto import tqdm
+import wasserstein  # type: ignore
+from sklearn.cluster import kmeans_plusplus  # type: ignore
+from tqdm.auto import tqdm  # type: ignore
 
 from pcomp.utils import constants, log_len, ensure_start_timestamp_column
 
@@ -22,15 +22,6 @@ ServiceTimeTrace = tuple[ServiceTimeEvent, ...]
 
 BinnedServiceTimeEvent = tuple[str, int]
 BinnedServiceTimeTrace = tuple[BinnedServiceTimeEvent, ...]
-
-# class ServiceTimeEvent(pydantic.BaseModel):
-
-#     activity: str
-#     duration: float
-
-
-# class ServiceTimeTrace(pydantic.BaseModel):
-#     events: tuple[ServiceTimeEvent, ...]
 
 
 def extract_traces_activity_service_times(
@@ -57,7 +48,10 @@ def extract_traces_activity_service_times(
     """
 
     # For each case a tuple containing for each event a tuple of 1) Activity and 2) Duration
-    out: list[ServiceTimeTrace] = (
+    out: list[
+        ServiceTimeTrace
+    ] = cast(  # tolist returns Any, and this messes up some typing stuff
+        list[ServiceTimeTrace],
         log.groupby("case:concept:name")
         .apply(
             lambda group_df: tuple(  # type: ignore [arg-type, return-value]
@@ -68,28 +62,44 @@ def extract_traces_activity_service_times(
                 for (_, evt) in group_df.sort_values(by=end_time_key).iterrows()
             )
         )
-        .tolist()
-    )  # Numpy array of ServiceTimeTrace
-
-    # TODO:My understanding of how this step is supposed to be done is very uncertain.
-    #   - Should I collect all durations, sample 20% of those, and then cluster those?
-    #   - Should I sample 20% of the traces, and then cluster the durations I find in there? (Solution I implemented)
-    #   - Should I do clustering on all durations, or do a separate clustering for each activity?
-    #       - If yes, again, should this be on all durations or only sampled cases
+        .tolist(),
+    )
 
     # Now cluster the durations for binning
     # Use pareto principle; 20% of cases represent 80% of interesting behavior; Sample 20% only
+    # Sample 20% of the traces, and cluster the durations per activity
     if seed is not None:
         np.random.seed(seed)
 
     sample_indices = np.random.choice(
         range(len(out)), size=math.ceil(0.2 * log_len(log, traceid_key))
     )
-    durations = np.array([dur for idx in sample_indices for _, dur in out[idx]])
-    durations = durations.reshape(-1, 1)  # Reshape to 2D array for sklearn
-    centroid, _ = kmeans_plusplus(
-        durations, n_clusters=num_bins, n_local_trials=10, random_state=seed
-    )
+
+    durations: dict[str, list[float]] = {
+        key: [dur for _, dur in subiter]
+        for key, subiter in groupby(
+            sorted(
+                [
+                    evt
+                    for idx, trace in enumerate(out)
+                    for evt in trace
+                    if idx in sample_indices
+                ]
+            ),
+            lambda x: x[0],
+        )
+    }
+
+    # Get a clustering for the service times of each activity
+    centroids = {
+        act: kmeans_plusplus(
+            np.array(durs).reshape(-1, 1),
+            n_clusters=num_bins,
+            n_local_trials=10,
+            random_state=seed,
+        )[0]
+        for act, durs in durations.items()
+    }
 
     # Bin the actual data
     def _closestCentroid1D(point: float, centroids: np.ndarray) -> int:
@@ -103,7 +113,7 @@ def extract_traces_activity_service_times(
         return mindex
 
     ret = [
-        tuple((evt, _closestCentroid1D(dur, centroid)) for evt, dur in trace)
+        tuple((act, _closestCentroid1D(dur, centroids[act])) for act, dur in trace)
         for trace in out
     ]
     return ret
@@ -353,15 +363,9 @@ def process_comparison_emd(
             (trace, freq / resample_size) for trace, freq in Counter(sample).items()
         ]
         emds.append(calc_timing_emd(log_1_stochastic_language, language))
-        weightedLevenshteinDistance.cache_clear()
 
-    # Perform a test to compare the calculated EMD `emd` with the samples from `emds1`
-    # Like this test if the distance we calculated could belong to the distribution of distances of the log to itself
-    # If the p-value is small enough, this means that we calculated a distance to an event log that is different from the event log itself
-    # statistic, p_value = mannwhitneyu(
-    #     emds, [emd], alternative="two-sided"
-    # )  # Alternatively, we could maybe use ttest_1samp: `statistic, p_value = ttest_1samp(emds, emd)`
-    # statistic, p_value = ttest_1samp(emds, emd)
+        # Clear the cache for the lev function, because otherwise we run out of memory after a few iterations
+        weightedLevenshteinDistance.cache_clear()
 
     # Return the fraction of distances in the bootstrapping distribution
     # That have a smaller distance than the calculated distance
