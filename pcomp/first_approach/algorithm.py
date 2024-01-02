@@ -18,7 +18,7 @@ class Event:
     activity: str
 
     def __repr__(self):
-        return f"({self.activity}, {self.index})"
+        return f"Event({self.activity}, {self.index})"
 
 
 @dataclass
@@ -193,21 +193,30 @@ def extract_representation(
     return representations
 
 
-def apply_binners(graph: AnnotatedGraph, node_binners: dict[str, Binner], edge_binner):
-    for node in graph.V:
-        node_annotation = graph.get_node_annotation(node)
-        if node_annotation is not None:
-            new_value = node_binners[node_annotation.activity].transform_one(
-                node_annotation.service_time
-            )
-            graph.node_annotations[node].service_time = new_value
+def apply_binners(
+    graph: AnnotatedGraph, node_binners: dict[str, Binner], edge_binner: Binner
+) -> AnnotatedGraph:
+    # Copy old Graph
+    new_graph = AnnotatedGraph(
+        graph.V, graph.E, graph.node_annotations, graph.edge_annotations
+    )
 
-    for edge in graph.E:
-        edge_annotation = graph.get_edge_annotation(edge)
-        if edge_annotation is not None:
-            old_value = edge_annotation.waiting_time
+    for node in new_graph.V:
+        old_node_annotation = graph.get_node_annotation(node)
+        if old_node_annotation is not None:
+            new_value = node_binners[old_node_annotation.activity].transform_one(
+                old_node_annotation.service_time
+            )
+            new_graph.node_annotations[node].service_time = new_value
+
+    for edge in new_graph.E:
+        old_edge_annotation = graph.get_edge_annotation(edge)
+        if old_edge_annotation is not None:
+            old_value = old_edge_annotation.waiting_time
             new_value = edge_binner.transform_one(old_value)
-            graph.edge_annotations[edge].waiting_time = new_value
+            new_graph.edge_annotations[edge].waiting_time = new_value
+
+    return new_graph
 
 
 def discretize_populations(
@@ -258,7 +267,7 @@ def discretize_populations(
     return transformed_pop1, transformed_pop2
 
 
-def chi_square(dist1: list[T], dist2: list[T]) -> float:
+def old_chi_square(dist1: list[T], dist2: list[T]) -> float:
     """A helper function to compute Chi-Square Test for two populations by computing the contingency table and then using the `chi2_contingency` function from scipy
 
     Args:
@@ -294,6 +303,75 @@ def chi_square(dist1: list[T], dist2: list[T]) -> float:
     # chi2, p, dof, expected <- these are the return values of chi2_contingency; We are only interested in the p-value
     _, p, _, _ = chi2_contingency(contingency)
     return p
+
+
+def chi_square(dist1: list[T], dist2: list[T]) -> float:
+    """A helper function to compute Chi-Square Test for two populations by computing the contingency table and then using the `chi2_contingency` function from scipy
+
+    Args:
+        dist1 (list[T]): Distribution 1.
+        dist2 (list[T]): Distribution 2.
+
+    Returns:
+        float: The computed p-value
+    """
+
+    # Build manually to remove duplicates without requiring T hashable
+    keys: list[T] = []
+    for item in dist1 + dist2:
+        if item not in keys:
+            keys.append(item)
+
+    pop1 = Counter([keys.index(item) for item in dist1])
+    pop2 = Counter([keys.index(item) for item in dist2])
+
+    # Perform Chi^2 Test
+    def population_to_contingency_matrix(
+        pop: Counter[int], keys: list[T]
+    ) -> np.ndarray[T]:
+        matrix = np.zeros(len(keys))
+        # Set the count of each point in the matrix
+        for point, count in pop.items():
+            matrix[point] = count
+        return matrix
+
+    mat1 = population_to_contingency_matrix(pop1, keys)
+    mat2 = population_to_contingency_matrix(pop2, keys)
+
+    print(mat1)
+    print(mat2)
+
+    # Contingency Table
+    contingency = np.array([mat1, mat2])
+
+    # Apply Chi^2 Test on contingency matrix
+    # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.chi2_contingency.html
+    # chi2, p, dof, expected <- these are the return values of chi2_contingency; We are only interested in the p-value
+    _, p, _, _ = chi2_contingency(contingency)
+    return p
+
+
+def new_chi_square(dist1: list[T], dist2: list[T]) -> float:
+    keys: list[T] = []
+    for item in dist1 + dist2:
+        if item not in keys:
+            keys.append(item)
+
+    def population_to_observation_counts(pop: list[T], keys: list[T]) -> np.ndarray[T]:
+        counts = np.zeros(len(keys))
+        for item in pop:
+            counts[keys.index(item)] += 1
+        return counts
+
+    pop1 = population_to_observation_counts(dist1, keys)
+    pop2 = population_to_observation_counts(dist2, keys)
+
+    print(pop1)
+    print(pop2)
+
+    from scipy.stats import chisquare
+
+    return chisquare(pop1, pop2).pvalue
 
 
 def compare_pops(pop1: list[AnnotatedGraph], pop2: list[AnnotatedGraph]) -> float:
