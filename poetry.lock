@@ -2104,6 +2104,17 @@ files = [
 ]
 
 [[package]]
+name = "strsimpy"
+version = "0.2.1"
+description = "A library implementing different string similarity and distance measures"
+optional = false
+python-versions = "*"
+files = [
+    {file = "strsimpy-0.2.1-py3-none-any.whl", hash = "sha256:d676a440d5d3dbcf5ba92d01814a03a218776ce07bd7a8185da7019e04cf9ba7"},
+    {file = "strsimpy-0.2.1.tar.gz", hash = "sha256:0842eb57f7af86c882a59a1bc8721ec2580a267e563fd0503ced2972040372c9"},
+]
+
+[[package]]
 name = "threadpoolctl"
 version = "3.2.0"
 description = "threadpoolctl"
@@ -2299,4 +2310,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.13"
-content-hash = "0c87ff9dffcdc1a15389ab0238ff6550adac2a4b285e93dad247d8fa418b00ca"
+content-hash = "45bb6c5f4e68a5d8096f1bf6614920152adb730eb736909390cb9325c315ec1a"

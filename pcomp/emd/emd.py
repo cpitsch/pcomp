@@ -14,6 +14,7 @@ import pandas as pd
 import wasserstein  # type: ignore
 from sklearn.cluster import kmeans_plusplus  # type: ignore
 from tqdm.auto import tqdm  # type: ignore
+from strsimpy.weighted_levenshtein import WeightedLevenshtein  # type: ignore
 
 from pcomp.utils import constants, log_len, ensure_start_timestamp_column
 
@@ -192,6 +193,45 @@ def weightedLevenshteinDistance(
         return min(dist1 + cost_time_match_rename(time1, time2), distance)
     else:
         return distance
+
+
+def weighted_levenshtein_distance(
+    trace1: BinnedServiceTimeTrace,
+    trace2: BinnedServiceTimeTrace,
+    rename_cost: Callable[[str, str], int],
+    insertion_deletion_cost: Callable[[str], int],
+    cost_time_match_rename: Callable[[int, int], int],
+    cost_time_insert_delete: Callable[[int], int],
+) -> int:
+    """Compute the levenshtein distance with custom weights. Using strsimpy
+
+    Args:
+        trace1 (BinnedServiceTimeTrace): The first trace.
+        trace2 (BinnedServiceTimeTrace): The second trace.
+        rename_cost (Callable[[str], float]): Custom Cost.
+        insertion_deletion_cost (Callable[[str], float]): Custom Cost.
+        cost_time_match_rename (Callable[[int], float]): Custom Cost.
+        cost_time_insert_delete (Callable[[int], float]): Custom Cost.
+
+    Returns:
+        float: The computed weighted Levenshtein distance.
+    """
+
+    def ins_del_cost(x: BinnedServiceTimeEvent) -> int:
+        return insertion_deletion_cost(x[0]) + cost_time_insert_delete(x[1])
+
+    def substitution_cost(x: BinnedServiceTimeEvent, y: BinnedServiceTimeEvent) -> int:
+        cost_rename = (
+            0 if x[0] == y[0] else rename_cost(x[0], y[0])
+        )  # Allow matching activity while renaming time
+        return cost_rename + cost_time_match_rename(x[1], y[1])
+
+    dist = WeightedLevenshtein(
+        insertion_cost_fn=ins_del_cost,
+        deletion_cost_fn=ins_del_cost,
+        substitution_cost_fn=substitution_cost,
+    ).distance(trace1, trace2)
+    return dist
 
 
 def postNormalizedWeightedLevenshteinDistance(
