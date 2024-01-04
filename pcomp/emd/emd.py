@@ -388,7 +388,7 @@ def process_comparison_emd(
         log_1, num_bins, traceid_key, activity_key, start_time_key, end_time_key, seed
     )
     log_1_traces = extract_traces_activity_service_times(
-        log_1, 3, traceid_key, activity_key, start_time_key, end_time_key, seed
+        log_1, num_bins, traceid_key, activity_key, start_time_key, end_time_key, seed
     )  # We sample from this
 
     if resample_size is None:
