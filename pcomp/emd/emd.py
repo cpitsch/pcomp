@@ -121,80 +121,6 @@ def extract_traces_activity_service_times(
 
 
 @cache
-def weightedLevenshteinDistance(
-    trace1: BinnedServiceTimeTrace,
-    trace2: BinnedServiceTimeTrace,
-    rename_cost: Callable[[str, str], int],
-    insertion_deletion_cost: Callable[[str], int],
-    cost_time_match_rename: Callable[[int, int], int],
-    cost_time_insert_delete: Callable[[int], int],
-) -> int:
-    """Compute the levenshtein distance with custom weights.
-
-    Args:
-        trace1 (BinnedServiceTimeTrace): The first trace.
-        trace2 (BinnedServiceTimeTrace): The second trace.
-        rename_cost (Callable[[str], float]): Custom Cost.
-        insertion_deletion_cost (Callable[[str], float]): Custom Cost.
-        cost_time_match_rename (Callable[[int], float]): Custom Cost.
-        cost_time_insert_delete (Callable[[int], float]): Custom Cost.
-
-    Returns:
-        float: The computed weighted Levenshtein distance.
-    """
-    if trace1 == trace2:
-        return 0
-    elif len(trace1) == 0:
-        # Insert the traces
-        ret = 0
-        for act, dur in trace2:
-            ret += insertion_deletion_cost(act) + cost_time_insert_delete(dur)
-        return ret
-    elif len(trace2) == 0:
-        ret = 0
-        for act, dur in trace1:
-            ret += insertion_deletion_cost(act) + cost_time_insert_delete(dur)
-        return ret
-
-    act1, time1 = trace1[-1]
-    act2, time2 = trace2[-1]
-
-    dist1 = weightedLevenshteinDistance(
-        trace1[:-1],
-        trace2[:-1],
-        rename_cost,
-        insertion_deletion_cost,
-        cost_time_match_rename,
-        cost_time_insert_delete,
-    )
-    dist2 = weightedLevenshteinDistance(
-        trace1,
-        trace2[:-1],
-        rename_cost,
-        insertion_deletion_cost,
-        cost_time_match_rename,
-        cost_time_insert_delete,
-    )
-    dist3 = weightedLevenshteinDistance(
-        trace1[:-1],
-        trace2,
-        rename_cost,
-        insertion_deletion_cost,
-        cost_time_match_rename,
-        cost_time_insert_delete,
-    )
-
-    distance = min(
-        dist1 + rename_cost(act1, act2) + cost_time_match_rename(time1, time2),
-        dist2 + insertion_deletion_cost(act2) + cost_time_insert_delete(time2),
-        dist3 + insertion_deletion_cost(act1) + cost_time_insert_delete(time1),
-    )
-    if act1 == act2:  # Also allow match
-        return min(dist1 + cost_time_match_rename(time1, time2), distance)
-    else:
-        return distance
-
-
 def weighted_levenshtein_distance(
     trace1: BinnedServiceTimeTrace,
     trace2: BinnedServiceTimeTrace,
@@ -234,6 +160,36 @@ def weighted_levenshtein_distance(
     return dist
 
 
+@cache
+def custom_levenshtein_distance(
+    trace1: BinnedServiceTimeTrace,
+    trace2: BinnedServiceTimeTrace,
+) -> float:
+    return weighted_levenshtein_distance(
+        trace1,
+        trace2,
+        rename_cost=lambda x, y: 1,
+        insertion_deletion_cost=lambda x: 1,
+        cost_time_match_rename=lambda x, y: abs(x - y),
+        cost_time_insert_delete=lambda x: x,
+    )
+
+
+@cache
+def custom_postnormalized_levenshtein_distance(
+    trace1: BinnedServiceTimeTrace,
+    trace2: BinnedServiceTimeTrace,
+) -> float:
+    return postNormalizedWeightedLevenshteinDistance(
+        trace1,
+        trace2,
+        rename_cost=lambda x, y: 1,
+        insertion_deletion_cost=lambda x: 1,
+        cost_time_match_rename=lambda x, y: abs(x - y),
+        cost_time_insert_delete=lambda x: x,
+    )
+
+
 def postNormalizedWeightedLevenshteinDistance(
     trace1: BinnedServiceTimeTrace,
     trace2: BinnedServiceTimeTrace,
@@ -255,7 +211,7 @@ def postNormalizedWeightedLevenshteinDistance(
     Returns:
         float: The post-normalized weighted Levenshtein distance.
     """
-    return weightedLevenshteinDistance(
+    return weighted_levenshtein_distance(
         trace1,
         trace2,
         rename_cost=rename_cost,
@@ -273,13 +229,13 @@ def calc_timing_emd(
     for i, (trace1, _) in enumerate(distribution1):
         for j, (trace2, _) in enumerate(distribution2):
             if (i, j) not in distances:
-                distances[(i, j)] = postNormalizedWeightedLevenshteinDistance(
+                distances[(i, j)] = custom_postnormalized_levenshtein_distance(
                     trace1,
                     trace2,
-                    rename_cost=lambda x, y: 1,
-                    insertion_deletion_cost=lambda x: 1,
-                    cost_time_match_rename=lambda x, y: abs(x - y),
-                    cost_time_insert_delete=lambda x: x,
+                    # rename_cost=lambda x, y: 1,
+                    # insertion_deletion_cost=lambda x: 1,
+                    # cost_time_match_rename=lambda x, y: abs(x - y),
+                    # cost_time_insert_delete=lambda x: x,
                 )
 
     solver = wasserstein.EMD()
@@ -350,7 +306,6 @@ def compare_logs_emd(
     )
 
     emd = calc_timing_emd(dist1, dist2)
-    weightedLevenshteinDistance.cache_clear()
     return emd
 
 
@@ -378,7 +333,11 @@ def process_comparison_emd(
     log_1 = ensure_start_timestamp_column(log_1, start_time_key, lifecycle_key)
     log_2 = ensure_start_timestamp_column(log_2, start_time_key, lifecycle_key)
 
-    emd = compare_logs_emd(log_1, log_2)
+    emd = compare_logs_emd(
+        log_1, log_2
+    )  # TODO: Doing it like this makes it so the logs don't share the same binning function. Not good.
+    # Also, it means that log_1 is binned twice (once here, once below), with different seeds. So the population
+    # used in this comparison is different to the population used in the bootstrapping distribution. Bad!
 
     # Bootstrap a p-value
     # Compute samples of EMD's of the logs with themselves to gauge a "normal" EMD
@@ -404,8 +363,8 @@ def process_comparison_emd(
         ]
         emds.append(calc_timing_emd(log_1_stochastic_language, language))
 
-        # Clear the cache for the lev function, because otherwise we run out of memory after a few iterations
-        weightedLevenshteinDistance.cache_clear()
+    # Clear the cache for the levenshtein distance
+    custom_postnormalized_levenshtein_distance.cache_clear()
 
     # Return the fraction of distances in the bootstrapping distribution
     # That have a smaller distance than the calculated distance
