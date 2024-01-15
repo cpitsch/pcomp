@@ -1,5 +1,5 @@
 from pcomp.emd.emd import (
-    postNormalizedWeightedLevenshteinDistance,
+    post_normalized_weighted_levenshtein_distance,
     calc_timing_emd,
     # weightedLevenshteinDistance,
 )
@@ -17,7 +17,7 @@ def test_postnormalized_weighted_lev_distance():
     # Total cost is 6
     # Alternatively: Match, Rename, Rename, Match => 6
 
-    result = postNormalizedWeightedLevenshteinDistance(
+    result = post_normalized_weighted_levenshtein_distance(
         trace1,
         trace2,
         rename_cost=lambda x, y: 1,

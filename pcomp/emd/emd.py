@@ -180,7 +180,7 @@ def custom_postnormalized_levenshtein_distance(
     trace1: BinnedServiceTimeTrace,
     trace2: BinnedServiceTimeTrace,
 ) -> float:
-    return postNormalizedWeightedLevenshteinDistance(
+    return post_normalized_weighted_levenshtein_distance(
         trace1,
         trace2,
         rename_cost=lambda x, y: 1,
@@ -190,7 +190,7 @@ def custom_postnormalized_levenshtein_distance(
     )
 
 
-def postNormalizedWeightedLevenshteinDistance(
+def post_normalized_weighted_levenshtein_distance(
     trace1: BinnedServiceTimeTrace,
     trace2: BinnedServiceTimeTrace,
     rename_cost: Callable[[str, str], int],
