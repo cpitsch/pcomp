@@ -1,5 +1,4 @@
 from pcomp.utils import log_len, split_log_cases
-from tests.utils.fixtures import event_log, large_event_log
 
 
 def test_log_len(event_log):

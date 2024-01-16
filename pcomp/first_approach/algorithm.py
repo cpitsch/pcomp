@@ -3,27 +3,26 @@ from typing import TypeVar
 
 import numpy as np
 import pandas as pd
-import pydantic
+from dataclasses import dataclass, field
 from scipy.stats import chi2_contingency
 from pcomp.utils import constants
 from pcomp.utils.data import Binner, create_binner
+from pcomp.utils import ensure_start_timestamp_column
 
 T = TypeVar("T")
-LIFECYCLES = ["start", "complete", "ate_abort"]
 
 
-class Event(pydantic.BaseModel):
-    # Make immutable --> Hashable
-    model_config = pydantic.ConfigDict(frozen=True)
-
-    instance_id: str
+@dataclass(frozen=True)
+class Event:
+    index: int
     activity: str
 
     def __repr__(self):
-        return f"({self.activity}, {self.instance_id})"
+        return f"Event({self.activity}, {self.index})"
 
 
-class BehaviorGraphNode(pydantic.BaseModel, arbitrary_types_allowed=True):
+@dataclass
+class BehaviorGraphNode:
     """Used internally in the computation of the behavior graph."""
 
     timestamp: pd.Timestamp
@@ -32,24 +31,26 @@ class BehaviorGraphNode(pydantic.BaseModel, arbitrary_types_allowed=True):
     is_start: bool
 
 
-class NodeAnnotation(pydantic.BaseModel):
+@dataclass
+class NodeAnnotation:
     service_time: float
     activity: str
 
 
-class EdgeAnnotation(pydantic.BaseModel):
+@dataclass
+class EdgeAnnotation:
     waiting_time: float
 
 
-class AnnotatedGraph(pydantic.BaseModel):
+@dataclass
+class AnnotatedGraph:
     V: set[Event]
     E: set[tuple[Event, Event]]
 
-    node_annotations: dict[Event, NodeAnnotation]
-    edge_annotations: dict[tuple[Event, Event], EdgeAnnotation]
-
-    def __init__(self, V, E):
-        super().__init__(V=V, E=E, node_annotations=dict(), edge_annotations=dict())
+    node_annotations: dict[Event, NodeAnnotation] = field(default_factory=dict)
+    edge_annotations: dict[tuple[Event, Event], EdgeAnnotation] = field(
+        default_factory=dict
+    )
 
     def annotate_node(self, node: Event, annotation: NodeAnnotation):
         self.node_annotations[node] = annotation
@@ -64,22 +65,109 @@ class AnnotatedGraph(pydantic.BaseModel):
         return self.edge_annotations.get(edge, None)
 
 
+def calculate_behavior_graph(
+    trace: pd.DataFrame,
+    activity_key: str = constants.DEFAULT_NAME_KEY,
+    timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
+    start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
+    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
+) -> AnnotatedGraph:
+    """Extract a behavior graph for a given trace.
+
+    Args:
+        trace (pd.DataFrame): The trace to extract the behavior graph from.
+        activity_key (str, optional): The name of the column containing the activity label. Defaults to "concept:name".
+        timestamp_key (str, optional): The name of the column containing the end timestamp of the events. Defaults to "time:timestamp.
+        start_timestamp_key (str, optional): The name of the column containing the start timestamp of an event.
+            Defaults to "start_timestamp". If the column is not present, it will be created using either lifecycle information
+            if `lifecycle_key` is an existing column, or by assuming the start timestamp is equal to the end timestamp.
+        lifecycle_key (str, optional): The column containing lifecycle information. Defaults to "lifecycle:transition".
+
+    Returns:
+        AnnotatedGraph: The extracted behavior graph.
+    """
+    trace = ensure_start_timestamp_column(trace, start_timestamp_key, lifecycle_key)
+
+    V: set[Event] = {
+        Event(activity=activity, index=idx)
+        for idx, activity in enumerate(trace[activity_key])
+    }
+    E: set[tuple[Event, Event]] = set()
+
+    L: list[BehaviorGraphNode] = []
+    for idx, (activity, start_timestamp, timestamp) in enumerate(
+        zip(trace[activity_key], trace[start_timestamp_key], trace[timestamp_key])
+    ):
+        is_atomic = start_timestamp == timestamp
+
+        end_event_node = BehaviorGraphNode(
+            timestamp=timestamp,
+            event=Event(activity=activity, index=idx),
+            is_atomic=is_atomic,
+            is_start=False,
+        )
+
+        if is_atomic:
+            L.append(end_event_node)
+        else:  # Also add a node for the start event
+            L += [
+                end_event_node,
+                BehaviorGraphNode(
+                    timestamp=start_timestamp,
+                    event=end_event_node.event,
+                    is_atomic=is_atomic,
+                    is_start=True,
+                ),
+            ]
+
+    L.sort(key=lambda x: x.timestamp)
+
+    for i, node1 in enumerate(L):
+        if node1.is_atomic or not node1.is_start:
+            for node2 in L[i + 1 :]:
+                if node2.is_start and not node2.is_atomic:
+                    E.add((node1.event, node2.event))
+                    continue
+                if node2.is_atomic:
+                    E.add((node1.event, node2.event))
+                    break
+                if (not node2.is_atomic) and (not node2.is_start):
+                    if (node1.event, node2.event) not in E:
+                        continue
+                    else:
+                        break
+    return AnnotatedGraph(V=V, E=E)
+
+
+def get_event_timeframe(
+    index_in_trace: int,
+    trace: pd.DataFrame,
+    timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
+    start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
+) -> tuple[pd.Timestamp, pd.Timestamp]:
+    evt = trace.iloc[index_in_trace]
+    return evt[start_timestamp_key], evt[timestamp_key]
+
+
 def extract_representation(
     log: pd.DataFrame,
     traceid_key: str = constants.DEFAULT_TRACEID_KEY,
     activity_key: str = constants.DEFAULT_NAME_KEY,
     timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
+    start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
     lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
-    instance_key: str = constants.DEFAULT_INSTANCE_KEY,
 ) -> list[AnnotatedGraph]:
+    # If necessary, convert the log to the internal format
+    log = ensure_start_timestamp_column(log, start_timestamp_key, lifecycle_key)
+
     representations = []
     for _, trace in log.groupby(traceid_key):
         trace_representation = calculate_behavior_graph(
-            trace, activity_key, timestamp_key, lifecycle_key, instance_key
+            trace, activity_key, timestamp_key, start_timestamp_key, lifecycle_key
         )
         for event in trace_representation.V:
             start, end = get_event_timeframe(
-                event, trace, timestamp_key, lifecycle_key, instance_key
+                event.index, trace, timestamp_key, start_timestamp_key
             )
             trace_representation.annotate_node(
                 event,
@@ -95,7 +183,7 @@ def extract_representation(
                 if (event, e) in trace_representation.E
             ]:
                 start2, _ = get_event_timeframe(
-                    event2, trace, timestamp_key, lifecycle_key, instance_key
+                    event2.index, trace, timestamp_key, start_timestamp_key
                 )
                 trace_representation.annotate_edge(
                     (event, event2),
@@ -105,64 +193,30 @@ def extract_representation(
     return representations
 
 
-def get_event_timeframe(
-    event: Event,
-    trace: pd.DataFrame,
-    timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
-    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
-    instance_key: str = constants.DEFAULT_INSTANCE_KEY,
-) -> tuple[pd.Timestamp, pd.Timestamp]:
-    """Get the start and end of the execution of an activity.
-
-    Args:
-        event (Event): The event whose instance id to extract the timeframe for
-        trace (pd.DataFrame): The trace to extract the timeframe from
-
-    Returns:
-        tuple[pd.Timestamp, pd.Timestamp]: The start and end of the execution of the activity
-    """
-    filtered_trace = trace[
-        (trace[lifecycle_key].isin(LIFECYCLES))
-        & (trace[instance_key] == event.instance_id)
-    ].sort_values(by=timestamp_key)
-    return (
-        filtered_trace.iloc[0][timestamp_key],
-        filtered_trace.iloc[-1][timestamp_key],
+def apply_binners(
+    graph: AnnotatedGraph, node_binners: dict[str, Binner], edge_binner: Binner
+) -> AnnotatedGraph:
+    # Copy old Graph
+    new_graph = AnnotatedGraph(
+        graph.V, graph.E, graph.node_annotations, graph.edge_annotations
     )
 
-
-def compare_pops(pop1: list[AnnotatedGraph], pop2: list[AnnotatedGraph]) -> float:
-    return chi_square(pop1, pop2)
-
-
-def summarize_dicts(dicts: list[dict[str, T]]) -> dict[str, list[T]]:
-    """Summarize a list of dicts.
-
-    Args:
-        dicts (list[dict[str, T]]): The dicts to summarize
-
-    Returns:
-        dict[str, list[T]]: The summarized dict
-    """
-    keys = {key for d in dicts for key in d.keys()}
-    return {key: [d[key] for d in dicts if key in d] for key in keys}
-
-
-def apply_binners(graph: AnnotatedGraph, node_binners: dict[str, Binner], edge_binner):
-    for node in graph.V:
-        node_annotation = graph.get_node_annotation(node)
-        if node_annotation is not None:
-            new_value = node_binners[node_annotation.activity].transform_one(
-                node_annotation.service_time
+    for node in new_graph.V:
+        old_node_annotation = graph.get_node_annotation(node)
+        if old_node_annotation is not None:
+            new_value = node_binners[old_node_annotation.activity].transform_one(
+                old_node_annotation.service_time
             )
-            graph.node_annotations[node].service_time = new_value
+            new_graph.node_annotations[node].service_time = new_value
 
-    for edge in graph.E:
-        edge_annotation = graph.get_edge_annotation(edge)
-        if edge_annotation is not None:
-            old_value = edge_annotation.waiting_time
+    for edge in new_graph.E:
+        old_edge_annotation = graph.get_edge_annotation(edge)
+        if old_edge_annotation is not None:
+            old_value = old_edge_annotation.waiting_time
             new_value = edge_binner.transform_one(old_value)
-            graph.edge_annotations[edge].waiting_time = new_value
+            new_graph.edge_annotations[edge].waiting_time = new_value
+
+    return new_graph
 
 
 def discretize_populations(
@@ -213,85 +267,7 @@ def discretize_populations(
     return transformed_pop1, transformed_pop2
 
 
-def compare_processes(
-    log1: pd.DataFrame,
-    log2: pd.DataFrame,
-    num_bins: int = 5,
-    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
-    activity_key: str = constants.DEFAULT_NAME_KEY,
-    timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
-    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
-    instance_key: str = constants.DEFAULT_INSTANCE_KEY,
-) -> float:
-    params: dict[str, str] = {
-        "traceid_key": traceid_key,
-        "activity_key": activity_key,
-        "timestamp_key": timestamp_key,
-        "lifecycle_key": lifecycle_key,
-        "instance_key": instance_key,
-    }
-    pop1 = extract_representation(log1, **params)
-    pop2 = extract_representation(log2, **params)
-
-    transformed_pop1, transformed_pop2 = discretize_populations(pop1, pop2, num_bins)
-
-    return compare_pops(transformed_pop1, transformed_pop2)
-
-
-def calculate_behavior_graph(
-    trace: pd.DataFrame,
-    activity_key: str = constants.DEFAULT_NAME_KEY,
-    timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
-    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
-    instance_key: str = constants.DEFAULT_INSTANCE_KEY,
-) -> AnnotatedGraph:
-    V: set[Event] = {
-        Event(instance_id=e[instance_key], activity=e[activity_key])
-        for (_, e) in trace.iterrows()
-        if e[lifecycle_key] in ["complete", "ate_abort"]
-    }
-    E: set[tuple[Event, Event]] = set()
-
-    non_duplicated_instances = trace[instance_key].drop_duplicates(keep=False).tolist()
-
-    L: list[BehaviorGraphNode] = [
-        BehaviorGraphNode(
-            timestamp=timestamp,
-            event=Event(
-                instance_id=instance_id,
-                activity=activity,
-            ),
-            is_atomic=instance_id in non_duplicated_instances,
-            is_start=lifecycle == "start",
-        )
-        for (timestamp, instance_id, activity, lifecycle) in zip(
-            trace[timestamp_key],
-            trace[instance_key],
-            trace[activity_key],
-            trace[lifecycle_key],
-        )
-    ]
-
-    L.sort(key=lambda x: x.timestamp)
-
-    for i, node1 in enumerate(L):
-        if node1.is_atomic or not node1.is_start:
-            for node2 in L[i + 1 :]:
-                if node2.is_start and not node2.is_atomic:
-                    E.add((node1.event, node2.event))
-                    continue
-                if node2.is_atomic:
-                    E.add((node1.event, node2.event))
-                    break
-                if (not node2.is_atomic) and (not node2.is_start):
-                    if (node1.event, node2.event) not in E:
-                        continue
-                    else:
-                        break
-    return AnnotatedGraph(V=V, E=E)
-
-
-def chi_square(dist1: list[T], dist2: list[T]) -> float:
+def old_chi_square(dist1: list[T], dist2: list[T]) -> float:
     """A helper function to compute Chi-Square Test for two populations by computing the contingency table and then using the `chi2_contingency` function from scipy
 
     Args:
@@ -327,3 +303,106 @@ def chi_square(dist1: list[T], dist2: list[T]) -> float:
     # chi2, p, dof, expected <- these are the return values of chi2_contingency; We are only interested in the p-value
     _, p, _, _ = chi2_contingency(contingency)
     return p
+
+
+def chi_square(dist1: list[T], dist2: list[T]) -> float:
+    """A helper function to compute Chi-Square Test for two populations by computing the contingency table and then using the `chi2_contingency` function from scipy
+
+    Args:
+        dist1 (list[T]): Distribution 1.
+        dist2 (list[T]): Distribution 2.
+
+    Returns:
+        float: The computed p-value
+    """
+
+    # Build manually to remove duplicates without requiring T hashable
+    keys: list[T] = []
+    for item in dist1 + dist2:
+        if item not in keys:
+            keys.append(item)
+
+    pop1 = Counter([keys.index(item) for item in dist1])
+    pop2 = Counter([keys.index(item) for item in dist2])
+
+    # Perform Chi^2 Test
+    def population_to_contingency_matrix(
+        pop: Counter[int], keys: list[T]
+    ) -> np.ndarray[T]:
+        matrix = np.zeros(len(keys))
+        # Set the count of each point in the matrix
+        for point, count in pop.items():
+            matrix[point] = count
+        return matrix
+
+    mat1 = population_to_contingency_matrix(pop1, keys)
+    mat2 = population_to_contingency_matrix(pop2, keys)
+
+    print(mat1)
+    print(mat2)
+
+    # Contingency Table
+    contingency = np.array([mat1, mat2])
+
+    # Apply Chi^2 Test on contingency matrix
+    # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.chi2_contingency.html
+    # chi2, p, dof, expected <- these are the return values of chi2_contingency; We are only interested in the p-value
+    _, p, _, _ = chi2_contingency(contingency)
+    return p
+
+
+def new_chi_square(dist1: list[T], dist2: list[T]) -> float:
+    keys: list[T] = []
+    for item in dist1 + dist2:
+        if item not in keys:
+            keys.append(item)
+
+    def population_to_observation_counts(pop: list[T], keys: list[T]) -> np.ndarray[T]:
+        counts = np.zeros(len(keys))
+        for item in pop:
+            counts[keys.index(item)] += 1
+        return counts
+
+    pop1 = population_to_observation_counts(dist1, keys)
+    pop2 = population_to_observation_counts(dist2, keys)
+
+    print(pop1)
+    print(pop2)
+
+    from scipy.stats import chisquare
+
+    return chisquare(pop1, pop2).pvalue
+
+
+def compare_pops(pop1: list[AnnotatedGraph], pop2: list[AnnotatedGraph]) -> float:
+    return chi_square(pop1, pop2)
+
+
+def compare_processes(
+    log1: pd.DataFrame,
+    log2: pd.DataFrame,
+    num_bins: int = 5,
+    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
+    activity_key: str = constants.DEFAULT_NAME_KEY,
+    timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
+    start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
+    lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
+) -> float:
+    params: dict[str, str] = {
+        "traceid_key": traceid_key,
+        "activity_key": activity_key,
+        "timestamp_key": timestamp_key,
+        "start_timestamp_key": start_timestamp_key,
+        "lifecycle_key": lifecycle_key,
+    }
+
+    # Convert to internal format
+    log1 = ensure_start_timestamp_column(log1, start_timestamp_key, lifecycle_key)
+    log2 = ensure_start_timestamp_column(log2, start_timestamp_key, lifecycle_key)
+
+    pop1 = extract_representation(log1, **params)
+    pop2 = extract_representation(log2, **params)
+
+    transformed_pop1, transformed_pop2 = discretize_populations(pop1, pop2, num_bins)
+
+    return compare_pops(transformed_pop1, transformed_pop2)

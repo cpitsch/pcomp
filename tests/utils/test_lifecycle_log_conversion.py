@@ -8,7 +8,6 @@ from typing import Optional
 import pytest
 
 from tests.testing_utilities import Case, create_event_log
-from tests.utils.fixtures import event_log, large_event_log, event_log_invalid_instances
 
 
 def test_lifecycle_log_conversion_instance_key_none(event_log):
