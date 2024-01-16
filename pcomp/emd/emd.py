@@ -154,7 +154,6 @@ def extract_traces_activity_service_times(
     )
 
 
-@cache
 def weighted_levenshtein_distance(
     trace1: BinnedServiceTimeTrace,
     trace2: BinnedServiceTimeTrace,
