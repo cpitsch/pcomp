@@ -1,9 +1,10 @@
 from collections import Counter
 from dataclasses import dataclass
 from functools import cache
-from scipy.optimize import linear_sum_assignment
+from scipy.optimize import linear_sum_assignment  # type: ignore
 from itertools import product
 import numpy as np
+from typing import overload as typing_overload, Literal
 
 EPSILON_NODE_LABEL = "pcomp:ged_approx:epsilon"
 
@@ -11,10 +12,7 @@ EPSILON_NODE_LABEL = "pcomp:ged_approx:epsilon"
 @dataclass(frozen=True)
 class GraphNode:
     label: str
-
-    # data: dict[str, Any] = field(default_factory=dict)
-    def __repr__(self) -> str:
-        return self.label
+    duration: int = 0
 
 
 @dataclass
@@ -46,11 +44,24 @@ class Star:
     root: GraphNode
     leaves: frozenset[GraphNode]
 
-    def __repr__(self) -> str:
-        return f"({self.root}, {self.leaves})"
+
+@typing_overload
+def graph_edit_distance(
+    graph_1: DiGraph, graph_2: DiGraph, return_permutations: Literal[True]
+) -> tuple[tuple[float, float], tuple[np.ndarray, np.ndarray]]:
+    ...
 
 
-def graph_edit_distance(graph_1: DiGraph, graph_2: DiGraph) -> tuple[float, float]:
+@typing_overload
+def graph_edit_distance(
+    graph_1: DiGraph, graph_2: DiGraph, return_permutations: Literal[False] = False
+) -> tuple[float, float]:
+    ...
+
+
+def graph_edit_distance(
+    graph_1: DiGraph, graph_2: DiGraph, return_permutations: bool = False
+) -> tuple[float, float] | tuple[tuple[float, float], tuple[np.ndarray, np.ndarray]]:
     """Compute an upper and lower bound on the Graph edit distance of the two graphs
     This is based on the paper "Comparing Sttars: On Approximating Graph Edit Distance" by Zeng et al.
     This algorithm is not defined for self-loops, multi-edges or edge labels. If self-loops exist, an error will be thrown
@@ -58,9 +69,11 @@ def graph_edit_distance(graph_1: DiGraph, graph_2: DiGraph) -> tuple[float, floa
     Args:
         graph_1 (DiGraph): The first graph
         graph_2 (DiGraph): The second graph
+        return_permutations (bool, optional): Whether to also return the permutation matrices yielding the bounds. Defaults to False.
 
     Returns:
         tuple[float, float]: The computed bounds on the edit distance
+        tuple[np.ndarray, np.ndarray]: Additionally, the permutation matrices yielding the bounds. If return_permutations is True.
     """
 
     if _has_self_loops(graph_1) or _has_self_loops(graph_2):
@@ -80,8 +93,17 @@ def graph_edit_distance(graph_1: DiGraph, graph_2: DiGraph) -> tuple[float, floa
 
     star_edit_distance.cache_clear()
 
-    upper_bound = refined_upper_bound(graph_1, graph_2, permutation_matrix)
-    return lower_bound, upper_bound
+    upper_bound, upper_bound_permutation_matrix = refined_upper_bound(
+        graph_1, graph_2, permutation_matrix
+    )
+
+    if return_permutations:
+        return (lower_bound, upper_bound), (
+            permutation_matrix,
+            upper_bound_permutation_matrix,
+        )
+    else:
+        return lower_bound, upper_bound
 
 
 def _has_self_loops(graph: DiGraph) -> bool:
@@ -222,31 +244,10 @@ def calculate_transformation_cost(
         adj_1 - (permutation_matrix * adj_2 * permutation_matrix.T), ord=1
     )
 
-    # res = sum(
-    #     sum(
-    #         (0 if ordering_1[i].label == ordering_1[j].label else 1)
-    #         * permutation_matrix[i, j]
-    #         + (
-    #             0.5
-    #             * (
-    #                 adj_1
-    #                 - np.linalg.norm(
-    #                     permutation_matrix * adj_2 * permutation_matrix.T, ord=1
-    #                 )
-    #             )
-    #         )
-    #         for j in range(len(ordering_1))
-    #     )
-    #     for i in range(len(ordering_1))
-    # )
-
-    # print(res)
-    # return res
-
 
 def refined_upper_bound(
     graph_1: DiGraph, graph_2: DiGraph, permutation_matrix: np.ndarray
-) -> float:
+) -> tuple[float, np.ndarray]:
     """Compute an upper bound on the graph edit distance between the two graphs. Guaranteed to be terminated in 2n + n^2 steps.
 
     Args:
@@ -255,7 +256,7 @@ def refined_upper_bound(
         permutation_matrix (np.ndarray): The permutation matrix yielded for the lower bound.
 
     Returns:
-        float: The upper bound on the graph edit distance.
+        tuple[float, np.ndarray]: The upper bound on the graph edit distance, and the permutation matrix yielding it.
     """
     dist = calculate_transformation_cost(graph_1, graph_2, permutation_matrix)
 
@@ -283,4 +284,46 @@ def refined_upper_bound(
     if min_dist < dist:
         return refined_upper_bound(graph_1, graph_2, min_permutation)
 
-    return min_dist
+    return min_dist, min_permutation
+
+
+@cache
+def timed_star_graph_edit_distance(
+    graph_1: DiGraph, graph_2: DiGraph, time_scaling_factor: int = 1
+) -> tuple[float, float]:
+    """Calculate an approximation of the graph edit distance between two graphs.
+    This is done by first computing the upper and lower bound using the "Comparing Stars" algorithm,
+    then adding the time difference between nodes that are mapped to eachother to the lower and upper bound respectively.
+
+    Args:
+        graph_1 (DiGraph): The first graph.
+        graph_2 (DiGraph): The second graph.
+        time_scaling_factor (int, optional): The factor to use to scale time differences. Used to normalize time differences so that
+            the impact of label differences are not diminished. For instance, if the time values go from 0 to 5, a time_scaling_factor
+            of `1/5` would make a time difference cost at most 1. Defaults to 1.
+
+    Returns:
+        tuple[float, float]: The adjusted lower and upper bound on the graph edit distance.
+    """
+    (lower_bound, upper_bound), (perm_lower, perm_upper) = graph_edit_distance(
+        graph_1, graph_2, True
+    )
+
+    lower_bound_time_cost = 0
+    upper_bound_time_cost = 0
+
+    graph_1_index = graph_1.node_ordering()
+    graph_2_index = graph_2.node_ordering()
+
+    for u in graph_1.nodes:
+        for v in graph_2.nodes:
+            if perm_lower[graph_1_index.index(u), graph_2_index.index(v)] == 1:
+                # Since default is 0, we don't need to check if it's an epsilon node
+                lower_bound_time_cost += (
+                    abs(u.duration - v.duration) * time_scaling_factor
+                )
+            if perm_upper[graph_1_index.index(u), graph_2_index.index(v)] == 1:
+                upper_bound_time_cost += (
+                    abs(u.duration - v.duration) * time_scaling_factor
+                )
+    return lower_bound + lower_bound_time_cost, upper_bound + upper_bound_time_cost
