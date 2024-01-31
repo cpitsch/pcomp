@@ -8,14 +8,14 @@ from pcomp.emd.approximations.comparing_stars.comparing_stars import (
     extract_star_representation,
     _normalize_graphs,
     graph_edit_distance_stars,
-    graph_edit_distance,
+    star_graph_edit_distance,
 )
-from networkx import graph_edit_distance as nx_graph_edit_distance
-from networkx import DiGraph as nx_DiGraph
 
 
 @fixture
 def graph_1() -> DiGraph:
+    """Graph 1 from the paper running example (See Figure 2.)"""
+
     a = GraphNode("a")
     b = GraphNode("b")
     c = GraphNode("c")
@@ -29,6 +29,8 @@ def graph_1() -> DiGraph:
 
 @fixture
 def graph_2() -> DiGraph:
+    """Graph 2 from the paper running example (See Figure 2.)"""
+
     a = GraphNode("a")
     b = GraphNode("b")
     c = GraphNode("c")
@@ -40,6 +42,8 @@ def graph_2() -> DiGraph:
 
 @fixture
 def graph_fig_4a() -> DiGraph:
+    """The graph in Figure 4a of the paper."""
+
     a = GraphNode("a")
     b = GraphNode("b")
     c = GraphNode("c")
@@ -67,6 +71,7 @@ def graph_fig_4a() -> DiGraph:
 
 @fixture
 def graph_fig_4b() -> DiGraph:
+    """The graph in Figure 4b of the paper."""
     a = GraphNode("a")
     b = GraphNode("b")
     c = GraphNode("c")
@@ -92,6 +97,7 @@ def graph_fig_4b() -> DiGraph:
 
 @fixture
 def graph_fig_4c() -> DiGraph:
+    """The graph in Figure 4c of the paper."""
     a = GraphNode("a")
     b = GraphNode("b")
     c = GraphNode("c")
@@ -103,6 +109,7 @@ def graph_fig_4c() -> DiGraph:
 
 
 def test_star_extraction_graph_1(graph_1):
+    """Test that the star extraction works correctly on graph 1."""
     nodes = graph_1.nodes
 
     node_a = nodes[0]
@@ -123,6 +130,8 @@ def test_star_extraction_graph_1(graph_1):
 
 
 def test_star_extraction_graph_2(graph_2):
+    """Test that the star extraction works correctly on graph 2."""
+
     nodes = graph_2.nodes
     node_a = nodes[0]
     node_b = nodes[1]
@@ -140,6 +149,8 @@ def test_star_extraction_graph_2(graph_2):
 
 
 def test_graph_edit_distance_stars_mapping_correct(graph_1, graph_2):
+    """Check that the mapping computed by the implementation matches the one in the example in the paper."""
+
     _normalize_graphs(graph_1, graph_2)
     node_a_1 = graph_1.nodes[0]
     node_b_1 = graph_1.nodes[1]
@@ -156,12 +167,11 @@ def test_graph_edit_distance_stars_mapping_correct(graph_1, graph_2):
     stars_2 = extract_star_representation(graph_2)
 
     # Compute edit distance
-    mapping_distance, permutation_matrix = graph_edit_distance_stars(
+    _, permutation_matrix = graph_edit_distance_stars(
         stars_1, stars_2, graph_1, graph_2
     )
 
     # Check that the permutation matrix is correct
-
     correct_permutation_matrix = np.zeros((len(graph_1.nodes), len(graph_2.nodes)))
     graph_1_index = graph_1.node_ordering()
     graph_2_index = graph_2.node_ordering()
@@ -183,18 +193,19 @@ def test_graph_edit_distance_stars_mapping_correct(graph_1, graph_2):
 
 
 def test_ged_bounds(graph_fig_4a, graph_fig_4b, graph_fig_4c):
-    # Create networkx graphs
-    nx_graph_a = nx_DiGraph([(u.label, v.label) for u, v in graph_fig_4a.edges])
-    nx_graph_b = nx_DiGraph([(u.label, v.label) for u, v in graph_fig_4b.edges])
-    nx_graph_c = nx_DiGraph([(u.label, v.label) for u, v in graph_fig_4c.edges])
+    """Check that the bounds computed by the implementation satisfy the example "real" GED's listed in the paper."""
 
     # Graphs Fig 4a and Fig 4c - Real distance is 5
-    lower_bound_ac, upper_bound_ac = graph_edit_distance(graph_fig_4a, graph_fig_4c)
+    lower_bound_ac, upper_bound_ac = star_graph_edit_distance(
+        graph_fig_4a, graph_fig_4c
+    )
     assert lower_bound_ac <= 5
     assert 5 <= upper_bound_ac
 
     # Graphs Fig 4b and Fig 4c - Real distance is 3
-    lower_bound_bc, upper_bound_bc = graph_edit_distance(graph_fig_4b, graph_fig_4c)
+    lower_bound_bc, upper_bound_bc = star_graph_edit_distance(
+        graph_fig_4b, graph_fig_4c
+    )
 
     assert lower_bound_bc <= 3
     assert 3 <= upper_bound_bc

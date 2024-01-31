@@ -46,20 +46,20 @@ class Star:
 
 
 @typing_overload
-def graph_edit_distance(
+def star_graph_edit_distance(
     graph_1: DiGraph, graph_2: DiGraph, return_permutations: Literal[True]
 ) -> tuple[tuple[float, float], tuple[np.ndarray, np.ndarray]]:
     ...
 
 
 @typing_overload
-def graph_edit_distance(
+def star_graph_edit_distance(
     graph_1: DiGraph, graph_2: DiGraph, return_permutations: Literal[False] = False
 ) -> tuple[float, float]:
     ...
 
 
-def graph_edit_distance(
+def star_graph_edit_distance(
     graph_1: DiGraph, graph_2: DiGraph, return_permutations: bool = False
 ) -> tuple[float, float] | tuple[tuple[float, float], tuple[np.ndarray, np.ndarray]]:
     """Compute an upper and lower bound on the Graph edit distance of the two graphs
