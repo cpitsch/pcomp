@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import wasserstein  # type: ignore
 from sklearn.cluster import kmeans_plusplus  # type: ignore
-from tqdm.auto import tqdm  # type: ignore
+from tqdm.auto import tqdm
 from strsimpy.weighted_levenshtein import WeightedLevenshtein  # type: ignore
 
 from pcomp.utils import constants, log_len, ensure_start_timestamp_column
@@ -300,21 +300,12 @@ def calc_timing_emd(
     Returns:
         float: The computed (Time-Aware) Earth Mover's Distance.
     """
-    distances: dict[tuple[int, int], float] = dict()
+    dists = np.empty((len(distribution1), len(distribution2)), dtype=float)
     for i, (trace1, _) in enumerate(distribution1):
         for j, (trace2, _) in enumerate(distribution2):
-            if (i, j) not in distances:
-                distances[(i, j)] = custom_postnormalized_levenshtein_distance(
-                    trace1,
-                    trace2,
-                )
+            dists[i, j] = custom_postnormalized_levenshtein_distance(trace1, trace2)
 
     solver = wasserstein.EMD()
-    dists = np.ones((len(distribution1), len(distribution2)))
-    for i in range(len(distribution1)):
-        for j in range(len(distribution2)):
-            dists[i, j] = distances[(i, j)]
-
     return solver(
         [freq for _, freq in distribution1], [freq for _, freq in distribution2], dists
     )
@@ -487,6 +478,8 @@ def process_comparison_emd(
     if resample_size is None:
         resample_size = log_len(log_1, traceid_key)
 
+    # TODO: This could in theory be parallelized - the question is then how the caching works on multiple threads/processes
+    # ... or switch over to rust for distances? Maybe multithreading etc. is easier there anyways?
     for _ in tqdm(
         range(bootstrapping_dist_size), desc="Bootstrapping Distribution for P-Value"
     ):
