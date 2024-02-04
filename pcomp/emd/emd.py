@@ -5,7 +5,7 @@
 import math
 from collections.abc import Callable
 from functools import cache
-from typing import Optional
+from typing import Literal, Optional
 from itertools import groupby
 
 import numpy as np
@@ -13,6 +13,11 @@ import pandas as pd
 from pandas import DataFrame
 from sklearn.cluster import kmeans_plusplus  # type: ignore
 from strsimpy.weighted_levenshtein import WeightedLevenshtein  # type: ignore
+from pcomp.emd.approximations.comparing_stars import (
+    DiGraph,
+    GraphNode,
+    timed_star_graph_edit_distance,
+)
 from pcomp.emd.core import (
     EMD_ProcessComparator,
     bootstrap_emd_population,
@@ -499,6 +504,68 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
         self, item1: BinnedServiceTimeTrace, item2: BinnedServiceTimeTrace
     ) -> float:
         return custom_postnormalized_levenshtein_distance(item1, item2)
+
+    def cleanup(self) -> None:
+        custom_postnormalized_levenshtein_distance.cache_clear()
+
+
+class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
+    def __init__(
+        self,
+        log_1: DataFrame,
+        log_2: DataFrame,
+        bootstrapping_dist_size: int = 10000,
+        resample_size: int | None = None,
+        verbose: bool = True,
+        num_bins: int = 3,
+        seed: int | None = None,
+    ):
+        super().__init__(log_1, log_2, bootstrapping_dist_size, resample_size, verbose)
+        self.num_bins = num_bins
+        self.seed = seed
+
+    def extract_representations(
+        self, log_1: DataFrame, log_2: DataFrame
+    ) -> tuple[list[DiGraph], list[DiGraph]]:
+        traces_1 = extract_service_time_traces(log_1)
+        traces_2 = extract_service_time_traces(log_2)
+
+        self.binner = KMeans_Binner(traces_1 + traces_2, self.num_bins, self.seed)
+
+        binned_traces_1 = extract_traces_activity_service_times(log_1, self.binner)
+        binned_traces_2 = extract_traces_activity_service_times(log_2, self.binner)
+
+        # Create the Graphs
+        graphs_1 = [
+            DiGraph(
+                nodes := [GraphNode(label, duration) for label, duration in trace],
+                edges=list(zip(nodes, nodes[1:])),
+            )
+            for trace in binned_traces_1
+        ]
+        graphs_2 = [
+            DiGraph(
+                nodes := [GraphNode(label, duration) for label, duration in trace],
+                edges=list(zip(nodes, nodes[1:])),
+            )
+            for trace in binned_traces_2
+        ]
+
+        return (graphs_1, graphs_2)
+
+    def cost_fn(
+        self,
+        item1: DiGraph,
+        item2: DiGraph,
+        bound: Literal["lower"] | Literal["upper"] = "lower",
+    ) -> float:
+        # Scale time differences by the largest possible time difference, num_bins - 1
+        lower_bound, upper_bound = timed_star_graph_edit_distance(
+            item1, item2, self.num_bins - 1
+        )
+
+        # For now, for testing, we only use the lower bound because `compare` doesn't pass the bound in.
+        return lower_bound if bound == "lower" else upper_bound
 
     def cleanup(self) -> None:
         custom_postnormalized_levenshtein_distance.cache_clear()

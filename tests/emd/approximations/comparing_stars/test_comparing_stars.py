@@ -192,7 +192,7 @@ def test_graph_edit_distance_stars_mapping_correct(graph_1, graph_2):
     assert np.array_equal(permutation_matrix, correct_permutation_matrix)
 
 
-def test_ged_bounds(graph_fig_4a, graph_fig_4b, graph_fig_4c):
+def test_ged_bounds_4a_4c(graph_fig_4a, graph_fig_4b, graph_fig_4c):
     """Check that the bounds computed by the implementation satisfy the example "real" GED's listed in the paper."""
 
     # Graphs Fig 4a and Fig 4c - Real distance is 5
@@ -200,7 +200,12 @@ def test_ged_bounds(graph_fig_4a, graph_fig_4b, graph_fig_4c):
         graph_fig_4a, graph_fig_4c
     )
     assert lower_bound_ac <= 5
+    # In the hundreds of runs, the following assertion has failed once - need to investigate
     assert 5 <= upper_bound_ac
+
+
+def test_ged_bounds_4b_4c(graph_fig_4b, graph_fig_4c):
+    """Check that the bounds computed by the implementation satisfy the example "real" GED's listed in the paper."""
 
     # Graphs Fig 4b and Fig 4c - Real distance is 3
     lower_bound_bc, upper_bound_bc = star_graph_edit_distance(
@@ -208,4 +213,6 @@ def test_ged_bounds(graph_fig_4a, graph_fig_4b, graph_fig_4c):
     )
 
     assert lower_bound_bc <= 3
+    # In the hundreds of runs, the following assertion has also failed once - need to investigate
+    # Likely due to identically labeled nodes being considered the same one.
     assert 3 <= upper_bound_bc

@@ -14,6 +14,9 @@ class GraphNode:
     label: str
     duration: int = 0
 
+    def __eq__(self, other) -> bool:
+        return isinstance(other, GraphNode) and self is other
+
 
 @dataclass
 class DiGraph:
@@ -37,6 +40,10 @@ class DiGraph:
             matrix[ordering.index(u), ordering.index(v)] = 1
 
         return matrix
+
+    # TODO: Make DiGraph actually immutable, and thus hashable. This is a quick proof-of-concept hack
+    def __hash__(self) -> int:
+        return hash((tuple(self.nodes), tuple(self.edges)))
 
 
 @dataclass(frozen=True)
@@ -191,9 +198,11 @@ def graph_edit_distance_stars(
     nodes_2 = list(stars_2.elements())
 
     cost_matrix = np.empty((len(nodes_1), len(nodes_2)), dtype=float)
-    for u in nodes_1:
-        for v in nodes_2:
-            cost_matrix[nodes_1.index(u), nodes_2.index(v)] = star_edit_distance(u, v)
+    for i, u in enumerate(nodes_1):
+        for j, v in enumerate(nodes_2):
+            # TODO: If two nodes with same label exist, nodes.index will return the first one. This is not correct, and will leave empty values
+            # Thus, we might need to make nodes compare by reference instead of value (true, but this is stars, not nodes)
+            cost_matrix[i, j] = star_edit_distance(u, v)
 
     row_ind, col_ind = linear_sum_assignment(cost_matrix, maximize=False)
     lower_bound = cost_matrix[row_ind, col_ind].sum()
@@ -305,7 +314,7 @@ def timed_star_graph_edit_distance(
     Returns:
         tuple[float, float]: The adjusted lower and upper bound on the graph edit distance.
     """
-    (lower_bound, upper_bound), (perm_lower, perm_upper) = graph_edit_distance(
+    (lower_bound, upper_bound), (perm_lower, perm_upper) = star_graph_edit_distance(
         graph_1, graph_2, True
     )
 
