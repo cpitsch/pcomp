@@ -18,42 +18,47 @@ class GraphNode:
         return isinstance(other, GraphNode) and self is other
 
 
-@dataclass
+@dataclass(frozen=True)
 class DiGraph:
-    nodes: list[GraphNode]
-    # TODO: If nodes aren't discernable, we also don't know where this edge comes from/goes to
-    edges: list[tuple[GraphNode, GraphNode]]
+    nodes: tuple[GraphNode, ...]
+    edges: frozenset[tuple[int, int]]  # Indices of nodes
 
     def degree(self, node: GraphNode) -> int:
-        return len([e for e in self.edges if e[0] == node])
+        idx = self.index_by_reference(node)
+        return len([e for e in self.edges if e[0] == idx])
 
     def max_degree(self) -> int:
         return max(self.degree(v) for v in self.nodes)
 
-    def node_ordering(self) -> list[GraphNode]:
-        return sorted(self.nodes, key=id)  # Sort nodes by their identity
+    def node_ordering(self) -> tuple[GraphNode, ...]:
+        return self.nodes
+        # return sorted(self.nodes, key=id)  # Sort nodes by their identity
 
     def index_by_reference(self, node: GraphNode) -> int:
         return next(i for i, n in enumerate(self.node_ordering()) if n is node)
 
     def adjacency_matrix(self) -> np.ndarray:
-        ordering = self.node_ordering()
-        matrix = np.zeros((len(ordering), len(ordering)))
-
-        for u, v in self.edges:
-            matrix[ordering.index(u), ordering.index(v)] = 1
+        matrix = np.zeros((len(self.nodes), len(self.nodes)))
+        for i, j in self.edges:
+            matrix[i, j] = 1
 
         return matrix
-
-    # TODO: Make DiGraph actually immutable, and thus hashable. This is a quick proof-of-concept hack
-    def __hash__(self) -> int:
-        return hash((tuple(self.nodes), tuple(self.edges)))
 
 
 @dataclass(frozen=True)
 class Star:
     root: GraphNode
-    leaves: frozenset[GraphNode]
+    leaves_in: tuple[GraphNode, ...]
+    leaves_out: tuple[GraphNode, ...]
+
+    def __eq__(self, other) -> bool:
+        # Don't care about order of leaves
+        return (
+            isinstance(other, Star)
+            and self.root == other.root
+            and sorted(self.leaves_in, key=id) == sorted(other.leaves_in, key=id)
+            and sorted(self.leaves_out, key=id) == sorted(other.leaves_out, key=id)
+        )
 
 
 @typing_overload
@@ -99,6 +104,7 @@ def star_graph_edit_distance(
     mapping_distance, permutation_matrix = graph_edit_distance_stars(
         star_rep_1, star_rep_2, graph_1, graph_2
     )
+    print("Mapping distance", mapping_distance)
     coefficient = max(4, max(graph_1.max_degree(), graph_2.max_degree()) + 1)
     lower_bound = mapping_distance / coefficient
 
@@ -139,19 +145,22 @@ def _normalize_graphs(graph_1: DiGraph, graph_2: DiGraph) -> tuple[DiGraph, DiGr
     Returns:
         tuple[DiGraph, DiGraph]: The normalized graphs.
     """
-    out_1 = DiGraph(graph_1.nodes.copy(), graph_1.edges.copy())
-    out_2 = DiGraph(graph_2.nodes.copy(), graph_2.edges.copy())
+    difference = len(graph_1.nodes) - len(graph_2.nodes)
+    return (
+        DiGraph(
+            graph_1.nodes
+            + tuple(GraphNode(EPSILON_NODE_LABEL) for _ in range(max(0, -difference))),
+            graph_1.edges,
+        ),
+        DiGraph(
+            graph_2.nodes
+            + tuple(GraphNode(EPSILON_NODE_LABEL) for _ in range(max(0, difference))),
+            graph_2.edges,
+        ),
+    )
 
-    difference = len(out_1.nodes) - len(out_2.nodes)
-    if difference > 0:
-        out_2.nodes.extend([GraphNode(EPSILON_NODE_LABEL)] * difference)
-    elif difference < 0:
-        out_1.nodes.extend([GraphNode(EPSILON_NODE_LABEL)] * -difference)
 
-    return out_1, out_2
-
-
-def extract_star_representation(graph: DiGraph) -> Counter[Star]:
+def extract_star_representation(graph: DiGraph) -> tuple[Star, ...]:
     """Extract the star representation for a graph. This is a multiset (counter) of stars.
     This is done by extracting a star using each node in the graph as root once.
 
@@ -161,11 +170,21 @@ def extract_star_representation(graph: DiGraph) -> Counter[Star]:
     Returns:
         Counter[Star]: A multiset of stars.
     """
-    return Counter(
-        [
-            Star(root=r, leaves=frozenset(u for u, v in graph.edges if v == r))
-            for r in graph.nodes
-        ]
+    return tuple(
+        Star(
+            root=r,
+            leaves_in=tuple(
+                graph.nodes[u]
+                for u, v in graph.edges
+                if v == graph.index_by_reference(r)
+            ),
+            leaves_out=tuple(
+                graph.nodes[v]
+                for u, v in graph.edges
+                if u == graph.index_by_reference(r)
+            ),
+        )
+        for r in graph.nodes
     )
 
 
@@ -181,55 +200,72 @@ def star_edit_distance(star_1: Star, star_2: Star) -> float:
         float: The edit distance between the two stars.
     """
     t = 0 if star_1.root.label == star_2.root.label else 1
-    labels_multiset_1 = Counter([l.label for l in star_1.leaves])
-    labels_multiset_2 = Counter([l.label for l in star_2.leaves])
+    labels_bag_in_1 = Counter([l.label for l in star_1.leaves_in])
+    labels_bag_out_1 = Counter([l.label for l in star_1.leaves_out])
+    labels_bag_in_2 = Counter([l.label for l in star_2.leaves_in])
+    labels_bag_out_2 = Counter([l.label for l in star_2.leaves_out])
 
-    m = (
-        max(labels_multiset_1.total(), labels_multiset_2.total())
-        - (labels_multiset_1 & labels_multiset_2).total()
+    m_in = (
+        max(labels_bag_in_1.total(), labels_bag_in_2.total())
+        - (labels_bag_in_1 & labels_bag_in_2).total()
     )
 
-    d = abs(len(star_1.leaves) - len(star_2.leaves)) + m
+    m_out = (
+        max(labels_bag_out_1.total(), labels_bag_out_2.total())
+        - (labels_bag_out_1 & labels_bag_out_2).total()
+    )
 
-    return t + d
+    d_in = abs(len(star_1.leaves_in) - len(star_2.leaves_in)) + m_in
+    d_out = abs(len(star_1.leaves_out) - len(star_2.leaves_out)) + m_out
+
+    return t + d_in + d_out
 
 
 def graph_edit_distance_stars(
-    stars_1: Counter[Star], stars_2: Counter[Star], graph_1: DiGraph, graph_2: DiGraph
+    stars_1: tuple[Star, ...],
+    stars_2: tuple[Star, ...],
+    graph_1: DiGraph,
+    graph_2: DiGraph,
 ) -> tuple[float, np.ndarray]:
     """Compute a lower bound on the graph edit distance by computing a min-weight full matching between the stars found in them.
 
     Args:
-        star_1 (Star): The first star.
-        star_2 (Star): The second star.
+        stars_1 (tuple[Star, ...]): The stars of the first graph.
+        stars_2 (tuple[Star, ...]): The stars of the second graph.
 
     Returns:
         float: The edit distance between the two stars.
     """
-    nodes_1 = list(stars_1.elements())
-    nodes_2 = list(stars_2.elements())
 
-    cost_matrix = np.empty((len(nodes_1), len(nodes_2)), dtype=float)
-    for i, u in enumerate(nodes_1):
-        for j, v in enumerate(nodes_2):
-            # TODO: If two nodes with same label exist, nodes.index will return the first one. This is not correct, and will leave empty values
-            # Thus, we might need to make nodes compare by reference instead of value (true, but this is stars, not nodes)
+    cost_matrix = np.empty((len(stars_1), len(stars_2)), dtype=float)
+    for i, u in enumerate(stars_1):
+        for j, v in enumerate(stars_2):
             cost_matrix[i, j] = star_edit_distance(u, v)
 
     row_ind, col_ind = linear_sum_assignment(cost_matrix, maximize=False)
     lower_bound = cost_matrix[row_ind, col_ind].sum()
 
+    print("g1 adj\n", graph_1.adjacency_matrix())
+    print("g2 adj\n", graph_2.adjacency_matrix())
+
+    print("Star 1 roots", [s.root.label for s in stars_1])
+    print("Star 2 roots", [s.root.label for s in stars_2])
+
+    print("Row ind", row_ind)
+    print("Col ind", col_ind)
     # Map star indices to the index of their root
 
     new_row_ind = np.array(
-        [graph_1.index_by_reference(nodes_1[i].root) for i in row_ind]
+        [graph_1.index_by_reference(stars_1[i].root) for i in row_ind]
     )
     new_col_ind = np.array(
-        [graph_2.index_by_reference(nodes_2[i].root) for i in col_ind]
+        [graph_2.index_by_reference(stars_2[i].root) for i in col_ind]
     )
 
-    permutation_matrix = np.zeros((len(nodes_1), len(nodes_2)))
+    permutation_matrix = np.zeros((len(stars_1), len(stars_2)))
     permutation_matrix[new_row_ind, new_col_ind] = 1
+
+    print("Permutation matrix\n", permutation_matrix)
 
     return lower_bound, permutation_matrix
 
@@ -258,14 +294,23 @@ def calculate_transformation_cost(
     if len(ordering_1) != len(ordering_2):
         raise ValueError("The graphs must have the same number of nodes")
 
-    return sum(
-        (0 if ordering_1[i].label == ordering_1[j].label else 1)
-        * permutation_matrix[i, j]
-        for i in range(len(ordering_1))
-        for j in range(len(ordering_1))
-    ) + 0.5 * np.linalg.norm(
+    C = np.zeros((len(ordering_1), len(ordering_1)))
+    for i in range(len(ordering_1)):
+        for j in range(len(ordering_1)):
+            if ordering_1[i].label != ordering_2[j].label:
+                C[i, j] = 1
+
+    first_part = np.multiply(C, permutation_matrix).sum()
+
+    # Removed the 0.5 factor since we use a directed graph.
+    # Factor is needed for undirected graphs, since otherwise a single edge would be counted twice
+    second_part = np.linalg.norm(
         adj_1 - (permutation_matrix * adj_2 * permutation_matrix.T), ord=1
     )
+
+    print(first_part, second_part)
+
+    return first_part + second_part
 
 
 def refined_upper_bound(
@@ -282,7 +327,6 @@ def refined_upper_bound(
         tuple[float, np.ndarray]: The upper bound on the graph edit distance, and the permutation matrix yielding it.
     """
     dist = calculate_transformation_cost(graph_1, graph_2, permutation_matrix)
-
     min_dist = dist
     min_permutation = permutation_matrix.copy()
 
@@ -305,6 +349,7 @@ def refined_upper_bound(
     if min_dist < dist:
         return refined_upper_bound(graph_1, graph_2, min_permutation)
 
+    print("Final permutation\n", min_permutation)
     return min_dist, min_permutation
 
 
