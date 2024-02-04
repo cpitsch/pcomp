@@ -151,7 +151,7 @@ def test_star_extraction_graph_2(graph_2):
 def test_graph_edit_distance_stars_mapping_correct(graph_1, graph_2):
     """Check that the mapping computed by the implementation matches the one in the example in the paper."""
 
-    _normalize_graphs(graph_1, graph_2)
+    graph_1, graph_2 = _normalize_graphs(graph_1, graph_2)
     node_a_1 = graph_1.nodes[0]
     node_b_1 = graph_1.nodes[1]
     node_c_1 = graph_1.nodes[2]
@@ -192,7 +192,7 @@ def test_graph_edit_distance_stars_mapping_correct(graph_1, graph_2):
     assert np.array_equal(permutation_matrix, correct_permutation_matrix)
 
 
-def test_ged_bounds_4a_4c(graph_fig_4a, graph_fig_4b, graph_fig_4c):
+def test_ged_bounds_4a_4c(graph_fig_4a, graph_fig_4c):
     """Check that the bounds computed by the implementation satisfy the example "real" GED's listed in the paper."""
 
     # Graphs Fig 4a and Fig 4c - Real distance is 5

@@ -21,6 +21,7 @@ class GraphNode:
 @dataclass
 class DiGraph:
     nodes: list[GraphNode]
+    # TODO: If nodes aren't discernable, we also don't know where this edge comes from/goes to
     edges: list[tuple[GraphNode, GraphNode]]
 
     def degree(self, node: GraphNode) -> int:
@@ -31,6 +32,9 @@ class DiGraph:
 
     def node_ordering(self) -> list[GraphNode]:
         return sorted(self.nodes, key=id)  # Sort nodes by their identity
+
+    def index_by_reference(self, node: GraphNode) -> int:
+        return next(i for i, n in enumerate(self.node_ordering()) if n is node)
 
     def adjacency_matrix(self) -> np.ndarray:
         ordering = self.node_ordering()
@@ -56,14 +60,14 @@ class Star:
 def star_graph_edit_distance(
     graph_1: DiGraph, graph_2: DiGraph, return_permutations: Literal[True]
 ) -> tuple[tuple[float, float], tuple[np.ndarray, np.ndarray]]:
-    ...
+    pass
 
 
 @typing_overload
 def star_graph_edit_distance(
     graph_1: DiGraph, graph_2: DiGraph, return_permutations: Literal[False] = False
 ) -> tuple[float, float]:
-    ...
+    pass
 
 
 def star_graph_edit_distance(
@@ -87,7 +91,7 @@ def star_graph_edit_distance(
         raise ValueError("This algorithm is not defined for graphs with self-loops")
 
     # Make graphs have the same number of nodes
-    _normalize_graphs(graph_1, graph_2)
+    graph_1, graph_2 = _normalize_graphs(graph_1, graph_2)
 
     star_rep_1 = extract_star_representation(graph_1)
     star_rep_2 = extract_star_representation(graph_2)
@@ -125,18 +129,26 @@ def _has_self_loops(graph: DiGraph) -> bool:
     return any(u == v for u, v in graph.edges)
 
 
-def _normalize_graphs(graph_1: DiGraph, graph_2: DiGraph) -> None:
+def _normalize_graphs(graph_1: DiGraph, graph_2: DiGraph) -> tuple[DiGraph, DiGraph]:
     """Normalize the graphs w.r.t. eachother. This is done by adding epsilon ("dummy") nodes to the smaller graph. All epsilon nodes have the same label
 
     Args:
         graph_1 (DiGraph): The first graph.
         graph_2 (DiGraph): The second graph.
+
+    Returns:
+        tuple[DiGraph, DiGraph]: The normalized graphs.
     """
-    difference = len(graph_1.nodes) - len(graph_2.nodes)
+    out_1 = DiGraph(graph_1.nodes.copy(), graph_1.edges.copy())
+    out_2 = DiGraph(graph_2.nodes.copy(), graph_2.edges.copy())
+
+    difference = len(out_1.nodes) - len(out_2.nodes)
     if difference > 0:
-        graph_2.nodes.extend([GraphNode(EPSILON_NODE_LABEL)] * difference)
+        out_2.nodes.extend([GraphNode(EPSILON_NODE_LABEL)] * difference)
     elif difference < 0:
-        graph_1.nodes.extend([GraphNode(EPSILON_NODE_LABEL)] * -difference)
+        out_1.nodes.extend([GraphNode(EPSILON_NODE_LABEL)] * -difference)
+
+    return out_1, out_2
 
 
 def extract_star_representation(graph: DiGraph) -> Counter[Star]:
@@ -208,11 +220,13 @@ def graph_edit_distance_stars(
     lower_bound = cost_matrix[row_ind, col_ind].sum()
 
     # Map star indices to the index of their root
-    graph_1_index = graph_1.node_ordering()
-    graph_2_index = graph_2.node_ordering()
 
-    new_row_ind = np.array([graph_1_index.index(nodes_1[i].root) for i in row_ind])
-    new_col_ind = np.array([graph_2_index.index(nodes_2[i].root) for i in col_ind])
+    new_row_ind = np.array(
+        [graph_1.index_by_reference(nodes_1[i].root) for i in row_ind]
+    )
+    new_col_ind = np.array(
+        [graph_2.index_by_reference(nodes_2[i].root) for i in col_ind]
+    )
 
     permutation_matrix = np.zeros((len(nodes_1), len(nodes_2)))
     permutation_matrix[new_row_ind, new_col_ind] = 1
@@ -272,13 +286,11 @@ def refined_upper_bound(
     min_dist = dist
     min_permutation = permutation_matrix.copy()
 
-    graph_1_index = graph_1.node_ordering()
-
     for u, v in product(graph_1.nodes, graph_1.nodes):
         # Swap their matching
         new_permutation = permutation_matrix.copy()
-        index_u = graph_1_index.index(u)
-        index_v = graph_1_index.index(v)
+        index_u = graph_1.index_by_reference(u)
+        index_v = graph_1.index_by_reference(v)
 
         old_u = permutation_matrix[index_u, :]
         new_permutation[index_u, :] = new_permutation[index_v, :]
@@ -321,17 +333,20 @@ def timed_star_graph_edit_distance(
     lower_bound_time_cost = 0
     upper_bound_time_cost = 0
 
-    graph_1_index = graph_1.node_ordering()
-    graph_2_index = graph_2.node_ordering()
-
     for u in graph_1.nodes:
         for v in graph_2.nodes:
-            if perm_lower[graph_1_index.index(u), graph_2_index.index(v)] == 1:
+            if (
+                perm_lower[graph_1.index_by_reference(u), graph_2.index_by_reference(v)]
+                == 1
+            ):
                 # Since default is 0, we don't need to check if it's an epsilon node
                 lower_bound_time_cost += (
                     abs(u.duration - v.duration) * time_scaling_factor
                 )
-            if perm_upper[graph_1_index.index(u), graph_2_index.index(v)] == 1:
+            if (
+                perm_upper[graph_1.index_by_reference(u), graph_2.index_by_reference(v)]
+                == 1
+            ):
                 upper_bound_time_cost += (
                     abs(u.duration - v.duration) * time_scaling_factor
                 )
