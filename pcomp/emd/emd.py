@@ -538,15 +538,17 @@ class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
         # Create the Graphs
         graphs_1 = [
             DiGraph(
-                nodes := [GraphNode(label, duration) for label, duration in trace],
-                edges=list(zip(nodes, nodes[1:])),
+                nodes=tuple(GraphNode(label, duration) for label, duration in trace),
+                edges=frozenset((i, i + 1) for i in range(len(trace) - 1)),
+                # edges=list(zip(nodes, nodes[1:])),
             )
             for trace in binned_traces_1
         ]
         graphs_2 = [
             DiGraph(
-                nodes := [GraphNode(label, duration) for label, duration in trace],
-                edges=list(zip(nodes, nodes[1:])),
+                nodes=tuple(GraphNode(label, duration) for label, duration in trace),
+                edges=frozenset((i, i + 1) for i in range(len(trace) - 1)),
+                # edges=list(zip(nodes, nodes[1:])),
             )
             for trace in binned_traces_2
         ]
