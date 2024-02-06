@@ -1,4 +1,3 @@
-from collections import Counter
 import numpy as np
 from pytest import fixture
 from pcomp.emd.approximations.comparing_stars.comparing_stars import (
