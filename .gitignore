@@ -10,6 +10,9 @@
 main.py
 Notebooks/*
 
+# Saved Pickle Files
+*.pkl
+
 # Languages: python (1)
 
 
