@@ -11,7 +11,7 @@ class IQR_Binner(Binner):
         self.Q_1 = np.percentile(self.data, 25)
         self.Q_3 = np.percentile(self.data, 75)
 
-    def bin(self, data: float) -> float:
+    def bin(self, data: float) -> int:
         if data < self.Q_1:
             # "Value is lower than usual"
             return 0

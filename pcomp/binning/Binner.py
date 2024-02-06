@@ -17,6 +17,6 @@ class Binner(abc.ABC, Generic[T]):
             np.random.seed(self.seed)
 
     @abc.abstractmethod
-    def bin(self, data: T) -> T:
-        """Bin a datapoint"""
+    def bin(self, data: T) -> int:
+        """Bin a datapoint, returning the class index"""
         pass
