@@ -26,6 +26,7 @@ class EMD_ProcessComparator(ABC, Generic[T]):
         bootstrapping_dist_size: int = 10_000,
         resample_size: int | None = None,
         verbose: bool = True,
+        cleanup_on_del: bool = True,
     ):
         """Create an instance.
 
@@ -35,12 +36,18 @@ class EMD_ProcessComparator(ABC, Generic[T]):
             bootstrapping_dist_size (int, optional): The number of samples to compute the Self-EMD for. Defaults to 10_000.
             resample_size (int | None, optional): The size of each sample for the Self-EMDs. Defaults to None.
             verbose (bool, optional): If True, show progress bars. Defaults to True.
+            cleanup_on_del (bool, optional): If True, call `cleanup` upon destruction, e.g., when the object goes out of scope. Defaults to True.
         """
         self.log_1 = ensure_start_timestamp_column(log_1)
         self.log_2 = ensure_start_timestamp_column(log_2)
         self.bootstrapping_dist_size = bootstrapping_dist_size
         self.resample_size = resample_size
         self.verbose = verbose
+        self.cleanup_on_del = cleanup_on_del
+
+    def __del__(self):
+        if self.cleanup_on_del:
+            self.cleanup()
 
     @abstractmethod
     def extract_representations(
@@ -75,6 +82,20 @@ class EMD_ProcessComparator(ABC, Generic[T]):
         """Cleanup function to call after the comparison is done. For instance, clear caches, etc."""
         pass
 
+    @property
+    def logs_emd(self) -> float:
+        if not hasattr(self, "_logs_emd"):
+            raise ValueError("Must call `compare` before accessing `logs_emd`.")
+        return self._logs_emd
+
+    @property
+    def bootstrapping_distribution(self) -> list[float]:
+        if not hasattr(self, "_bootstrapping_distribution"):
+            raise ValueError(
+                "Must call `compare` before accessing `bootstrapping_distribution`."
+            )
+        return self._bootstrapping_distribution
+
     def compare(self) -> float:
         """Apply the full pipeline to compare the event logs.
 
@@ -104,6 +125,10 @@ class EMD_ProcessComparator(ABC, Generic[T]):
         )
 
         num_larger_or_equal_bootstrap_dists = len([d for d in self_emds if d >= emd])
+
+        self._logs_emd = emd
+        self._bootstrapping_distribution = self_emds
+
         return num_larger_or_equal_bootstrap_dists / self.bootstrapping_dist_size
 
 
