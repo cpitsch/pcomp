@@ -1,4 +1,5 @@
 from functools import cache
+from typing import Literal
 
 import pandas as pd
 
@@ -32,8 +33,20 @@ class Ukkonen_Distance_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTra
         bootstrapping_dist_size: int = 1_000,
         resample_size: int | None = None,
         verbose: bool = True,
+        cleanup_on_del: bool = True,
+        bootstrapping_style: Literal[
+            "split sampling", "replacement sublogs"
+        ] = "replacement sublogs",
     ):
-        super().__init__(log_1, log_2, bootstrapping_dist_size, resample_size, verbose)
+        super().__init__(
+            log_1,
+            log_2,
+            bootstrapping_dist_size,
+            resample_size,
+            verbose,
+            cleanup_on_del,
+            bootstrapping_style,
+        )
 
     def extract_representations(
         self, log_1: pd.DataFrame, log_2: pd.DataFrame

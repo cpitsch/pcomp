@@ -1,5 +1,5 @@
 from collections import Counter
-from typing import Callable, TypeVar, Generic
+from typing import Callable, Literal, TypeVar, Generic
 import numpy as np
 import pandas as pd
 import wasserstein  # type: ignore
@@ -27,6 +27,9 @@ class EMD_ProcessComparator(ABC, Generic[T]):
         resample_size: int | None = None,
         verbose: bool = True,
         cleanup_on_del: bool = True,
+        bootstrapping_style: Literal[
+            "split sampling", "replacement sublogs"
+        ] = "replacement sublogs",
     ):
         """Create an instance.
 
@@ -37,6 +40,10 @@ class EMD_ProcessComparator(ABC, Generic[T]):
             resample_size (int | None, optional): The size of each sample for the Self-EMDs. Defaults to None.
             verbose (bool, optional): If True, show progress bars. Defaults to True.
             cleanup_on_del (bool, optional): If True, call `cleanup` upon destruction, e.g., when the object goes out of scope. Defaults to True.
+            bootstrapping_style ("split sampling" | "replacement sublogs", optional): The strategy to use for bootstrapping the null distribution. The strategies work as follows:
+
+            - "replacement sublogs": Randomly sample sublogs of `resample_size` of log_1, and compute their EMD to log_1. This is done `bootstrapping_dist_size` times.
+            - "split sampling": Randomly split the log_1 in two, and compute the EMD between the two halves. This is done `bootstrapping_dist_size` times.
         """
         self.log_1 = ensure_start_timestamp_column(log_1)
         self.log_2 = ensure_start_timestamp_column(log_2)
@@ -44,6 +51,7 @@ class EMD_ProcessComparator(ABC, Generic[T]):
         self.resample_size = resample_size
         self.verbose = verbose
         self.cleanup_on_del = cleanup_on_del
+        self.bootstrapping_style = bootstrapping_style
 
     def __del__(self):
         if self.cleanup_on_del:
@@ -116,13 +124,25 @@ class EMD_ProcessComparator(ABC, Generic[T]):
             self.cost_fn,
         )
 
-        self_emds = bootstrap_emd_population(
-            self.behavior_1,
-            self.cost_fn,
-            bootstrapping_dist_size=self.bootstrapping_dist_size,
-            resample_size=len(self.behavior_1),
-            show_progress_bar=self.verbose,
-        )
+        if self.bootstrapping_style == "replacement sublogs":
+            self_emds = bootstrap_emd_population(
+                self.behavior_1,
+                self.cost_fn,
+                bootstrapping_dist_size=self.bootstrapping_dist_size,
+                resample_size=len(self.behavior_1),
+                show_progress_bar=self.verbose,
+            )
+        elif self.bootstrapping_style == "split sampling":
+            self_emds = bootsrap_emd_population_split_sampling(
+                self.behavior_1,
+                self.cost_fn,
+                bootstrapping_dist_size=self.bootstrapping_dist_size,
+                show_progress_bar=self.verbose,
+            )
+        else:
+            raise ValueError(
+                f"Invalid bootstrapping style: {self.bootstrapping_style}. Must be 'replacement sublogs' or 'split sampling'."
+            )
 
         num_larger_or_equal_bootstrap_dists = len([d for d in self_emds if d >= emd])
 
@@ -172,6 +192,18 @@ def _sample_with_replacement(items: list[T], n: int) -> list[T]:
     """
     sampled_indices = np.random.choice(range(len(items)), n, replace=True)
     return [items[idx] for idx in sampled_indices]
+
+
+def _split_sampling(items: list[T]) -> tuple[list[T], list[T]]:
+    sampled_indices = np.random.choice(
+        range(len(items)), len(items) // 2, replace=False
+    )
+    population_1 = [items[idx] for idx in sampled_indices]
+    population_2 = [
+        item for idx, item in enumerate(items) if idx not in sampled_indices
+    ]
+
+    return population_1, population_2
 
 
 def population_to_stochastic_language(
@@ -226,6 +258,44 @@ def bootstrap_emd_population(
             _sample_with_replacement(population, resample_size)
         )
         emds.append(compute_emd(reference_stochastic_language, stoch_language, cost_fn))
+
+        if show_progress_bar:
+            progress_bar.update()
+
+    return emds
+
+
+def bootsrap_emd_population_split_sampling(
+    population: list[T],
+    cost_fn: Callable[[T, T], float],
+    bootstrapping_dist_size: int = 10_000,
+    show_progress_bar: bool = True,
+) -> list[float]:
+    """Compute a distribution of EMDs from a population to samples of itself.
+    Computed by randomly splitting the population in two, and then computing the EMD between
+    the two halves.	This is repeated `bootstrapping_dist_size` times.
+
+    Args:
+        population (list[T]): The population. A list of items.
+        cost_fn (Callable[[T, T], float]): A function to compute the cost between two items.
+        bootstrapping_dist_size (int, optional): The number of EMDs to compute. Defaults to 10_000.
+        show_progress_bar (bool, optional): Whether to show a progress bar for the sampling progress. Defaults to True.
+
+    Returns:
+        list[float]: The list of computed EMDs.
+    """
+    emds: list[float] = []
+
+    if show_progress_bar:
+        progress_bar = tqdm(
+            total=bootstrapping_dist_size, desc="Bootstrapping EMD Null Distribution"
+        )
+
+    for _ in range(bootstrapping_dist_size):
+        sample_1, sample_2 = _split_sampling(population)
+        lang_1 = population_to_stochastic_language(sample_1)
+        lang_2 = population_to_stochastic_language(sample_2)
+        emds.append(compute_emd(lang_1, lang_2, cost_fn))
 
         if show_progress_bar:
             progress_bar.update()
