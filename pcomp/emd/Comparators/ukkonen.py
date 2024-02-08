@@ -3,7 +3,7 @@ from typing import Literal
 
 import pandas as pd
 
-from pcomp.binning import IQR_Binner
+from pcomp.binning import Binner, IQR_Binner
 from pcomp.emd.approximations.string_edit_distance import ukkonen_distance
 from pcomp.emd.core import EMD_ProcessComparator, compute_time_distance_component
 from pcomp.emd.emd import (
@@ -53,21 +53,24 @@ class Ukkonen_Distance_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTra
     ) -> tuple[list[BinnedServiceTimeTrace], list[BinnedServiceTimeTrace]]:
         unbinned_traces_1: list[ServiceTimeTrace] = extract_service_time_traces(log_1)
         unbinned_traces_2: list[ServiceTimeTrace] = extract_service_time_traces(log_2)
-        self.binner = IQR_Binner(
-            [
-                dur
-                for traces in [unbinned_traces_1, unbinned_traces_2]
-                for trace in traces
-                for _, dur in trace
-            ]
-        )
+
+        groupby_activity: dict[str, list[float]] = dict()
+        for trace in unbinned_traces_1 + unbinned_traces_2:
+            for act, dur in trace:
+                if act not in groupby_activity:
+                    groupby_activity[act] = []
+                groupby_activity[act].append(dur)
+
+        self.binners: dict[str, Binner] = {
+            act: IQR_Binner(durations) for act, durations in groupby_activity.items()
+        }
 
         binned_traces_1: list[BinnedServiceTimeTrace] = [
-            tuple((act, self.binner.bin(dur)) for act, dur in trace)
+            tuple((act, self.binners[act].bin(dur)) for act, dur in trace)
             for trace in unbinned_traces_1
         ]
         binned_traces_2: list[BinnedServiceTimeTrace] = [
-            tuple((act, self.binner.bin(dur)) for act, dur in trace)
+            tuple((act, self.binners[act].bin(dur)) for act, dur in trace)
             for trace in unbinned_traces_2
         ]
 
