@@ -409,10 +409,10 @@ def plot_emd_result(
         alpha=0.7,
         label=r"$D_{l_1l_1}$",
     )
-    ax.xticks([])
-    ax.yticks([])
-    ax.xlabel("Earth Mover's Distance")
-    ax.ylabel("Frequency")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_xlabel("Earth Mover's Distance")
+    ax.set_ylabel("Frequency")
     ax.axvline(
         logs_emd,
         color="red",
