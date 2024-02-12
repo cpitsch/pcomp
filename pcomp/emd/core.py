@@ -6,6 +6,7 @@ import wasserstein  # type: ignore
 from tqdm.auto import tqdm
 from abc import ABC, abstractmethod
 from itertools import zip_longest
+import matplotlib.pyplot as plt
 
 from pcomp.utils import ensure_start_timestamp_column
 
@@ -365,3 +366,30 @@ def compute_time_distance_component(trace_1: Trace, trace_2: Trace) -> float:
             not_matched_durs_1, not_matched_durs_2, fillvalue=0.0
         )
     )
+
+
+def plot_emd_result(
+    bootstrapping_distribution: list[float], logs_emd: float
+) -> plt.figure:
+    fig, ax = plt.subplots()
+    ax.hist(
+        bootstrapping_distribution,
+        bins=50,
+        edgecolor="black",
+        alpha=0.7,
+        label=r"$D_{l_1l_1}$",
+    )
+    ax.xticks([])
+    ax.yticks([])
+    ax.xlabel("Earth Mover's Distance")
+    ax.ylabel("Frequency")
+    ax.axvline(
+        logs_emd,
+        color="red",
+        linestyle="--",
+        linewidth=2,
+        label=r"$d_{l_1l_2}$",
+    )
+    ax.legend(fontsize=12, loc="upper right")
+
+    return fig
