@@ -222,6 +222,22 @@ def population_to_stochastic_language(
     return [(item, freq / pop_len) for item, freq in Counter(population).items()]
 
 
+def compute_emd_for_sample(
+    dists: np.ndarray, reference_frequencies: np.array, resample_size: int
+) -> float:
+    sample_indices = np.random.choice(dists.shape[0], resample_size, replace=True)
+
+    deduplicated_indices, counts = np.unique(sample_indices, return_counts=True)
+    dists_for_sample = dists[deduplicated_indices, :]
+
+    solver = wasserstein.EMD()
+    return solver(
+        counts / resample_size,
+        reference_frequencies,
+        dists_for_sample,
+    )
+
+
 def bootstrap_emd_population(
     population: list[T],
     cost_fn: Callable[[T, T], float],
@@ -243,25 +259,39 @@ def bootstrap_emd_population(
     Returns:
         list[float]: The list of computed EMDs.
     """
-    emds: list[float] = []
-    reference_stochastic_language = population_to_stochastic_language(population)
-
-    if show_progress_bar:
-        progress_bar = tqdm(
-            total=bootstrapping_dist_size, desc="Bootstrapping EMD Null Distribution"
-        )
 
     if resample_size is None:
         resample_size = len(population)
 
-    for _ in range(bootstrapping_dist_size):
-        stoch_language = population_to_stochastic_language(
-            _sample_with_replacement(population, resample_size)
-        )
-        emds.append(compute_emd(reference_stochastic_language, stoch_language, cost_fn))
+    reference_stochastic_language = population_to_stochastic_language(population)
+    reference_freqs = np.array([freq for _, freq in reference_stochastic_language])
 
+    if show_progress_bar:
+        dists_progress_bar = tqdm(
+            total=len(population) ** 2,
+            desc="Precomputing Distances for Bootstrapping...",
+        )
+
+    # Precompute all distances since statistically, every pair of traces will be needed at least once
+    # TODO: Could parallelize distance calculation
+    dists = np.empty((len(population), len(population)), dtype=float)
+    for i, item1 in enumerate(population):
+        for j, item2 in enumerate(population):
+            dists[i, j] = cost_fn(item1, item2)
+            if dists_progress_bar is not None:
+                dists_progress_bar.update()
+
+    if show_progress_bar:
+        bootstrapping_progress = tqdm(
+            range(bootstrapping_dist_size),
+            desc="Bootstrapping EMD Null Distribution",
+        )
+
+    emds: list[float] = []
+    for _ in range(bootstrapping_dist_size):
+        emds.append(compute_emd_for_sample(dists, reference_freqs, resample_size))
         if show_progress_bar:
-            progress_bar.update()
+            bootstrapping_progress.update()
 
     return emds
 
