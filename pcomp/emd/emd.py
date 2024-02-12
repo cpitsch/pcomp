@@ -482,8 +482,20 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
         verbose: bool = True,
         num_bins: int = 3,
         seed: int | None = None,
+        cleanup_on_del: bool = True,
+        bootstrapping_style: Literal[
+            "split sampling", "replacement sublogs"
+        ] = "replacement sublogs",
     ):
-        super().__init__(log_1, log_2, bootstrapping_dist_size, resample_size, verbose)
+        super().__init__(
+            log_1,
+            log_2,
+            bootstrapping_dist_size,
+            resample_size,
+            verbose,
+            cleanup_on_del,
+            bootstrapping_style,
+        )
         self.num_bins = num_bins
         self.seed = seed
 
@@ -570,4 +582,4 @@ class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
         return lower_bound if bound == "lower" else upper_bound
 
     def cleanup(self) -> None:
-        custom_postnormalized_levenshtein_distance.cache_clear()
+        timed_star_graph_edit_distance.cache_clear()
