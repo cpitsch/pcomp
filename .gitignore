@@ -9,6 +9,7 @@
 # "Playground" Scripts
 main.py
 Notebooks/*
+*.ipynb
 
 # Saved Pickle Files
 *.pkl

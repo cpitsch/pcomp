@@ -1,5 +1,6 @@
-from pm4py import read_xes
-from pm4py.utils import sample_cases
+from datetime import datetime
+from pm4py import read_xes  # type: ignore
+from pm4py.utils import sample_cases  # type: ignore
 
 import pandas as pd
 from pandas import DataFrame
@@ -165,3 +166,7 @@ def ensure_start_timestamp_column(
             return convert_atomic_eventlog_to_start_timestamp_eventlog(df)
     else:
         return df
+
+
+def pretty_format_duration(seconds: float) -> str:
+    return datetime.strftime(datetime.utcfromtimestamp(seconds), "%H:%M:%S")
