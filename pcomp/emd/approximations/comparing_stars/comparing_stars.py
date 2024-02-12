@@ -44,6 +44,9 @@ class DiGraph:
 
         return matrix
 
+    def has_edge(self, u: GraphNode, v: GraphNode) -> bool:
+        return (self.index_by_reference(u), self.index_by_reference(v)) in self.edges
+
 
 @dataclass(frozen=True)
 class Star:
