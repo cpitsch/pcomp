@@ -14,6 +14,11 @@ from pcomp.utils import ensure_start_timestamp_column, pretty_format_duration
 
 T = TypeVar("T")
 
+# Numpy types
+T_np = TypeVar("T_np", bound=np.generic, covariant=True)
+Numpy1DArray = np.ndarray[tuple[int], np.dtype[T_np]]
+NumpyMatrix = np.ndarray[tuple[int, int], np.dtype[T_np]]
+
 
 class EMD_ProcessComparator(ABC, Generic[T]):
     log_1: pd.DataFrame
@@ -175,12 +180,30 @@ def compute_emd(
         for j, (item2, _) in enumerate(distribution2):
             dists[i, j] = cost_fn(item1, item2)
 
-    solver = wasserstein.EMD()
-    return solver(
+    return emd(
         [freq for _, freq in distribution1],
         [freq for _, freq in distribution2],
         dists,
     )
+
+
+def emd(
+    freqs_1: Numpy1DArray[np.float_] | list[float],
+    freqs_2: Numpy1DArray[np.float_] | list[float],
+    dists: NumpyMatrix[np.float_],
+) -> float:
+    """A wrapper around the EMD computation call.
+
+    Args:
+        freqs_1 (np.array): 1D histogram of the first distribution. All positive, sums up to 1.
+        freqs_2 (np.array): 1D histogram of the second distribution. All positive, sums up to 1.
+        dists (np.ndarray): The cost matrix.
+
+    Returns:
+        float: The computed Earth Mover's Distance.
+    """
+    solver = wasserstein.EMD()
+    return solver(freqs_1, freqs_2, dists)
 
 
 def _sample_with_replacement(items: list[T], n: int) -> list[T]:
@@ -232,8 +255,7 @@ def compute_emd_for_sample(
     deduplicated_indices, counts = np.unique(sample_indices, return_counts=True)
     dists_for_sample = dists[deduplicated_indices, :]
 
-    solver = wasserstein.EMD()
-    return solver(
+    return emd(
         counts / resample_size,
         reference_frequencies,
         dists_for_sample,
