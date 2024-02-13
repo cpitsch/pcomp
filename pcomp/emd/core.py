@@ -143,7 +143,7 @@ class EMD_ProcessComparator(ABC, Generic[T]):
                 show_progress_bar=self.verbose,
             )
         elif self.bootstrapping_style == "split sampling":
-            self_emds = bootsrap_emd_population_split_sampling(
+            self_emds = bootstrap_emd_population_split_sampling(
                 self.behavior_1,
                 self.cost_fn,
                 bootstrapping_dist_size=self.bootstrapping_dist_size,
@@ -357,7 +357,7 @@ def bootstrap_emd_population(
     return emds
 
 
-def bootsrap_emd_population_split_sampling(
+def bootstrap_emd_population_split_sampling(
     population: list[T],
     cost_fn: Callable[[T, T], float],
     bootstrapping_dist_size: int = 10_000,
