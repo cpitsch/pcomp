@@ -7,7 +7,7 @@ from typing import Callable, Generic, Literal, TypeVar
 
 import matplotlib.pyplot as plt
 import numpy as np
-import ot
+import ot  # type: ignore
 import pandas as pd
 import wasserstein  # type: ignore
 from tqdm.auto import tqdm
