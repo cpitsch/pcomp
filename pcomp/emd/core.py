@@ -22,6 +22,7 @@ Numpy1DArray = np.ndarray[tuple[int], np.dtype[T_np]]
 NumpyMatrix = np.ndarray[tuple[int, int], np.dtype[T_np]]
 
 # Literal Types
+BootstrappingStyle = Literal["split sampling", "replacement sublogs"]
 EMDBackend = Literal["wasserstein", "ot", "pot"]
 
 
@@ -40,9 +41,8 @@ class EMD_ProcessComparator(ABC, Generic[T]):
         resample_size: int | None = None,
         verbose: bool = True,
         cleanup_on_del: bool = True,
-        bootstrapping_style: Literal[
-            "split sampling", "replacement sublogs"
-        ] = "replacement sublogs",
+        bootstrapping_style: BootstrappingStyle = "replacement sublogs",
+        emd_backend: EMDBackend = "wasserstein",
     ):
         """Create an instance.
 
@@ -57,6 +57,9 @@ class EMD_ProcessComparator(ABC, Generic[T]):
 
             - "replacement sublogs": Randomly sample sublogs of `resample_size` of log_1, and compute their EMD to log_1. This is done `bootstrapping_dist_size` times.
             - "split sampling": Randomly split the log_1 in two, and compute the EMD between the two halves. This is done `bootstrapping_dist_size` times.
+
+            emd_backend (EMDBackend, optional): The backend to use for EMD computation. Defaults to "wasserstein" (use the "wasserstein" module). Alternatively, "ot" or "pot" will
+            use the "Python Optimal Transport" package.
         """
         self.log_1 = ensure_start_timestamp_column(log_1)
         self.log_2 = ensure_start_timestamp_column(log_2)
@@ -65,6 +68,7 @@ class EMD_ProcessComparator(ABC, Generic[T]):
         self.verbose = verbose
         self.cleanup_on_del = cleanup_on_del
         self.bootstrapping_style = bootstrapping_style
+        self.emd_backend = emd_backend
 
     def __del__(self):
         if self.cleanup_on_del:
@@ -143,6 +147,7 @@ class EMD_ProcessComparator(ABC, Generic[T]):
                 self.cost_fn,
                 bootstrapping_dist_size=self.bootstrapping_dist_size,
                 resample_size=len(self.behavior_1),
+                emd_backend=self.emd_backend,
                 show_progress_bar=self.verbose,
             )
         elif self.bootstrapping_style == "split sampling":
@@ -150,6 +155,7 @@ class EMD_ProcessComparator(ABC, Generic[T]):
                 self.behavior_1,
                 self.cost_fn,
                 bootstrapping_dist_size=self.bootstrapping_dist_size,
+                emd_backend=self.emd_backend,
                 show_progress_bar=self.verbose,
             )
         else:
@@ -264,8 +270,22 @@ def population_to_stochastic_language(
 
 
 def compute_emd_for_sample(
-    dists: np.ndarray, reference_frequencies: np.array, resample_size: int
+    dists: NumpyMatrix[np.float_],
+    reference_frequencies: Numpy1DArray[np.float_],
+    resample_size: int,
+    emd_backend: EMDBackend = "wasserstein",
 ) -> float:
+    """Sample a sample of size `resample_size` from the population with replacement and compute the EMD between the sample and the source population.
+
+    Args:
+        dists (NumpyMatrix[np.float_]): The distance matrix of the source population to itself.
+        reference_frequencies (Numpy1DArray[np.float_]): The 1D histogram of the source population.
+        resample_size (int): The size of the sample to draw from the population.
+        emd_backend (EMDBackend, optional): The backend to use for EMD computation. Defaults to "wasserstein" (use the "wasserstein" module).
+
+    Returns:
+        float: The computed EMD.
+    """
     sample_indices = np.random.choice(dists.shape[0], resample_size, replace=True)
 
     deduplicated_indices, counts = np.unique(sample_indices, return_counts=True)
@@ -275,6 +295,7 @@ def compute_emd_for_sample(
         counts / resample_size,
         reference_frequencies,
         dists_for_sample,
+        backend=emd_backend,
     )
 
 
@@ -285,7 +306,7 @@ def compute_emd_for_split_sample(
 
     Args:
         dists (NumpyMatrix[np.float_]): The distance matrix.
-        emd_backend (EMDBackend, optional): The backend to use to compute the EMD. Defaults to "wasserstein".
+        emd_backend (EMDBackend, optional): The backend to use to compute the EMD. Defaults to "wasserstein" (use the "wasserstein" module).
 
     Returns:
         float: The computed EMD.
@@ -350,6 +371,7 @@ def bootstrap_emd_population(
     cost_fn: Callable[[T, T], float],
     bootstrapping_dist_size: int = 10_000,
     resample_size: int | None = None,
+    emd_backend: EMDBackend = "wasserstein",
     show_progress_bar: bool = True,
 ) -> list[float]:
     """Compute a distribution of EMDs from a population to samples of itself.
@@ -361,6 +383,7 @@ def bootstrap_emd_population(
         cost_fn (Callable[[T, T], float]): A function to compute the cost between two items.
         bootstrapping_dist_size (int, optional): The number of EMDs to compute. Defaults to 10_000.
         resample_size (int | None, optional): The size of the samples. Defaults to None.
+        emd_backend (EMDBackend, optional): The backend to use to compute the EMD. Defaults to "wasserstein" (use the "wasserstein" module).
         show_progress_bar (bool, optional): Whether to show a progress bar for the sampling progress. Defaults to True.
 
     Returns:
@@ -386,7 +409,11 @@ def bootstrap_emd_population(
 
     emds: list[float] = []
     for _ in range(bootstrapping_dist_size):
-        emds.append(compute_emd_for_sample(dists, reference_freqs, resample_size))
+        emds.append(
+            compute_emd_for_sample(
+                dists, reference_freqs, resample_size, emd_backend=emd_backend
+            )
+        )
         if show_progress_bar:
             bootstrapping_progress.update()
     if show_progress_bar:
@@ -403,6 +430,7 @@ def bootstrap_emd_population_split_sampling(
     population: list[T],
     cost_fn: Callable[[T, T], float],
     bootstrapping_dist_size: int = 10_000,
+    emd_backend: EMDBackend = "wasserstein",
     show_progress_bar: bool = True,
 ) -> list[float]:
     """Compute a distribution of EMDs from a population to samples of itself.
@@ -413,6 +441,7 @@ def bootstrap_emd_population_split_sampling(
         population (list[T]): The population. A list of items.
         cost_fn (Callable[[T, T], float]): A function to compute the cost between two items.
         bootstrapping_dist_size (int, optional): The number of EMDs to compute. Defaults to 10_000.
+        emd_backend (EMDBackend, optional): The backend to use to compute the EMD. Defaults to "wasserstein".
         show_progress_bar (bool, optional): Whether to show a progress bar for the sampling progress. Defaults to True.
 
     Returns:
@@ -431,7 +460,7 @@ def bootstrap_emd_population_split_sampling(
         )
 
     for _ in range(bootstrapping_dist_size):
-        emds.append(compute_emd_for_split_sample(dists))
+        emds.append(compute_emd_for_split_sample(dists, emd_backend=emd_backend))
         if show_progress_bar:
             progress_bar.update()
 

@@ -19,7 +19,9 @@ from pcomp.emd.approximations.comparing_stars import (
     timed_star_graph_edit_distance,
 )
 from pcomp.emd.core import (
+    BootstrappingStyle,
     EMD_ProcessComparator,
+    EMDBackend,
     bootstrap_emd_population,
     compute_emd,
     population_to_stochastic_language,
@@ -486,12 +488,11 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
         bootstrapping_dist_size: int = 10000,
         resample_size: int | None = None,
         verbose: bool = True,
+        cleanup_on_del: bool = True,
+        bootstrapping_style: BootstrappingStyle = "replacement sublogs",
+        emd_backend: EMDBackend = "wasserstein",
         num_bins: int = 3,
         seed: int | None = None,
-        cleanup_on_del: bool = True,
-        bootstrapping_style: Literal[
-            "split sampling", "replacement sublogs"
-        ] = "replacement sublogs",
     ):
         super().__init__(
             log_1,
@@ -501,6 +502,7 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
             verbose,
             cleanup_on_del,
             bootstrapping_style,
+            emd_backend,
         )
         self.num_bins = num_bins
         self.seed = seed
@@ -535,10 +537,22 @@ class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
         bootstrapping_dist_size: int = 10000,
         resample_size: int | None = None,
         verbose: bool = True,
+        cleanup_on_del: bool = True,
+        bootstrapping_style: BootstrappingStyle = "replacement sublogs",
+        emd_backend: EMDBackend = "wasserstein",
         num_bins: int = 3,
         seed: int | None = None,
     ):
-        super().__init__(log_1, log_2, bootstrapping_dist_size, resample_size, verbose)
+        super().__init__(
+            log_1,
+            log_2,
+            bootstrapping_dist_size,
+            resample_size,
+            verbose,
+            cleanup_on_del,
+            bootstrapping_style,
+            emd_backend,
+        )
         self.num_bins = num_bins
         self.seed = seed
 
