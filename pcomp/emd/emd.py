@@ -232,7 +232,6 @@ def custom_levenshtein_distance(
     )
 
 
-@cache
 def custom_postnormalized_levenshtein_distance(
     trace1: BinnedServiceTimeTrace,
     trace2: BinnedServiceTimeTrace,
@@ -246,7 +245,8 @@ def custom_postnormalized_levenshtein_distance(
 
         After computing the distance, it is divided by the length of the longer trace.
 
-        Thanks to not taking cost functions as inputs, caching (hashing) works correctly and saves time.
+        Thanks to not taking (lambda) cost functions as inputs, caching (hashing) can work correctly and could save time.
+        For caching, see `cached_custom_postnormalized_levenshtein_distance`.
 
     Args:
         trace1 (BinnedServiceTimeTrace): The first trace.
@@ -263,6 +263,14 @@ def custom_postnormalized_levenshtein_distance(
         cost_time_match_rename=lambda x, y: abs(x - y),
         cost_time_insert_delete=lambda x: x,
     )
+
+
+@cache
+def cached_custom_postnormalized_levenshtein_distance(
+    trace1: BinnedServiceTimeTrace, trace2: BinnedServiceTimeTrace
+) -> float:
+    """A cached version of `custom_postnormalized_levenshtein_distance`."""
+    return custom_postnormalized_levenshtein_distance(trace1, trace2)
 
 
 def post_normalized_weighted_levenshtein_distance(
@@ -450,13 +458,11 @@ def process_comparison_emd(
         log_to_stochastic_language(  # log_2_stochastic_language
             log_2, binner, activity_key, start_time_key, end_time_key
         ),
-        custom_postnormalized_levenshtein_distance,
+        cached_custom_postnormalized_levenshtein_distance,
     )
 
     # Bootstrap a p-value
     # Compute samples of EMD's of the logs with themselves to gauge a "normal" EMD
-    # TODO: This could in theory be parallelized - the question is then how the caching works on multiple threads/processes
-    # ... or switch over to rust for distances? Maybe multithreading etc. is easier there anyways?
     self_emds = bootstrap_emd_population(
         log_1_traces,
         custom_postnormalized_levenshtein_distance,
@@ -466,7 +472,7 @@ def process_comparison_emd(
     )
 
     # Clear the cache for the levenshtein distance
-    custom_postnormalized_levenshtein_distance.cache_clear()
+    cached_custom_postnormalized_levenshtein_distance.cache_clear()
 
     num_larger_or_equal_bootstrap_dists = len([d for d in self_emds if d >= emd])
     return num_larger_or_equal_bootstrap_dists / bootstrapping_dist_size
@@ -518,7 +524,7 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
         return custom_postnormalized_levenshtein_distance(item1, item2)
 
     def cleanup(self) -> None:
-        custom_postnormalized_levenshtein_distance.cache_clear()
+        pass
 
 
 class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
