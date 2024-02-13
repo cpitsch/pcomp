@@ -109,12 +109,20 @@ class EMD_ProcessComparator(ABC, Generic[T]):
 
     @property
     def logs_emd(self) -> float:
+        """
+        The Earth Mover's Distance between the two logs. Computed in `compare`.
+        If `compare` has not been called, accessing this will raise a ValueError.
+        """
         if not hasattr(self, "_logs_emd"):
             raise ValueError("Must call `compare` before accessing `logs_emd`.")
         return self._logs_emd
 
     @property
     def bootstrapping_distribution(self) -> list[float]:
+        """
+        The bootstrapping distribution of EMDs of the log to itself. Computed in `compare`.
+        If `compare` has not been called, accessing this will raise a ValueError.
+        """
         if not hasattr(self, "_bootstrapping_distribution"):
             raise ValueError(
                 "Must call `compare` before accessing `bootstrapping_distribution`."
@@ -243,6 +251,14 @@ def _sample_with_replacement(items: list[T], n: int) -> list[T]:
 
 
 def _split_sampling(items: list[T]) -> tuple[list[T], list[T]]:
+    """Split a population into two random non-overlapping halves.
+
+    Args:
+        items (list[T]): The population to split.
+
+    Returns:
+        tuple[list[T], list[T]]: The two halves of the population.
+    """
     sampled_indices = np.random.choice(
         range(len(items)), len(items) // 2, replace=False
     )
@@ -567,6 +583,15 @@ def compute_time_distance_component(trace_1: Trace, trace_2: Trace) -> float:
 def plot_emd_result(
     bootstrapping_distribution: list[float], logs_emd: float
 ) -> plt.figure:
+    """Plot the bootstrapping distribution and the EMD between the two logs.
+
+    Args:
+        bootstrapping_distribution (list[float]): The bootstrapping distribution of EMDs of the log to itself.
+        logs_emd (float): The EMD between the two logs.
+
+    Returns:
+        plt.figure: The corresponding figure.
+    """
     fig, ax = plt.subplots()
     ax.hist(
         bootstrapping_distribution,
