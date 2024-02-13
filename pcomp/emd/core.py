@@ -6,9 +6,11 @@ import wasserstein  # type: ignore
 from tqdm.auto import tqdm
 from abc import ABC, abstractmethod
 from itertools import zip_longest
+from timeit import default_timer
 import matplotlib.pyplot as plt
+import logging
 
-from pcomp.utils import ensure_start_timestamp_column
+from pcomp.utils import ensure_start_timestamp_column, pretty_format_duration
 
 T = TypeVar("T")
 
@@ -272,14 +274,20 @@ def bootstrap_emd_population(
             desc="Precomputing Distances for Bootstrapping...",
         )
 
+    dists_start = default_timer()
+
     # Precompute all distances since statistically, every pair of traces will be needed at least once
     # TODO: Could parallelize distance calculation
     dists = np.empty((len(population), len(population)), dtype=float)
     for i, item1 in enumerate(population):
         for j, item2 in enumerate(population):
             dists[i, j] = cost_fn(item1, item2)
-            if dists_progress_bar is not None:
+            if show_progress_bar:
                 dists_progress_bar.update()
+    if show_progress_bar:
+        dists_progress_bar.close()
+
+    dists_end = default_timer()
 
     if show_progress_bar:
         bootstrapping_progress = tqdm(
@@ -292,7 +300,25 @@ def bootstrap_emd_population(
         emds.append(compute_emd_for_sample(dists, reference_freqs, resample_size))
         if show_progress_bar:
             bootstrapping_progress.update()
+    if show_progress_bar:
+        bootstrapping_progress.close()
 
+    emds_end = default_timer()
+    total_time = emds_end - dists_start
+    dists_dur = dists_end - dists_start
+    emds_dur = emds_end - dists_end
+
+    logger = logging.getLogger("@pcomp")
+
+    logger.info(
+        f"bootstrap_emd_population:Distances took {pretty_format_duration(dists_dur)} ({(dists_dur / total_time * 100):.2f}%)"
+    )
+    logger.info(
+        f"bootstrap_emd_population:EMDs took {pretty_format_duration(emds_end - dists_end)} ({(emds_dur / total_time * 100):.2f}%)"
+    )
+    logger.info(
+        f"bootstrap_emd_population:Bootstrapping total time: {pretty_format_duration(total_time)}"
+    )
     return emds
 
 
