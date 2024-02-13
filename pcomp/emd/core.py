@@ -21,6 +21,9 @@ T_np = TypeVar("T_np", bound=np.generic, covariant=True)
 Numpy1DArray = np.ndarray[tuple[int], np.dtype[T_np]]
 NumpyMatrix = np.ndarray[tuple[int, int], np.dtype[T_np]]
 
+# Literal Types
+EMDBackend = Literal["wasserstein", "ot", "pot"]
+
 
 class EMD_ProcessComparator(ABC, Generic[T]):
     log_1: pd.DataFrame
@@ -193,7 +196,7 @@ def emd(
     freqs_1: Numpy1DArray[np.float_],
     freqs_2: Numpy1DArray[np.float_],
     dists: NumpyMatrix[np.float_],
-    backend: Literal["wasserstein", "ot", "pot"] = "wasserstein",
+    backend: EMDBackend = "wasserstein",
 ) -> float:
     """A wrapper around the EMD computation call.
 
@@ -275,6 +278,73 @@ def compute_emd_for_sample(
     )
 
 
+def compute_emd_for_split_sample(
+    dists: NumpyMatrix[np.float_], emd_backend: EMDBackend = "wasserstein"
+) -> float:
+    """Randomly split the population in two and compute the EMD between the two halves.
+
+    Args:
+        dists (NumpyMatrix[np.float_]): The distance matrix.
+        emd_backend (EMDBackend, optional): The backend to use to compute the EMD. Defaults to "wasserstein".
+
+    Returns:
+        float: The computed EMD.
+    """
+    sample_1_indices = np.random.choice(
+        dists.shape[0], dists.shape[0] // 2, replace=False
+    )
+    sample_2_indices = np.setdiff1d(
+        range(dists.shape[0]), sample_1_indices
+    )  # Complement of sample_1_indices
+
+    deduplicated_indices_1, counts_1 = np.unique(sample_1_indices, return_counts=True)
+    deduplicated_indices_2, counts_2 = np.unique(sample_2_indices, return_counts=True)
+
+    return emd(
+        counts_1 / deduplicated_indices_1.size,
+        counts_2 / deduplicated_indices_2.size,
+        dists[deduplicated_indices_1, :][:, deduplicated_indices_2],
+        backend=emd_backend,
+    )
+
+
+def compute_distance_matrix(
+    population_1: list[T],
+    population_2: list[T],
+    cost_fn: Callable[[T, T], float],
+    show_progress_bar: bool = True,
+) -> NumpyMatrix[np.float_]:
+    """Compute the distance matrix for two populations.
+
+    Args:
+        population_1 (list[T]): The first population of items.
+        population_2 (list[T]): The second population of items.
+        cost_fn (Callable[[T, T], float]): The cost function to compute the distance between two items.
+        show_progress_bar (bool, optional): Show a progress bar? Defaults to True.
+
+    Returns:
+        NumpyMatrix[np.float_]: The distance matrix. The (i, j)-th element is the distance between the i-th element of population_1 and the j-th element of population_2.
+    """
+    dists = np.empty((len(population_1), len(population_2)), dtype=float)
+
+    if show_progress_bar:
+        dists_progress_bar = tqdm(
+            total=dists.shape[0] * dists.shape[1],
+            desc="Computing Distance Matrix...",
+        )
+
+    # TODO: Could parallelize distance calculation
+    for i, item1 in enumerate(population_1):
+        for j, item2 in enumerate(population_2):
+            dists[i, j] = cost_fn(item1, item2)
+            if show_progress_bar:
+                dists_progress_bar.update()
+    if show_progress_bar:
+        dists_progress_bar.close()
+
+    return dists
+
+
 def bootstrap_emd_population(
     population: list[T],
     cost_fn: Callable[[T, T], float],
@@ -303,25 +373,9 @@ def bootstrap_emd_population(
     reference_stochastic_language = population_to_stochastic_language(population)
     reference_freqs = np.array([freq for _, freq in reference_stochastic_language])
 
-    if show_progress_bar:
-        dists_progress_bar = tqdm(
-            total=len(population) ** 2,
-            desc="Precomputing Distances for Bootstrapping...",
-        )
-
     dists_start = default_timer()
-
     # Precompute all distances since statistically, every pair of traces will be needed at least once
-    # TODO: Could parallelize distance calculation
-    dists = np.empty((len(population), len(population)), dtype=float)
-    for i, item1 in enumerate(population):
-        for j, item2 in enumerate(population):
-            dists[i, j] = cost_fn(item1, item2)
-            if show_progress_bar:
-                dists_progress_bar.update()
-    if show_progress_bar:
-        dists_progress_bar.close()
-
+    dists = compute_distance_matrix(population, population, cost_fn, show_progress_bar)
     dists_end = default_timer()
 
     if show_progress_bar:
@@ -339,21 +393,9 @@ def bootstrap_emd_population(
         bootstrapping_progress.close()
 
     emds_end = default_timer()
-    total_time = emds_end - dists_start
-    dists_dur = dists_end - dists_start
-    emds_dur = emds_end - dists_end
 
-    logger = logging.getLogger("@pcomp")
+    _log_bootstrapping_performance(dists_start, dists_end, emds_end)
 
-    logger.info(
-        f"bootstrap_emd_population:Distances took {pretty_format_duration(dists_dur)} ({(dists_dur / total_time * 100):.2f}%)"
-    )
-    logger.info(
-        f"bootstrap_emd_population:EMDs took {pretty_format_duration(emds_end - dists_end)} ({(emds_dur / total_time * 100):.2f}%)"
-    )
-    logger.info(
-        f"bootstrap_emd_population:Bootstrapping total time: {pretty_format_duration(total_time)}"
-    )
     return emds
 
 
@@ -378,21 +420,55 @@ def bootstrap_emd_population_split_sampling(
     """
     emds: list[float] = []
 
+    dists_start = default_timer()
+    # Precompute all distances since statistically, every pair of traces will be needed at least once
+    dists = compute_distance_matrix(population, population, cost_fn, show_progress_bar)
+    dists_end = default_timer()
+
     if show_progress_bar:
         progress_bar = tqdm(
             total=bootstrapping_dist_size, desc="Bootstrapping EMD Null Distribution"
         )
 
     for _ in range(bootstrapping_dist_size):
-        sample_1, sample_2 = _split_sampling(population)
-        lang_1 = population_to_stochastic_language(sample_1)
-        lang_2 = population_to_stochastic_language(sample_2)
-        emds.append(compute_emd(lang_1, lang_2, cost_fn))
-
+        emds.append(compute_emd_for_split_sample(dists))
         if show_progress_bar:
             progress_bar.update()
 
+    emds_end = default_timer()
+
+    _log_bootstrapping_performance(dists_start, dists_end, emds_end)
+
     return emds
+
+
+def _log_bootstrapping_performance(
+    dists_start: float, dists_end: float, emds_end: float
+):
+    """Log performance information about the bootstrapping stage using the logging module.
+
+        Uses the "@pcomp" logger. (`logging.getLogger("@pcomp")`).
+
+    Args:
+        dists_start (float): The start time of the distance computation (Output of `timeit.default_timer()`).
+        dists_end (float): The end time of the distance computation (Output of `timeit.default_timer()`).
+        emds_end (float): The end time of the EMD computation (Output of `timeit.default_timer()`).
+    """
+    total_time = emds_end - dists_start
+    dists_dur = dists_end - dists_start
+    emds_dur = emds_end - dists_end
+
+    logger = logging.getLogger("@pcomp")
+
+    logger.info(
+        f"bootstrap_emd_population:Distances took {pretty_format_duration(dists_dur)} ({(dists_dur / total_time * 100):.2f}%)"
+    )
+    logger.info(
+        f"bootstrap_emd_population:EMDs took {pretty_format_duration(emds_end - dists_end)} ({(emds_dur / total_time * 100):.2f}%)"
+    )
+    logger.info(
+        f"bootstrap_emd_population:Bootstrapping total time: {pretty_format_duration(total_time)}"
+    )
 
 
 Event = tuple[str, float | int]
