@@ -1,14 +1,16 @@
+import logging
+from abc import ABC, abstractmethod
 from collections import Counter
-from typing import Callable, Literal, TypeVar, Generic
+from itertools import zip_longest
+from timeit import default_timer
+from typing import Callable, Generic, Literal, TypeVar
+
+import matplotlib.pyplot as plt
 import numpy as np
+import ot
 import pandas as pd
 import wasserstein  # type: ignore
 from tqdm.auto import tqdm
-from abc import ABC, abstractmethod
-from itertools import zip_longest
-from timeit import default_timer
-import matplotlib.pyplot as plt
-import logging
 
 from pcomp.utils import ensure_start_timestamp_column, pretty_format_duration
 
@@ -181,16 +183,17 @@ def compute_emd(
             dists[i, j] = cost_fn(item1, item2)
 
     return emd(
-        [freq for _, freq in distribution1],
-        [freq for _, freq in distribution2],
+        np.array([freq for _, freq in distribution1]),
+        np.array([freq for _, freq in distribution2]),
         dists,
     )
 
 
 def emd(
-    freqs_1: Numpy1DArray[np.float_] | list[float],
-    freqs_2: Numpy1DArray[np.float_] | list[float],
+    freqs_1: Numpy1DArray[np.float_],
+    freqs_2: Numpy1DArray[np.float_],
     dists: NumpyMatrix[np.float_],
+    backend: Literal["wasserstein", "ot", "pot"] = "wasserstein",
 ) -> float:
     """A wrapper around the EMD computation call.
 
@@ -198,12 +201,22 @@ def emd(
         freqs_1 (np.array): 1D histogram of the first distribution. All positive, sums up to 1.
         freqs_2 (np.array): 1D histogram of the second distribution. All positive, sums up to 1.
         dists (np.ndarray): The cost matrix.
+        backend ("wasserstein" | "ot" | "pot"): The backend to use to compute the EMD. Defaults to "wasserstein" (use the wasserstein package). "ot"/"pot" refers to the Python Optimal Transport package.
 
     Returns:
         float: The computed Earth Mover's Distance.
     """
-    solver = wasserstein.EMD()
-    return solver(freqs_1, freqs_2, dists)
+    if backend == "wasserstein":
+        solver = wasserstein.EMD()
+        return solver(freqs_1, freqs_2, dists)
+    elif backend in ["ot", "pot"]:
+        # This seems to be slower than the wasserstein package
+        # But this could be due to different settings, such as num processes, etc.
+        return ot.emd2(freqs_1, freqs_2, dists)
+    else:
+        raise ValueError(
+            f"Invalid backend: {backend}. Must be 'wasserstein', 'ot', or 'pot'."
+        )
 
 
 def _sample_with_replacement(items: list[T], n: int) -> list[T]:
