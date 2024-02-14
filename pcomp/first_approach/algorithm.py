@@ -4,10 +4,10 @@ from typing import TypeVar
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass, field
-from scipy.stats import chi2_contingency
-from pcomp.utils import constants
+from scipy.stats import chi2_contingency  # type: ignore
+from pcomp.utils import constants, ensure_start_timestamp_column
 from pcomp.utils.data import Binner, create_binner
-from pcomp.utils import ensure_start_timestamp_column
+from pcomp.utils.typing import Numpy1DArray
 
 T = TypeVar("T")
 
@@ -285,8 +285,8 @@ def old_chi_square(dist1: list[T], dist2: list[T]) -> float:
 
     def population_to_contingency_matrix(
         pop: Counter[T], keys: list[T]
-    ) -> np.ndarray[T]:
-        matrix = np.zeros(len(keys))
+    ) -> Numpy1DArray[np.int64]:
+        matrix = np.zeros(len(keys), dtype=np.int64)
         # Set the count of each point in the matrix
         for point, count in pop.items():
             matrix[keys.index(point)] = count
@@ -328,8 +328,8 @@ def chi_square(dist1: list[T], dist2: list[T]) -> float:
     # Perform Chi^2 Test
     def population_to_contingency_matrix(
         pop: Counter[int], keys: list[T]
-    ) -> np.ndarray[T]:
-        matrix = np.zeros(len(keys))
+    ) -> Numpy1DArray[np.int64]:
+        matrix = np.zeros(len(keys), dtype=int)
         # Set the count of each point in the matrix
         for point, count in pop.items():
             matrix[point] = count
@@ -357,8 +357,10 @@ def new_chi_square(dist1: list[T], dist2: list[T]) -> float:
         if item not in keys:
             keys.append(item)
 
-    def population_to_observation_counts(pop: list[T], keys: list[T]) -> np.ndarray[T]:
-        counts = np.zeros(len(keys))
+    def population_to_observation_counts(
+        pop: list[T], keys: list[T]
+    ) -> Numpy1DArray[np.int32]:
+        counts = np.zeros(len(keys), dtype=np.int32)
         for item in pop:
             counts[keys.index(item)] += 1
         return counts

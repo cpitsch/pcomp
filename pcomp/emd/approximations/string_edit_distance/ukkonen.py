@@ -118,7 +118,7 @@ def ukkonen_distance(
 
 
 if __name__ == "__main__":
-    print(ukkonen("Ukkonen", "Levenshtein"))
-    assert ukkonen("Ukkonen", "Levenshtein") == 8
-    assert ukkonen("Ukkonen", "Levenshtein", 6) == 6
-    assert ukkonen("Ukkonen", "Levenshtein", 10) == 8
+    print(ukkonen_distance("Ukkonen", "Levenshtein"))
+    assert ukkonen_distance("Ukkonen", "Levenshtein") == 8
+    assert ukkonen_distance("Ukkonen", "Levenshtein", 6) == 6
+    assert ukkonen_distance("Ukkonen", "Levenshtein", 10) == 8

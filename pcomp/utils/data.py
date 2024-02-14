@@ -1,5 +1,5 @@
 from typing import Iterable
-from sklearn.preprocessing import KBinsDiscretizer
+from sklearn.preprocessing import KBinsDiscretizer  # type: ignore
 import numpy as np
 import pydantic
 

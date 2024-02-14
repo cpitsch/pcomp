@@ -28,6 +28,7 @@ from pcomp.emd.core import (
 )
 
 from pcomp.utils import constants, ensure_start_timestamp_column
+from pcomp.utils.typing import Numpy1DArray
 
 ServiceTimeEvent = tuple[str, float]
 ServiceTimeTrace = tuple[ServiceTimeEvent, ...]
@@ -72,7 +73,7 @@ class KMeans_Binner:
 
         # Get a clustering for the service times of each activity
 
-        self.centroids = {
+        self.centroids: dict[str, Numpy1DArray[np.float_]] = {
             act: kmeans_plusplus(
                 np.array(durs).reshape(-1, 1),
                 n_clusters=self.num_bins,
@@ -82,7 +83,9 @@ class KMeans_Binner:
             for act, durs in durations.items()
         }
 
-    def _closestCentroid1D(self, point: float, centroids: np.ndarray) -> int:
+    def _closestCentroid1D(
+        self, point: float, centroids: Numpy1DArray[np.float_]
+    ) -> int:
         mindex = 0
         minval = centroids[0]
         for idx, centroid in enumerate(centroids):
@@ -158,7 +161,7 @@ def extract_traces_activity_service_times(
         end_time_key (str, optional): The key in the event log for the completion timestamp of the event. Defaults to xes.DEFAULT_TIMESTAMP_KEY.
         seed (int | None, optional): The seed for the random number generator for numpy sampling and scipy kmeans++
     Returns:
-        np.ndarray[ServiceTimeTrace]: A sequence of traces, represented as a tuple of Activities, but here the activities are tuples of the activity name and how long that activity took to complete. Same order as in the original event log.
+        list[ServiceTimeTrace]: A sequence of traces, represented as a tuple of Activities, but here the activities are tuples of the activity name and how long that activity took to complete. Same order as in the original event log.
     """
     return binner.bin_log(
         extract_service_time_traces(log, activity_key, start_time_key, end_time_key)

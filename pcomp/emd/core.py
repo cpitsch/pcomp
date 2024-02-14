@@ -6,6 +6,7 @@ from timeit import default_timer
 from typing import Callable, Generic, Literal, TypeVar
 
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 import numpy as np
 import ot  # type: ignore
 import pandas as pd
@@ -13,13 +14,9 @@ import wasserstein  # type: ignore
 from tqdm.auto import tqdm
 
 from pcomp.utils import ensure_start_timestamp_column, pretty_format_duration
+from pcomp.utils.typing import Numpy1DArray, NumpyMatrix
 
 T = TypeVar("T")
-
-# Numpy types
-T_np = TypeVar("T_np", bound=np.generic, covariant=True)
-Numpy1DArray = np.ndarray[tuple[int], np.dtype[T_np]]
-NumpyMatrix = np.ndarray[tuple[int, int], np.dtype[T_np]]
 
 # Literal Types
 BootstrappingStyle = Literal["split sampling", "replacement sublogs"]
@@ -215,9 +212,9 @@ def emd(
     """A wrapper around the EMD computation call.
 
     Args:
-        freqs_1 (np.array): 1D histogram of the first distribution. All positive, sums up to 1.
-        freqs_2 (np.array): 1D histogram of the second distribution. All positive, sums up to 1.
-        dists (np.ndarray): The cost matrix.
+        freqs_1 (Numpy1DArray[np.float_]): 1D histogram of the first distribution. All positive, sums up to 1.
+        freqs_2 (Numpy1DArray[np.float_]): 1D histogram of the second distribution. All positive, sums up to 1.
+        dists (NumpyMatrix[np.float_]): The cost matrix.
         backend ("wasserstein" | "ot" | "pot"): The backend to use to compute the EMD. Defaults to "wasserstein" (use the wasserstein package). "ot"/"pot" refers to the Python Optimal Transport package.
 
     Returns:
@@ -580,9 +577,7 @@ def compute_time_distance_component(trace_1: Trace, trace_2: Trace) -> float:
     )
 
 
-def plot_emd_result(
-    bootstrapping_distribution: list[float], logs_emd: float
-) -> plt.figure:
+def plot_emd_result(bootstrapping_distribution: list[float], logs_emd: float) -> Figure:
     """Plot the bootstrapping distribution and the EMD between the two logs.
 
     Args:
