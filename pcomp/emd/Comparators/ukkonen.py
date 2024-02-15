@@ -1,5 +1,4 @@
 from functools import cache
-from typing import Literal
 
 import pandas as pd
 
