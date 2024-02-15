@@ -49,6 +49,7 @@ class Ukkonen_Distance_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTra
             verbose,
             cleanup_on_del,
             bootstrapping_style,
+            emd_backend,
         )
 
     def extract_representations(
