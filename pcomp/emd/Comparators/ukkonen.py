@@ -5,7 +5,12 @@ import pandas as pd
 
 from pcomp.binning import Binner, IQR_Binner
 from pcomp.emd.approximations.string_edit_distance import ukkonen_distance
-from pcomp.emd.core import EMD_ProcessComparator, compute_time_distance_component
+from pcomp.emd.core import (
+    BootstrappingStyle,
+    EMD_ProcessComparator,
+    EMDBackend,
+    compute_time_distance_component,
+)
 from pcomp.emd.emd import (
     BinnedServiceTimeTrace,
     ServiceTimeTrace,
@@ -34,9 +39,8 @@ class Ukkonen_Distance_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTra
         resample_size: int | None = None,
         verbose: bool = True,
         cleanup_on_del: bool = True,
-        bootstrapping_style: Literal[
-            "split sampling", "replacement sublogs"
-        ] = "replacement sublogs",
+        bootstrapping_style: BootstrappingStyle = "replacement sublogs",
+        emd_backend: EMDBackend = "wasserstein",
     ):
         super().__init__(
             log_1,
