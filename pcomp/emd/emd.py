@@ -3,20 +3,32 @@
 # Here, we use the idea of this approach to compare two event logs w.r.t. timed control-flow
 
 import math
-from collections import Counter
 from collections.abc import Callable
 from functools import cache
-from typing import Optional
+from typing import Literal, Optional
 from itertools import groupby
 
 import numpy as np
 import pandas as pd
-import wasserstein  # type: ignore
+from pandas import DataFrame
 from sklearn.cluster import kmeans_plusplus  # type: ignore
-from tqdm.auto import tqdm  # type: ignore
 from strsimpy.weighted_levenshtein import WeightedLevenshtein  # type: ignore
+from pcomp.emd.approximations.comparing_stars import (
+    DiGraph,
+    GraphNode,
+    timed_star_graph_edit_distance,
+)
+from pcomp.emd.core import (
+    BootstrappingStyle,
+    EMD_ProcessComparator,
+    EMDBackend,
+    bootstrap_emd_population,
+    compute_emd,
+    population_to_stochastic_language,
+)
 
-from pcomp.utils import constants, log_len, ensure_start_timestamp_column
+from pcomp.utils import constants, ensure_start_timestamp_column
+from pcomp.utils.typing import Numpy1DArray
 
 ServiceTimeEvent = tuple[str, float]
 ServiceTimeTrace = tuple[ServiceTimeEvent, ...]
@@ -61,7 +73,7 @@ class KMeans_Binner:
 
         # Get a clustering for the service times of each activity
 
-        self.centroids = {
+        self.centroids: dict[str, Numpy1DArray[np.float_]] = {
             act: kmeans_plusplus(
                 np.array(durs).reshape(-1, 1),
                 n_clusters=self.num_bins,
@@ -71,7 +83,9 @@ class KMeans_Binner:
             for act, durs in durations.items()
         }
 
-    def _closestCentroid1D(self, point: float, centroids: np.ndarray) -> int:
+    def _closestCentroid1D(
+        self, point: float, centroids: Numpy1DArray[np.float_]
+    ) -> int:
         mindex = 0
         minval = centroids[0]
         for idx, centroid in enumerate(centroids):
@@ -147,7 +161,7 @@ def extract_traces_activity_service_times(
         end_time_key (str, optional): The key in the event log for the completion timestamp of the event. Defaults to xes.DEFAULT_TIMESTAMP_KEY.
         seed (int | None, optional): The seed for the random number generator for numpy sampling and scipy kmeans++
     Returns:
-        np.ndarray[ServiceTimeTrace]: A sequence of traces, represented as a tuple of Activities, but here the activities are tuples of the activity name and how long that activity took to complete. Same order as in the original event log.
+        list[ServiceTimeTrace]: A sequence of traces, represented as a tuple of Activities, but here the activities are tuples of the activity name and how long that activity took to complete. Same order as in the original event log.
     """
     return binner.bin_log(
         extract_service_time_traces(log, activity_key, start_time_key, end_time_key)
@@ -223,7 +237,6 @@ def custom_levenshtein_distance(
     )
 
 
-@cache
 def custom_postnormalized_levenshtein_distance(
     trace1: BinnedServiceTimeTrace,
     trace2: BinnedServiceTimeTrace,
@@ -237,7 +250,8 @@ def custom_postnormalized_levenshtein_distance(
 
         After computing the distance, it is divided by the length of the longer trace.
 
-        Thanks to not taking cost functions as inputs, caching (hashing) works correctly and saves time.
+        Thanks to not taking (lambda) cost functions as inputs, caching (hashing) can work correctly and could save time.
+        For caching, see `cached_custom_postnormalized_levenshtein_distance`.
 
     Args:
         trace1 (BinnedServiceTimeTrace): The first trace.
@@ -254,6 +268,14 @@ def custom_postnormalized_levenshtein_distance(
         cost_time_match_rename=lambda x, y: abs(x - y),
         cost_time_insert_delete=lambda x: x,
     )
+
+
+@cache
+def cached_custom_postnormalized_levenshtein_distance(
+    trace1: BinnedServiceTimeTrace, trace2: BinnedServiceTimeTrace
+) -> float:
+    """A cached version of `custom_postnormalized_levenshtein_distance`."""
+    return custom_postnormalized_levenshtein_distance(trace1, trace2)
 
 
 def post_normalized_weighted_levenshtein_distance(
@@ -300,39 +322,11 @@ def calc_timing_emd(
     Returns:
         float: The computed (Time-Aware) Earth Mover's Distance.
     """
-    distances: dict[tuple[int, int], float] = dict()
-    for i, (trace1, _) in enumerate(distribution1):
-        for j, (trace2, _) in enumerate(distribution2):
-            if (i, j) not in distances:
-                distances[(i, j)] = custom_postnormalized_levenshtein_distance(
-                    trace1,
-                    trace2,
-                )
-
-    solver = wasserstein.EMD()
-    dists = np.ones((len(distribution1), len(distribution2)))
-    for i in range(len(distribution1)):
-        for j in range(len(distribution2)):
-            dists[i, j] = distances[(i, j)]
-
-    return solver(
-        [freq for _, freq in distribution1], [freq for _, freq in distribution2], dists
+    return compute_emd(
+        distribution1,
+        distribution2,
+        custom_postnormalized_levenshtein_distance,
     )
-
-
-def population_to_stochastic_language(
-    population: list[BinnedServiceTimeTrace],
-) -> list[tuple[BinnedServiceTimeTrace, float]]:
-    """Convert a population (list of traces) to a stochastic language (list of traces with frequencies).
-
-    Args:
-        population (list[BinnedServiceTimeTrace]): The population to convert.
-
-    Returns:
-        list[tuple[BinnedServiceTimeTrace, float]]: The stochastic language.
-    """
-    pop_len = len(population)
-    return [(trace, freq / pop_len) for trace, freq in Counter(population).items()]
 
 
 def log_to_stochastic_language(
@@ -411,15 +405,8 @@ def compare_logs_emd(
         log_2, binner, activity_key, start_time_key, end_time_key
     )
 
-    emd = calc_timing_emd(dist1, dist2)
+    emd = compute_emd(dist1, dist2, custom_postnormalized_levenshtein_distance)
     return emd
-
-
-def _sample_with_replacement(
-    items: list[BinnedServiceTimeTrace], n: int
-) -> list[BinnedServiceTimeTrace]:
-    sampled_indices = np.random.choice(range(len(items)), n, replace=True)
-    return [items[idx] for idx in sampled_indices]
 
 
 def process_comparison_emd(
@@ -428,7 +415,6 @@ def process_comparison_emd(
     num_bins: int = 3,
     bootstrapping_dist_size: int = 10_000,
     resample_size: Optional[int] = None,
-    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
     activity_key: str = constants.DEFAULT_NAME_KEY,
     lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
     start_time_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
@@ -443,7 +429,6 @@ def process_comparison_emd(
         num_bins (int, optional): The number of bins to use for binning . Defaults to 3.
         bootstrapping_dist_size (int, optional): The number of self-distances to compute for bootstrapping. Defaults to 10_000.
         resample_size (Optional[int], optional): The size of samples to compute the self-distances for in bootstrapping. Defaults to None.
-        traceid_key (str, optional): The key for the case id in the event log. Defaults to constants.DEFAULT_TRACEID_KEY.
         activity_key (str, optional): The key for the activity label in the event log. Defaults to constants.DEFAULT_NAME_KEY.
         lifecycle_key (str, optional): The key for the lifecycle transition in the event log. Defaults to constants.DEFAULT_LIFECYCLE_KEY.
         start_time_key (str, optional): The key for the start timestamp in the event log. Defaults to constants.DEFAULT_START_TIMESTAMP_KEY.
@@ -473,31 +458,151 @@ def process_comparison_emd(
 
     log_1_stochastic_language = population_to_stochastic_language(log_1_traces)
 
-    emd = calc_timing_emd(
+    emd = compute_emd(
         log_1_stochastic_language,
         log_to_stochastic_language(  # log_2_stochastic_language
             log_2, binner, activity_key, start_time_key, end_time_key
         ),
+        cached_custom_postnormalized_levenshtein_distance,
     )
 
     # Bootstrap a p-value
     # Compute samples of EMD's of the logs with themselves to gauge a "normal" EMD
-    self_emds = []
-
-    if resample_size is None:
-        resample_size = log_len(log_1, traceid_key)
-
-    for _ in tqdm(
-        range(bootstrapping_dist_size), desc="Bootstrapping Distribution for P-Value"
-    ):
-        # Compute an EMD of the event log to itself
-        language = population_to_stochastic_language(
-            _sample_with_replacement(log_1_traces, resample_size)
-        )
-        self_emds.append(calc_timing_emd(log_1_stochastic_language, language))
+    self_emds = bootstrap_emd_population(
+        log_1_traces,
+        custom_postnormalized_levenshtein_distance,
+        bootstrapping_dist_size,
+        resample_size,
+        show_progress_bar=True,
+    )
 
     # Clear the cache for the levenshtein distance
-    custom_postnormalized_levenshtein_distance.cache_clear()
+    cached_custom_postnormalized_levenshtein_distance.cache_clear()
 
     num_larger_or_equal_bootstrap_dists = len([d for d in self_emds if d >= emd])
     return num_larger_or_equal_bootstrap_dists / bootstrapping_dist_size
+
+
+class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTrace]):
+    def __init__(
+        self,
+        log_1: DataFrame,
+        log_2: DataFrame,
+        bootstrapping_dist_size: int = 10000,
+        resample_size: int | None = None,
+        verbose: bool = True,
+        cleanup_on_del: bool = True,
+        bootstrapping_style: BootstrappingStyle = "replacement sublogs",
+        emd_backend: EMDBackend = "wasserstein",
+        num_bins: int = 3,
+        seed: int | None = None,
+    ):
+        super().__init__(
+            log_1,
+            log_2,
+            bootstrapping_dist_size,
+            resample_size,
+            verbose,
+            cleanup_on_del,
+            bootstrapping_style,
+            emd_backend,
+        )
+        self.num_bins = num_bins
+        self.seed = seed
+
+    def extract_representations(
+        self, log_1: DataFrame, log_2: DataFrame
+    ) -> tuple[list[BinnedServiceTimeTrace], list[BinnedServiceTimeTrace]]:
+        traces_1 = extract_service_time_traces(log_1)
+        traces_2 = extract_service_time_traces(log_2)
+
+        self.binner = KMeans_Binner(traces_1 + traces_2, self.num_bins, self.seed)
+
+        return (
+            extract_traces_activity_service_times(log_1, self.binner),
+            extract_traces_activity_service_times(log_2, self.binner),
+        )
+
+    def cost_fn(
+        self, item1: BinnedServiceTimeTrace, item2: BinnedServiceTimeTrace
+    ) -> float:
+        return custom_postnormalized_levenshtein_distance(item1, item2)
+
+    def cleanup(self) -> None:
+        pass
+
+
+class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
+    def __init__(
+        self,
+        log_1: DataFrame,
+        log_2: DataFrame,
+        bootstrapping_dist_size: int = 10000,
+        resample_size: int | None = None,
+        verbose: bool = True,
+        cleanup_on_del: bool = True,
+        bootstrapping_style: BootstrappingStyle = "replacement sublogs",
+        emd_backend: EMDBackend = "wasserstein",
+        num_bins: int = 3,
+        seed: int | None = None,
+    ):
+        super().__init__(
+            log_1,
+            log_2,
+            bootstrapping_dist_size,
+            resample_size,
+            verbose,
+            cleanup_on_del,
+            bootstrapping_style,
+            emd_backend,
+        )
+        self.num_bins = num_bins
+        self.seed = seed
+
+    def extract_representations(
+        self, log_1: DataFrame, log_2: DataFrame
+    ) -> tuple[list[DiGraph], list[DiGraph]]:
+        traces_1 = extract_service_time_traces(log_1)
+        traces_2 = extract_service_time_traces(log_2)
+
+        self.binner = KMeans_Binner(traces_1 + traces_2, self.num_bins, self.seed)
+
+        binned_traces_1 = extract_traces_activity_service_times(log_1, self.binner)
+        binned_traces_2 = extract_traces_activity_service_times(log_2, self.binner)
+
+        # Create the Graphs
+        graphs_1 = [
+            DiGraph(
+                nodes=tuple(GraphNode(label, duration) for label, duration in trace),
+                edges=frozenset((i, i + 1) for i in range(len(trace) - 1)),
+                # edges=list(zip(nodes, nodes[1:])),
+            )
+            for trace in binned_traces_1
+        ]
+        graphs_2 = [
+            DiGraph(
+                nodes=tuple(GraphNode(label, duration) for label, duration in trace),
+                edges=frozenset((i, i + 1) for i in range(len(trace) - 1)),
+                # edges=list(zip(nodes, nodes[1:])),
+            )
+            for trace in binned_traces_2
+        ]
+
+        return (graphs_1, graphs_2)
+
+    def cost_fn(
+        self,
+        item1: DiGraph,
+        item2: DiGraph,
+        bound: Literal["lower"] | Literal["upper"] = "lower",
+    ) -> float:
+        # Scale time differences by the largest possible time difference, num_bins - 1
+        lower_bound, upper_bound = timed_star_graph_edit_distance(
+            item1, item2, self.num_bins - 1
+        )
+
+        # For now, for testing, we only use the lower bound because `compare` doesn't pass the bound in.
+        return lower_bound if bound == "lower" else upper_bound
+
+    def cleanup(self) -> None:
+        timed_star_graph_edit_distance.cache_clear()

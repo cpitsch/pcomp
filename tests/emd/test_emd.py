@@ -1,8 +1,10 @@
 from pcomp.emd.emd import (
     post_normalized_weighted_levenshtein_distance,
-    calc_timing_emd,
+    custom_postnormalized_levenshtein_distance,
     # weightedLevenshteinDistance,
 )
+
+from pcomp.emd.core import compute_emd
 
 
 def test_postnormalized_weighted_lev_distance():
@@ -67,8 +69,20 @@ def test_emd_normal_example():
     ]
 
     # Assert almost equal due to floating point arithmetic. 10^-9 is a very reasonable delta.
-    assert_almost_equal(calc_timing_emd(distribution1, distribution2), 0.05, 1e-9)
-    assert_almost_equal(calc_timing_emd(distribution1, distribution3), 0.15, 1e-9)
+    assert_almost_equal(
+        compute_emd(
+            distribution1, distribution2, custom_postnormalized_levenshtein_distance
+        ),
+        0.05,
+        1e-9,
+    )
+    assert_almost_equal(
+        compute_emd(
+            distribution1, distribution3, custom_postnormalized_levenshtein_distance
+        ),
+        0.15,
+        1e-9,
+    )
 
 
 def assert_almost_equal(a, b, delta):
