@@ -12,6 +12,7 @@ import ot  # type: ignore
 import pandas as pd
 import wasserstein  # type: ignore
 from tqdm.auto import tqdm
+import torch  # type: ignore
 
 from pcomp.utils import ensure_start_timestamp_column, pretty_format_duration
 from pcomp.utils.typing import Numpy1DArray, NumpyMatrix
@@ -20,7 +21,7 @@ T = TypeVar("T")
 
 # Literal Types
 BootstrappingStyle = Literal["split sampling", "replacement sublogs"]
-EMDBackend = Literal["wasserstein", "ot", "pot"]
+EMDBackend = Literal["wasserstein", "ot", "pot", "ot-sinkhorn"]
 
 
 class EMD_ProcessComparator(ABC, Generic[T]):
@@ -56,7 +57,7 @@ class EMD_ProcessComparator(ABC, Generic[T]):
             - "split sampling": Randomly split the log_1 in two, and compute the EMD between the two halves. This is done `bootstrapping_dist_size` times.
 
             emd_backend (EMDBackend, optional): The backend to use for EMD computation. Defaults to "wasserstein" (use the "wasserstein" module). Alternatively, "ot" or "pot" will
-            use the "Python Optimal Transport" package.
+            use the "Python Optimal Transport" package. "ot-sinkhorn" will use the "ot" package with the Sinkhorn algorithm and attempt to use the GPU if available.
         """
         self.log_1 = ensure_start_timestamp_column(log_1)
         self.log_2 = ensure_start_timestamp_column(log_2)
@@ -139,34 +140,66 @@ class EMD_ProcessComparator(ABC, Generic[T]):
         self.behavior_1, self.behavior_2 = self.extract_representations(
             self.log_1, self.log_2
         )
-
-        emd = compute_emd(
-            population_to_stochastic_language(self.behavior_1),
-            population_to_stochastic_language(self.behavior_2),
+        pop_1 = population_to_stochastic_language(self.behavior_1)
+        pop_2 = population_to_stochastic_language(self.behavior_2)
+        logs_dists = compute_distance_matrix(
+            [item for item, _ in pop_1],
+            [item for item, _ in pop_2],
             self.cost_fn,
         )
+        if self.emd_backend == "ot-sinkhorn":
+            emd = ot.sinkhorn2(
+                np.array([freq for _, freq in pop_1]),
+                np.array([freq for _, freq in pop_2]),
+                logs_dists,
+                1.0,
+            )
+        else:
+            emd = emd(
+                np.array([freq for _, freq in pop_1]),
+                np.array([freq for _, freq in pop_2]),
+                logs_dists,
+                backend=self.emd_backend,
+            )
 
-        if self.bootstrapping_style == "replacement sublogs":
-            self_emds = bootstrap_emd_population(
+        if self.emd_backend == "ot-sinkhorn":
+            if not torch.cuda.is_available():
+                logging.getLogger("@pcomp").info(
+                    "compare:Torch cuda not available. Using CPU for Sinkhorn EMD computation."
+                )
+                device = torch.device("cpu")
+            else:
+                device = torch.device("cuda")
+            self_emds = bootstrap_emd_population_sinkhorn_pytorch(
                 self.behavior_1,
                 self.cost_fn,
                 bootstrapping_dist_size=self.bootstrapping_dist_size,
                 resample_size=len(self.behavior_1),
-                emd_backend=self.emd_backend,
                 show_progress_bar=self.verbose,
-            )
-        elif self.bootstrapping_style == "split sampling":
-            self_emds = bootstrap_emd_population_split_sampling(
-                self.behavior_1,
-                self.cost_fn,
-                bootstrapping_dist_size=self.bootstrapping_dist_size,
-                emd_backend=self.emd_backend,
-                show_progress_bar=self.verbose,
+                device=device,
             )
         else:
-            raise ValueError(
-                f"Invalid bootstrapping style: {self.bootstrapping_style}. Must be 'replacement sublogs' or 'split sampling'."
-            )
+            if self.bootstrapping_style == "replacement sublogs":
+                self_emds = bootstrap_emd_population(
+                    self.behavior_1,
+                    self.cost_fn,
+                    bootstrapping_dist_size=self.bootstrapping_dist_size,
+                    resample_size=len(self.behavior_1),
+                    emd_backend=self.emd_backend,
+                    show_progress_bar=self.verbose,
+                )
+            elif self.bootstrapping_style == "split sampling":
+                self_emds = bootstrap_emd_population_split_sampling(
+                    self.behavior_1,
+                    self.cost_fn,
+                    bootstrapping_dist_size=self.bootstrapping_dist_size,
+                    emd_backend=self.emd_backend,
+                    show_progress_bar=self.verbose,
+                )
+            else:
+                raise ValueError(
+                    f"Invalid bootstrapping style: {self.bootstrapping_style}. Must be 'replacement sublogs' or 'split sampling'."
+                )
 
         num_larger_or_equal_bootstrap_dists = len([d for d in self_emds if d >= emd])
 
@@ -458,6 +491,79 @@ def bootstrap_emd_population(
     _log_bootstrapping_performance(dists_start, dists_end, emds_end)
 
     return emds
+
+
+def bootstrap_emd_population_sinkhorn_pytorch(
+    population: list[T],
+    cost_fn: Callable[[T, T], float],
+    bootstrapping_dist_size: int = 10_000,
+    resample_size: int | None = None,
+    show_progress_bar: bool = True,
+    device: str | int | torch.device = torch.device("cpu"),
+) -> list[float]:
+    """Uses pytorch tensors instead of numpy arrays. Compute a distribution of EMDs from a population to samples of itself.
+    Computed by sampling samples of size `resample_size` with replacement from the population.
+    Then, an EMD is computed between the population and the sample.	This is repeated `bootstrapping_dist_size` times.
+
+    Args:
+        population (list[T]): The population. A list of items.
+        cost_fn (Callable[[T, T], float]): A function to compute the cost between two items.
+        bootstrapping_dist_size (int, optional): The number of EMDs to compute. Defaults to 10_000.
+        resample_size (int | None, optional): The size of the samples. Defaults to None.
+        show_progress_bar (bool, optional): Whether to show a progress bar for the sampling progress. Defaults to True.
+        device (str | int | torch.device, optional): The device to use for the computation. Defaults to "cpu".
+    Returns:
+        list[float]: The list of computed EMDs.
+    """
+
+    if resample_size is None:
+        resample_size = len(population)
+
+    reference_freqs = torch.tensor(
+        [freq for _, freq in population_to_stochastic_language(population)],
+        device=device,
+        dtype=torch.float32,
+    )
+
+    dists_start = default_timer()
+    # Precompute all distances since statistically, every pair of traces will be needed at least once
+    # Convert to tensor and transfer to device; Use float32 for GPU performance
+    dists = torch.tensor(
+        compute_distance_matrix(population, population, cost_fn, show_progress_bar),
+        device=device,
+        dtype=torch.float32,
+    )
+    dists_end = default_timer()
+
+    samples = torch.randint(
+        high=dists.shape[0],
+        size=(bootstrapping_dist_size, resample_size),
+        device=device,
+        dtype=torch.int64,
+    )
+
+    # TODO: Could compute counts and all here already. Then all that is left is computing the emd
+
+    resample_size_tensor = torch.tensor(resample_size, device=device, dtype=torch.int64)
+
+    emds = torch.empty(bootstrapping_dist_size, device=device, dtype=torch.float32)
+
+    for i in range(bootstrapping_dist_size):
+        deduplicated_indices, counts = torch.unique(samples[i], return_counts=True)
+        dists_for_sample = dists[deduplicated_indices]
+
+        emds[i] = ot.sinkhorn2(
+            counts / resample_size_tensor,
+            reference_freqs,
+            dists_for_sample,
+            1.0,
+        )
+
+    emds_end = default_timer()
+
+    _log_bootstrapping_performance(dists_start, dists_end, emds_end)
+
+    return emds.cpu().numpy()
 
 
 def bootstrap_emd_population_split_sampling(
