@@ -191,16 +191,37 @@ def compute_emd(
     Returns:
         float: The computed Earth Mover's Distance.
     """
+    logger = logging.getLogger("@pcomp")
+
+    dists_start = default_timer()
     dists = np.empty((len(distribution1), len(distribution2)), dtype=float)
     for i, (item1, _) in enumerate(distribution1):
         for j, (item2, _) in enumerate(distribution2):
             dists[i, j] = cost_fn(item1, item2)
 
-    return emd(
+    dists_end = default_timer()
+
+    logs_emd = emd(
         np.array([freq for _, freq in distribution1]),
         np.array([freq for _, freq in distribution2]),
         dists,
     )
+    emds_end = default_timer()
+
+    dists_dur = dists_end - dists_start
+    emds_dur = emds_end - dists_end
+    total_time = emds_end - dists_start
+    logger.info(
+        f"compute_emd:Distances between logs took {pretty_format_duration(dists_end - dists_start)} ({(dists_dur / total_time * 100):.2f}%)"
+    )
+    logger.info(
+        f"compute_emd:EMD between logs took {pretty_format_duration(emds_end - dists_end)} ({(emds_dur / total_time * 100):.2f}%)"
+    )
+    logger.info(
+        f"compute_emd:Logs EMD took a total of {pretty_format_duration(total_time)}"
+    )
+
+    return logs_emd
 
 
 def emd(
