@@ -7,6 +7,7 @@ from pandas import DataFrame
 import logging
 
 from . import constants
+from tqdm.auto import tqdm
 
 
 def import_log(path: str, show_progress_bar: bool = False) -> DataFrame:
@@ -175,3 +176,37 @@ def pretty_format_duration(seconds: float) -> str:
 
 def enable_logging(level: int = logging.INFO):
     logging.basicConfig(level=level)
+
+
+class DevNullProgressBar:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def update(self, amount: int = 1):
+        pass
+
+    def close(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()  # Does nothing anyway
+
+
+def create_progress_bar(
+    show_progress_bar: bool = True, *args, **kwargs
+) -> tqdm | DevNullProgressBar:
+    """Helper function to create a progress bar. If `show_progress_bar` is False, a dummy progress bar is returned that does nothing when updated/closed.
+
+    Args:
+        show_progress_bar (bool, optional): Return a real or dummy progress bar? Defaults to True.
+
+    Returns:
+        tqdm | DevNullProgressBar: The created (dummy) progress bar
+    """
+    if show_progress_bar:
+        return tqdm(*args, **kwargs)
+    else:
+        return DevNullProgressBar()

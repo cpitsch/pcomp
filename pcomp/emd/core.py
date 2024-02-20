@@ -16,6 +16,7 @@ from tqdm.auto import tqdm
 
 from pcomp.utils import ensure_start_timestamp_column, pretty_format_duration, log_len
 from pcomp.utils.typing import Numpy1DArray, NumpyMatrix
+from pcomp.utils.utils import create_progress_bar
 
 T = TypeVar("T")
 
@@ -391,20 +392,16 @@ def compute_distance_matrix(
     """
     dists = np.empty((len(population_1), len(population_2)), dtype=float)
 
-    if show_progress_bar:
-        dists_progress_bar = tqdm(
-            total=dists.shape[0] * dists.shape[1],
-            desc="Computing Distance Matrix...",
-        )
-
-    # TODO: Could parallelize distance calculation
-    for i, item1 in enumerate(population_1):
-        for j, item2 in enumerate(population_2):
-            dists[i, j] = cost_fn(item1, item2)
-            if show_progress_bar:
+    with create_progress_bar(
+        show_progress_bar,
+        total=dists.shape[0] * dists.shape[1],
+        desc=f"Computing Distance Matrix ({dists.shape[0]}x{dists.shape[1]})",
+    ) as dists_progress_bar:
+        # TODO: Could parallelize distance calculation
+        for i, item1 in enumerate(population_1):
+            for j, item2 in enumerate(population_2):
+                dists[i, j] = cost_fn(item1, item2)
                 dists_progress_bar.update()
-    if show_progress_bar:
-        dists_progress_bar.close()
 
     return dists
 
@@ -444,23 +441,19 @@ def bootstrap_emd_population(
     dists = compute_distance_matrix(population, population, cost_fn, show_progress_bar)
     dists_end = default_timer()
 
-    if show_progress_bar:
-        bootstrapping_progress = tqdm(
-            range(bootstrapping_dist_size),
-            desc="Bootstrapping EMD Null Distribution",
-        )
-
-    emds: list[float] = []
-    for _ in range(bootstrapping_dist_size):
-        emds.append(
-            compute_emd_for_sample(
-                dists, reference_freqs, resample_size, emd_backend=emd_backend
+    with create_progress_bar(
+        show_progress_bar,
+        total=bootstrapping_dist_size,
+        desc="Bootstrapping EMD Null Distribution",
+    ) as bootstrapping_progress:
+        emds: list[float] = []
+        for _ in range(bootstrapping_dist_size):
+            emds.append(
+                compute_emd_for_sample(
+                    dists, reference_freqs, resample_size, emd_backend=emd_backend
+                )
             )
-        )
-        if show_progress_bar:
             bootstrapping_progress.update()
-    if show_progress_bar:
-        bootstrapping_progress.close()
 
     emds_end = default_timer()
 
@@ -497,16 +490,16 @@ def bootstrap_emd_population_split_sampling(
     dists = compute_distance_matrix(population, population, cost_fn, show_progress_bar)
     dists_end = default_timer()
 
-    if show_progress_bar:
-        progress_bar = tqdm(
-            total=bootstrapping_dist_size, desc="Bootstrapping EMD Null Distribution"
-        )
+    progress_bar = create_progress_bar(
+        show_progress_bar,
+        total=bootstrapping_dist_size,
+        desc="Bootstrapping EMD Null Distribution",
+    )
 
     for _ in range(bootstrapping_dist_size):
         emds.append(compute_emd_for_split_sample(dists, emd_backend=emd_backend))
-        if show_progress_bar:
-            progress_bar.update()
-
+        progress_bar.update()
+    progress_bar.close()
     emds_end = default_timer()
 
     _log_bootstrapping_performance(dists_start, dists_end, emds_end)
