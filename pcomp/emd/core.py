@@ -2,6 +2,7 @@ import logging
 from abc import ABC, abstractmethod
 from collections import Counter
 from itertools import zip_longest
+import math
 from timeit import default_timer
 from typing import Callable, Generic, Literal, TypeVar
 
@@ -13,7 +14,7 @@ import pandas as pd
 import wasserstein  # type: ignore
 from tqdm.auto import tqdm
 
-from pcomp.utils import ensure_start_timestamp_column, pretty_format_duration
+from pcomp.utils import ensure_start_timestamp_column, pretty_format_duration, log_len
 from pcomp.utils.typing import Numpy1DArray, NumpyMatrix
 
 T = TypeVar("T")
@@ -35,7 +36,7 @@ class EMD_ProcessComparator(ABC, Generic[T]):
         log_1: pd.DataFrame,
         log_2: pd.DataFrame,
         bootstrapping_dist_size: int = 10_000,
-        resample_size: int | None = None,
+        resample_size: int | float | None = None,
         verbose: bool = True,
         cleanup_on_del: bool = True,
         bootstrapping_style: BootstrappingStyle = "replacement sublogs",
@@ -47,7 +48,7 @@ class EMD_ProcessComparator(ABC, Generic[T]):
             log_1 (pd.DataFrame): The first event log in the comparison.
             log_2 (pd.DataFrame): The second event log in the comparison.
             bootstrapping_dist_size (int, optional): The number of samples to compute the Self-EMD for. Defaults to 10_000.
-            resample_size (int | None, optional): The size of each sample for the Self-EMDs. Defaults to None.
+            resample_size (int | float | None, optional): The size of each sample for the Self-EMDs. If float, it describes the fraction of the size of the event log to use. Defaults to None.
             verbose (bool, optional): If True, show progress bars. Defaults to True.
             cleanup_on_del (bool, optional): If True, call `cleanup` upon destruction, e.g., when the object goes out of scope. Defaults to True.
             bootstrapping_style ("split sampling" | "replacement sublogs", optional): The strategy to use for bootstrapping the null distribution. The strategies work as follows:
@@ -61,7 +62,15 @@ class EMD_ProcessComparator(ABC, Generic[T]):
         self.log_1 = ensure_start_timestamp_column(log_1)
         self.log_2 = ensure_start_timestamp_column(log_2)
         self.bootstrapping_dist_size = bootstrapping_dist_size
-        self.resample_size = resample_size
+
+        loglen = log_len(self.log_1)
+        if resample_size is None:
+            self.resample_size = log_len(self.log_1)
+        elif isinstance(resample_size, float):
+            self.resample_size = math.floor(resample_size * loglen)
+        else:
+            self.resample_size = resample_size
+
         self.verbose = verbose
         self.cleanup_on_del = cleanup_on_del
         self.bootstrapping_style = bootstrapping_style
@@ -151,7 +160,7 @@ class EMD_ProcessComparator(ABC, Generic[T]):
                 self.behavior_1,
                 self.cost_fn,
                 bootstrapping_dist_size=self.bootstrapping_dist_size,
-                resample_size=len(self.behavior_1),
+                resample_size=self.resample_size,
                 emd_backend=self.emd_backend,
                 show_progress_bar=self.verbose,
             )
@@ -184,7 +193,7 @@ def compute_emd(
     """Compute the Earth Mover's Distance between two distributions.
 
     Args:
-        distribution1 (list[tuple[T, float]]): The first distribution.
+        distribution1 (list[tuple[T, float]]): The first distribution. All distinct behavior with their relative frequencies.
         distribution2 (list[tuple[T, float]]): The second distribution.
         cost_fn (Callable[[T, T], float]): A function to compute the transport cost between two items.
 
