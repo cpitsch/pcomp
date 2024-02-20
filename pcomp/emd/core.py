@@ -330,6 +330,7 @@ def compute_emd_for_sample(
     Returns:
         float: The computed EMD.
     """
+    # TODO: This doesn't respect the frequencies of the variants. All variants (rows) are created equal...
     sample_indices = np.random.choice(dists.shape[0], resample_size, replace=True)
 
     deduplicated_indices, counts = np.unique(sample_indices, return_counts=True)
@@ -339,6 +340,32 @@ def compute_emd_for_sample(
         counts / resample_size,
         reference_frequencies,
         dists_for_sample,
+        backend=emd_backend,
+    )
+
+
+def compute_emd_for_index_sample(
+    indices: Numpy1DArray[np.int_],
+    dists: NumpyMatrix[np.float_],
+    reference_frequencies: Numpy1DArray[np.float_],
+    emd_backend: EMDBackend = "wasserstein",
+) -> float:
+    """Given a sample of indices of rows in the distance matrix, compute the EMD between the sample and the source population (columns).
+
+    Args:
+        indices (Numpy1DArray[np.int_]): The sampled indices (possibly containing duplicates)
+        dists (NumpyMatrix[np.float_]): The distance matrix.
+        reference_frequencies (Numpy1DArray[np.float_]): 1D Histogram of the source population. Used for EMD computation
+        emd_backend (EMDBackend, optional): The backend to use for EMD computation. Defaults to "wasserstein" (Use the "wasserstein" package).
+
+    Returns:
+        float: _description_
+    """
+    deduplicated_indices, counts = np.unique(indices, return_counts=True)
+    return emd(
+        counts / len(indices),
+        reference_frequencies,
+        dists[deduplicated_indices],
         backend=emd_backend,
     )
 
@@ -435,10 +462,14 @@ def bootstrap_emd_population(
 
     reference_stochastic_language = population_to_stochastic_language(population)
     reference_freqs = np.array([freq for _, freq in reference_stochastic_language])
+    # Essentially "de-duplicated" reference population
+    reference_behavior = [item for item, _ in reference_stochastic_language]
 
     dists_start = default_timer()
     # Precompute all distances since statistically, every pair of traces will be needed at least once
-    dists = compute_distance_matrix(population, population, cost_fn, show_progress_bar)
+    dists = compute_distance_matrix(
+        reference_behavior, reference_behavior, cost_fn, show_progress_bar
+    )
     dists_end = default_timer()
 
     with create_progress_bar(
@@ -446,20 +477,30 @@ def bootstrap_emd_population(
         total=bootstrapping_dist_size,
         desc="Bootstrapping EMD Null Distribution",
     ) as bootstrapping_progress:
-        emds: list[float] = []
-        for _ in range(bootstrapping_dist_size):
-            emds.append(
-                compute_emd_for_sample(
-                    dists, reference_freqs, resample_size, emd_backend=emd_backend
-                )
-            )
+
+        def _compute_emd_with_pbar(row: Numpy1DArray[np.int_]) -> float:
+            res = compute_emd_for_index_sample(row, dists, reference_freqs, emd_backend)
             bootstrapping_progress.update()
+            return res
+
+        # Get the samples for the entire bootstrapping stage, respecting the frequencies of the variants
+        samples = np.random.choice(
+            dists.shape[0],
+            (bootstrapping_dist_size, resample_size),
+            replace=True,
+            p=reference_freqs,
+        )
+        emds: Numpy1DArray[np.float_] = np.apply_along_axis(
+            _compute_emd_with_pbar,
+            1,
+            samples,
+        )
 
     emds_end = default_timer()
 
     _log_bootstrapping_performance(dists_start, dists_end, emds_end)
 
-    return emds
+    return emds.tolist()
 
 
 def bootstrap_emd_population_split_sampling(
