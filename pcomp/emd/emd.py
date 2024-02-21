@@ -171,10 +171,10 @@ def extract_traces_activity_service_times(
 def weighted_levenshtein_distance(
     trace1: BinnedServiceTimeTrace,
     trace2: BinnedServiceTimeTrace,
-    rename_cost: Callable[[str, str], int],
-    insertion_deletion_cost: Callable[[str], int],
-    cost_time_match_rename: Callable[[int, int], int],
-    cost_time_insert_delete: Callable[[int], int],
+    rename_cost: Callable[[str, str], float],
+    insertion_deletion_cost: Callable[[str], float],
+    cost_time_match_rename: Callable[[int, int], float],
+    cost_time_insert_delete: Callable[[int], float],
 ) -> int:
     """Compute the levenshtein distance with custom weights. Using strsimpy
 
@@ -190,10 +190,12 @@ def weighted_levenshtein_distance(
         float: The computed weighted Levenshtein distance.
     """
 
-    def ins_del_cost(x: BinnedServiceTimeEvent) -> int:
+    def ins_del_cost(x: BinnedServiceTimeEvent) -> float:
         return insertion_deletion_cost(x[0]) + cost_time_insert_delete(x[1])
 
-    def substitution_cost(x: BinnedServiceTimeEvent, y: BinnedServiceTimeEvent) -> int:
+    def substitution_cost(
+        x: BinnedServiceTimeEvent, y: BinnedServiceTimeEvent
+    ) -> float:
         cost_rename = (
             0 if x[0] == y[0] else rename_cost(x[0], y[0])
         )  # Allow matching activity while renaming time
@@ -281,20 +283,20 @@ def cached_custom_postnormalized_levenshtein_distance(
 def post_normalized_weighted_levenshtein_distance(
     trace1: BinnedServiceTimeTrace,
     trace2: BinnedServiceTimeTrace,
-    rename_cost: Callable[[str, str], int],
-    insertion_deletion_cost: Callable[[str], int],
-    cost_time_match_rename: Callable[[int, int], int],
-    cost_time_insert_delete: Callable[[int], int],
+    rename_cost: Callable[[str, str], float],
+    insertion_deletion_cost: Callable[[str], float],
+    cost_time_match_rename: Callable[[int, int], float],
+    cost_time_insert_delete: Callable[[int], float],
 ) -> float:
     """Compute the post-normalized weighted Levenshtein distance. This is used for the calculation of a "time-aware" EMD.
 
     Args:
         trace1 (BinnedServiceTimeTrace): The first trace.
         trace2 (BinnedServiceTimeTrace): The second trace.
-        rename_cost (Callable[[str, str], int]): Custom Cost.
-        insertion_deletion_cost (Callable[[str], int]): Custom Cost.
-        cost_time_match_rename (Callable[[int, int], int]): Custom Cost.
-        cost_time_insert_delete (Callable[[int], int]): Custom Cost.
+        rename_cost (Callable[[str, str], float]): Custom Cost.
+        insertion_deletion_cost (Callable[[str], float]): Custom Cost.
+        cost_time_match_rename (Callable[[int, int], float]): Custom Cost.
+        cost_time_insert_delete (Callable[[int], float]): Custom Cost.
 
     Returns:
         float: The post-normalized weighted Levenshtein distance.
