@@ -29,6 +29,13 @@ class EMD_ProcessComparator(ABC, Generic[T]):
     log_1: pd.DataFrame
     log_2: pd.DataFrame
 
+    bootstrapping_dist_size: int
+    resample_size: int
+    verbose: bool
+    cleanup_on_del: bool
+    boostrapping_style: BootstrappingStyle
+    emd_backend: EMDBackend
+
     behavior_1: list[T]
     behavior_2: list[T]
 
