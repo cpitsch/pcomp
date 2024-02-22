@@ -497,6 +497,7 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
         bootstrapping_style: BootstrappingStyle = "replacement sublogs",
         emd_backend: EMDBackend = "wasserstein",
         num_bins: int = 3,
+        weighted_time_cost: bool = False,
         seed: int | None = None,
     ):
         super().__init__(
@@ -511,6 +512,7 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
         )
         self.num_bins = num_bins
         self.seed = seed
+        self.weighted_time_cost = weighted_time_cost
 
     def extract_representations(
         self, log_1: DataFrame, log_2: DataFrame
@@ -528,7 +530,18 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
     def cost_fn(
         self, item1: BinnedServiceTimeTrace, item2: BinnedServiceTimeTrace
     ) -> float:
-        return custom_postnormalized_levenshtein_distance(item1, item2)
+        if self.weighted_time_cost:
+            return post_normalized_weighted_levenshtein_distance(
+                item1,
+                item2,
+                rename_cost=lambda x, y: 1,
+                insertion_deletion_cost=lambda x: 1,
+                cost_time_match_rename=lambda x, y: abs(x - y)
+                / max(self.num_bins - 1, 1),
+                cost_time_insert_delete=lambda x: x / max(self.num_bins - 1, 1),
+            )
+        else:
+            return custom_postnormalized_levenshtein_distance(item1, item2)
 
     def cleanup(self) -> None:
         pass
