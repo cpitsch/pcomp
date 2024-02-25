@@ -5,14 +5,17 @@
 import math
 from collections.abc import Callable
 from functools import cache
-from typing import Literal, Optional
 from itertools import groupby
+from typing import Literal, Optional
 
 import numpy as np
 import pandas as pd
 from pandas import DataFrame
 from sklearn.cluster import kmeans_plusplus  # type: ignore
 from strsimpy.weighted_levenshtein import WeightedLevenshtein  # type: ignore
+
+from pcomp.binning import KMeans_Binner
+from pcomp.binning.Binner import BinnerManager
 from pcomp.emd.approximations.comparing_stars import (
     DiGraph,
     GraphNode,
@@ -26,7 +29,6 @@ from pcomp.emd.core import (
     compute_emd,
     population_to_stochastic_language,
 )
-
 from pcomp.utils import constants, ensure_start_timestamp_column
 from pcomp.utils.typing import Numpy1DArray
 
@@ -37,7 +39,7 @@ BinnedServiceTimeEvent = tuple[str, int]
 BinnedServiceTimeTrace = tuple[BinnedServiceTimeEvent, ...]
 
 
-class KMeans_Binner:
+class _old_KMeans_Binner:
     def __init__(
         self,
         data: list[ServiceTimeTrace],
@@ -144,7 +146,7 @@ def extract_service_time_traces(
 
 def extract_traces_activity_service_times(
     log: pd.DataFrame,
-    binner: KMeans_Binner,
+    binner_manager: BinnerManager,
     activity_key: str = constants.DEFAULT_NAME_KEY,
     start_time_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
     end_time_key: str = constants.DEFAULT_TIMESTAMP_KEY,
@@ -153,7 +155,7 @@ def extract_traces_activity_service_times(
 
     Args:
         log (EventLog): The event log
-        binner (KMeans_Binner): The binner to use for binning the service times.
+        binner_manager (BinnerManager): The binner to use for binning the service times.
         num_bins (int, optional): The number of bins to cluster the service times into (Using K-Means). Defaults to 3 (intuitively "slow", "medium", "fast").
         traceid_key (str, optional): The key for the trace id in the event log. Defaults to xes.DEFAULT_TRACEID_KEY.
         activity_key (str, optional): The key for the activity value in the event log. Defaults to xes.DEFAULT_NAME_KEY.
@@ -163,9 +165,17 @@ def extract_traces_activity_service_times(
     Returns:
         list[ServiceTimeTrace]: A sequence of traces, represented as a tuple of Activities, but here the activities are tuples of the activity name and how long that activity took to complete. Same order as in the original event log.
     """
-    return binner.bin_log(
-        extract_service_time_traces(log, activity_key, start_time_key, end_time_key)
+    service_time_traces = extract_service_time_traces(
+        log, activity_key, start_time_key, end_time_key
     )
+    return [
+        tuple(
+            # Bin the duration with the binner associated to the activitiy
+            (activity, binner_manager.bin(activity, duration))
+            for activity, duration in trace
+        )
+        for trace in service_time_traces
+    ]
 
 
 def weighted_levenshtein_distance(
@@ -333,7 +343,7 @@ def calc_timing_emd(
 
 def log_to_stochastic_language(
     log: pd.DataFrame,
-    binner: KMeans_Binner,
+    binner_manager: BinnerManager,
     activity_key: str = constants.DEFAULT_NAME_KEY,
     start_time_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
     end_time_key: str = constants.DEFAULT_TIMESTAMP_KEY,
@@ -344,7 +354,7 @@ def log_to_stochastic_language(
 
     Args:
         log (pd.DataFrame): The event log.
-        binner (KMeans_Binner): The binner to use to bin the activity service times.
+        binner_manager (BinnerManager): The binner to use to bin the activity service times.
         activity_key (str, optional): The key for the activity label in the event log. Defaults to constants.DEFAULT_NAME_KEY.
         start_time_key (str, optional): The key for the start timestamp in the event log. Defaults to constants.DEFAULT_START_TIMESTAMP_KEY.
         end_time_key (str, optional): The key for the end timestamp. Defaults to constants.DEFAULT_TIMESTAMP_KEY.
@@ -353,7 +363,7 @@ def log_to_stochastic_language(
         list[tuple[BinnedServiceTimeTrace, float]]: The extracted stochastic language.
     """
     population: list[BinnedServiceTimeTrace] = extract_traces_activity_service_times(
-        log, binner, activity_key, start_time_key, end_time_key
+        log, binner_manager, activity_key, start_time_key, end_time_key
     )
 
     return population_to_stochastic_language(population)
@@ -362,7 +372,7 @@ def log_to_stochastic_language(
 def compare_logs_emd(
     log_1: pd.DataFrame,
     log_2: pd.DataFrame,
-    binner: Optional[KMeans_Binner] = None,
+    binner_manager: BinnerManager | None = None,
     num_bins: int = 3,
     activity_key: str = constants.DEFAULT_NAME_KEY,
     start_time_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
@@ -376,7 +386,7 @@ def compare_logs_emd(
     Args:
         log_1 (pd.DataFrame): The first event log.
         log_2 (pd.DataFrame): The second event log.
-        binner (KMeans_Binner, optional): The binner to use to bin the activtiy service times. If none provided, one will be trained on the data using `num_bins` bins.
+        binner_manager (BinnerManager, optional): The binner to use to bin the activtiy service times. If none provided, one will be trained on the data using `num_bins` bins.
         num_bins (int, optional): The number of bins to cluster the service times into (Using K-Means). Defaults to 3 (intuitively "slow", "medium", "fast").
         activity_key (str, optional): The name of the column containing the label of the executed activity. Defaults to "concept:name".
         start_time_key (str, optional): The name of the column containing the start timestamp of the event. Defaults to "start_timestamp".
@@ -387,16 +397,21 @@ def compare_logs_emd(
         float: The earth mover's distance between the two event logs.
     """
 
-    if binner is None:
-        binner = KMeans_Binner(
-            extract_service_time_traces(
-                log_1, activity_key, start_time_key, end_time_key
-            )
-            + extract_service_time_traces(
-                log_2, activity_key, start_time_key, end_time_key
-            ),
-            num_bins,
-            seed,
+    if binner_manager is None:
+        binner = BinnerManager(
+            [
+                evt
+                for trace in extract_service_time_traces(
+                    log_1, activity_key, start_time_key, end_time_key
+                )
+                + extract_service_time_traces(
+                    log_2, activity_key, start_time_key, end_time_key
+                )
+                for evt in trace
+            ],
+            KMeans_Binner,
+            k=num_bins,
+            seed=seed,
         )
 
     dist1: list[tuple[BinnedServiceTimeTrace, float]] = log_to_stochastic_language(
@@ -452,10 +467,15 @@ def process_comparison_emd(
         log_2, activity_key, start_time_key, end_time_key
     )
 
-    binner = KMeans_Binner(traces_1 + traces_2, num_bins, seed)
+    binner_manager = BinnerManager(
+        [evt for trace in traces_1 + traces_2 for evt in trace],
+        KMeans_Binner,
+        k=num_bins,
+        seed=seed,
+    )
 
     log_1_traces = extract_traces_activity_service_times(
-        log_1, binner, activity_key, start_time_key, end_time_key
+        log_1, binner_manager, activity_key, start_time_key, end_time_key
     )  # We sample from in the bootstrapping
 
     log_1_stochastic_language = population_to_stochastic_language(log_1_traces)
@@ -463,7 +483,7 @@ def process_comparison_emd(
     emd = compute_emd(
         log_1_stochastic_language,
         log_to_stochastic_language(  # log_2_stochastic_language
-            log_2, binner, activity_key, start_time_key, end_time_key
+            log_2, binner_manager, activity_key, start_time_key, end_time_key
         ),
         cached_custom_postnormalized_levenshtein_distance,
     )
@@ -486,6 +506,8 @@ def process_comparison_emd(
 
 
 class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTrace]):
+    binner_manager: BinnerManager
+
     def __init__(
         self,
         log_1: DataFrame,
@@ -520,11 +542,16 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
         traces_1 = extract_service_time_traces(log_1)
         traces_2 = extract_service_time_traces(log_2)
 
-        self.binner = KMeans_Binner(traces_1 + traces_2, self.num_bins, self.seed)
+        self.binner_manager = BinnerManager(
+            [evt for trace in traces_1 + traces_2 for evt in trace],
+            KMeans_Binner,
+            k=self.num_bins,
+            seed=self.seed,
+        )
 
         return (
-            extract_traces_activity_service_times(log_1, self.binner),
-            extract_traces_activity_service_times(log_2, self.binner),
+            extract_traces_activity_service_times(log_1, self.binner_manager),
+            extract_traces_activity_service_times(log_2, self.binner_manager),
         )
 
     def cost_fn(
@@ -548,6 +575,8 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
 
 
 class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
+    binner_manager: BinnerManager
+
     def __init__(
         self,
         log_1: DataFrame,
@@ -580,10 +609,19 @@ class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
         traces_1 = extract_service_time_traces(log_1)
         traces_2 = extract_service_time_traces(log_2)
 
-        self.binner = KMeans_Binner(traces_1 + traces_2, self.num_bins, self.seed)
+        self.binner_manager = BinnerManager(
+            [evt for trace in traces_1 + traces_2 for evt in trace],
+            KMeans_Binner,
+            k=self.num_bins,
+            seed=self.seed,
+        )
 
-        binned_traces_1 = extract_traces_activity_service_times(log_1, self.binner)
-        binned_traces_2 = extract_traces_activity_service_times(log_2, self.binner)
+        binned_traces_1 = extract_traces_activity_service_times(
+            log_1, self.binner_manager
+        )
+        binned_traces_2 = extract_traces_activity_service_times(
+            log_2, self.binner_manager
+        )
 
         # Create the Graphs
         graphs_1 = [
