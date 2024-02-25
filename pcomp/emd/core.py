@@ -533,9 +533,12 @@ def bootstrap_emd_population_split_sampling(
     """
     emds: list[float] = []
 
+    stochastic_lang = population_to_stochastic_language(population)
+    behavior = [item for item, _ in stochastic_lang]
+
     dists_start = default_timer()
     # Precompute all distances since statistically, every pair of traces will be needed at least once
-    dists = compute_distance_matrix(population, population, cost_fn, show_progress_bar)
+    dists = compute_distance_matrix(behavior, behavior, cost_fn, show_progress_bar)
     dists_end = default_timer()
 
     progress_bar = create_progress_bar(
@@ -544,8 +547,44 @@ def bootstrap_emd_population_split_sampling(
         desc="Bootstrapping EMD Null Distribution",
     )
 
+    population_indices_to_variant_indices = np.array(
+        [behavior.index(item) for item in population]
+    )
+
     for _ in range(bootstrapping_dist_size):
-        emds.append(compute_emd_for_split_sample(dists, emd_backend=emd_backend))
+        # Get the samples for the entire bootstrapping stage, respecting the frequencies of the variants
+        # Ideally, would do all the sampling at once, but not sure how to do that with replacement off for each row separately
+
+        # First sample from the population so that we respect the frequencies of the variants
+        sample = np.random.choice(
+            len(population),  # Need to sample from the population.
+            len(population) // 2,
+            replace=False,
+        )
+        inverted_sample = np.setdiff1d(range(len(population)), sample)
+
+        # Then translate to the index of the variant (index in distance matrix)
+        translated_sample = population_indices_to_variant_indices[sample]
+        translated_inverted_sample = population_indices_to_variant_indices[
+            inverted_sample
+        ]
+
+        deduplicated_indices_1, counts_1 = np.unique(
+            translated_sample, return_counts=True
+        )
+        deduplicated_indices_2, counts_2 = np.unique(
+            translated_inverted_sample, return_counts=True
+        )
+
+        emds.append(
+            emd(
+                counts_1 / len(translated_sample),
+                counts_2 / len(translated_inverted_sample),
+                dists[deduplicated_indices_1][:, deduplicated_indices_2],
+                backend=emd_backend,
+            )
+        )
+
         progress_bar.update()
     progress_bar.close()
     emds_end = default_timer()
