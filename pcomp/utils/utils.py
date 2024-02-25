@@ -180,7 +180,12 @@ def enable_logging(level: int = logging.INFO):
 
 class DevNullProgressBar:
     def __init__(self, *args, **kwargs):
-        pass
+        if len(args) > 0:
+            self.data = args[0]
+
+    def __iter__(self):
+        for i in self.data:
+            yield i
 
     def update(self, amount: int = 1):
         pass
@@ -209,4 +214,4 @@ def create_progress_bar(
     if show_progress_bar:
         return tqdm(*args, **kwargs)
     else:
-        return DevNullProgressBar()
+        return DevNullProgressBar(*args, **kwargs)
