@@ -2,16 +2,12 @@
 # "Time-aware Concept Drift Detection Using the Earth Mover’s Distance" by Brockhoff et al.
 # Here, we use the idea of this approach to compare two event logs w.r.t. timed control-flow
 
-import math
 from collections.abc import Callable
 from functools import cache
-from itertools import groupby
 from typing import Literal, Optional
 
-import numpy as np
 import pandas as pd
 from pandas import DataFrame
-from sklearn.cluster import kmeans_plusplus  # type: ignore
 from strsimpy.weighted_levenshtein import WeightedLevenshtein  # type: ignore
 
 from pcomp.binning import KMeans_Binner
@@ -30,7 +26,6 @@ from pcomp.emd.core import (
     population_to_stochastic_language,
 )
 from pcomp.utils import constants, ensure_start_timestamp_column
-from pcomp.utils.typing import Numpy1DArray
 
 ServiceTimeEvent = tuple[str, float]
 ServiceTimeTrace = tuple[ServiceTimeEvent, ...]
