@@ -39,75 +39,6 @@ BinnedServiceTimeEvent = tuple[str, int]
 BinnedServiceTimeTrace = tuple[BinnedServiceTimeEvent, ...]
 
 
-class _old_KMeans_Binner:
-    def __init__(
-        self,
-        data: list[ServiceTimeTrace],
-        num_bins: int,
-        seed: int | None = None,
-    ):
-        self.data = data
-        self.seed = seed
-        self.num_bins = num_bins
-
-        if self.seed is not None:
-            np.random.seed(self.seed)
-
-        sample_indices = np.random.choice(
-            range(len(self.data)),
-            size=math.ceil(0.2 * len(self.data)),
-        )
-
-        durations: dict[str, list[float]] = {
-            key: [dur for _, dur in subiter]
-            for key, subiter in groupby(
-                sorted(
-                    [
-                        evt
-                        for idx, trace in enumerate(self.data)
-                        for evt in trace
-                        if idx in sample_indices
-                    ]
-                ),
-                lambda x: x[0],
-            )
-        }
-
-        # Get a clustering for the service times of each activity
-
-        self.centroids: dict[str, Numpy1DArray[np.float_]] = {
-            act: kmeans_plusplus(
-                np.array(durs).reshape(-1, 1),
-                n_clusters=self.num_bins,
-                n_local_trials=10,
-                random_state=seed,
-            )[0]
-            for act, durs in durations.items()
-        }
-
-    def _closestCentroid1D(
-        self, point: float, centroids: Numpy1DArray[np.float_]
-    ) -> int:
-        mindex = 0
-        minval = centroids[0]
-        for idx, centroid in enumerate(centroids):
-            dist = abs(centroid - point)
-            if dist < minval:
-                mindex = idx
-                minval = dist
-        return mindex
-
-    def bin_event(self, event: ServiceTimeEvent) -> BinnedServiceTimeEvent:
-        act, dur = event
-        return (act, self._closestCentroid1D(dur, self.centroids[act]))
-
-    def bin_trace(self, trace: ServiceTimeTrace) -> BinnedServiceTimeTrace:
-        return tuple(self.bin_event(evt) for evt in trace)
-
-    def bin_log(self, traces: list[ServiceTimeTrace]) -> list[BinnedServiceTimeTrace]:
-        return [self.bin_trace(trace) for trace in traces]
-
-
 def extract_service_time_traces(
     log: pd.DataFrame,
     activity_key: str = constants.DEFAULT_NAME_KEY,
@@ -545,6 +476,8 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
         self.binner_manager = BinnerManager(
             [evt for trace in traces_1 + traces_2 for evt in trace],
             KMeans_Binner,
+            # OuterPercentileBinner,
+            # outer_percent=10,
             k=self.num_bins,
             seed=self.seed,
         )
