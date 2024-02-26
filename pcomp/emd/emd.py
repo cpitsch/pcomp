@@ -81,15 +81,12 @@ def extract_traces_activity_service_times(
 
     Args:
         log (EventLog): The event log
-        binner_manager (BinnerManager): The binner to use for binning the service times.
-        num_bins (int, optional): The number of bins to cluster the service times into (Using K-Means). Defaults to 3 (intuitively "slow", "medium", "fast").
-        traceid_key (str, optional): The key for the trace id in the event log. Defaults to xes.DEFAULT_TRACEID_KEY.
+        binner_manager (BinnerManager): The binner manager to use for binning the service times.
         activity_key (str, optional): The key for the activity value in the event log. Defaults to xes.DEFAULT_NAME_KEY.
         start_time_key (str, optional): The key in the event log for the start timestamp of the event. Defaults to xes.DEFAULT_START_TIMESTAMP_KEY.
         end_time_key (str, optional): The key in the event log for the completion timestamp of the event. Defaults to xes.DEFAULT_TIMESTAMP_KEY.
-        seed (int | None, optional): The seed for the random number generator for numpy sampling and scipy kmeans++
     Returns:
-        list[ServiceTimeTrace]: A sequence of traces, represented as a tuple of Activities, but here the activities are tuples of the activity name and how long that activity took to complete. Same order as in the original event log.
+        list[ServiceTimeTrace]: A sequence of traces, represented as a tuple of activity and binned duration. Same order as in the original event log.
     """
     service_time_traces = extract_service_time_traces(
         log, activity_key, start_time_key, end_time_key
@@ -145,7 +142,6 @@ def weighted_levenshtein_distance(
     return dist
 
 
-@cache
 def custom_levenshtein_distance(
     trace1: BinnedServiceTimeTrace, trace2: BinnedServiceTimeTrace
 ) -> float:
@@ -156,7 +152,8 @@ def custom_levenshtein_distance(
         - Time Match/Rename cost: Absolute difference between the times
         - Time Insert/Delete cost: x (The value of the time)
 
-        Thanks to not taking cost functions as inputs, caching (hashing) works correctly and saves time.
+        Thanks to not taking (lambda) cost functions as inputs, caching (hashing) can work correctly and save time.
+        For the implementation with caching, see `cached_custom_levenshtein_distance`.
 
     Args:
         trace1 (BinnedServiceTimeTrace): The first trace.
@@ -173,6 +170,14 @@ def custom_levenshtein_distance(
         cost_time_match_rename=lambda x, y: abs(x - y),
         cost_time_insert_delete=lambda x: x,
     )
+
+
+@cache
+def cached_custom_levenshtein_distance(
+    trace1: BinnedServiceTimeTrace, trace2: BinnedServiceTimeTrace
+) -> float:
+    """A cached version of `custom_levenshtein_distance`."""
+    return custom_levenshtein_distance(trace1, trace2)
 
 
 def custom_postnormalized_levenshtein_distance(
@@ -248,21 +253,21 @@ def post_normalized_weighted_levenshtein_distance(
 
 
 def calc_timing_emd(
-    distribution1: list[tuple[BinnedServiceTimeTrace, float]],
-    distribution2: list[tuple[BinnedServiceTimeTrace, float]],
+    distribution_1: list[tuple[BinnedServiceTimeTrace, float]],
+    distribution_2: list[tuple[BinnedServiceTimeTrace, float]],
 ) -> float:
     """Calculate the Earth Mover's Distance between two populations of BinnedServiceTimeTraces.
 
     Args:
-        distribution1 (list[tuple[BinnedServiceTimeTrace, float]]): The population for the first event log.
-        distribution2 (list[tuple[BinnedServiceTimeTrace, float]]): The population for the second event log.
+        distribution_1 (list[tuple[BinnedServiceTimeTrace, float]]): The population for the first event log.
+        distribution_2 (list[tuple[BinnedServiceTimeTrace, float]]): The population for the second event log.
 
     Returns:
         float: The computed (Time-Aware) Earth Mover's Distance.
     """
     return compute_emd(
-        distribution1,
-        distribution2,
+        distribution_1,
+        distribution_2,
         custom_postnormalized_levenshtein_distance,
     )
 
@@ -280,7 +285,7 @@ def log_to_stochastic_language(
 
     Args:
         log (pd.DataFrame): The event log.
-        binner_manager (BinnerManager): The binner to use to bin the activity service times.
+        binner_manager (BinnerManager): The binner manager to use to bin the activity service times.
         activity_key (str, optional): The key for the activity label in the event log. Defaults to constants.DEFAULT_NAME_KEY.
         start_time_key (str, optional): The key for the start timestamp in the event log. Defaults to constants.DEFAULT_START_TIMESTAMP_KEY.
         end_time_key (str, optional): The key for the end timestamp. Defaults to constants.DEFAULT_TIMESTAMP_KEY.
@@ -312,8 +317,8 @@ def compare_logs_emd(
     Args:
         log_1 (pd.DataFrame): The first event log.
         log_2 (pd.DataFrame): The second event log.
-        binner_manager (BinnerManager, optional): The binner to use to bin the activtiy service times. If none provided, one will be trained on the data using `num_bins` bins.
-        num_bins (int, optional): The number of bins to cluster the service times into (Using K-Means). Defaults to 3 (intuitively "slow", "medium", "fast").
+        binner_manager (BinnerManager, optional): The binner to use to bin the activtiy service times. If none provided, one will be trained on the data using a KMeans++ binner with `num_bins` bins.
+        num_bins (int, optional): The number of bins to cluster the service times into (Using K-Means++). Defaults to 3 (intuitively "slow", "medium", "fast").
         activity_key (str, optional): The name of the column containing the label of the executed activity. Defaults to "concept:name".
         start_time_key (str, optional): The name of the column containing the start timestamp of the event. Defaults to "start_timestamp".
         end_time_key (str, optional): The name of the column containing the (end-) timestamp of the event. Defaults to "time:timestamp".
@@ -432,6 +437,10 @@ def process_comparison_emd(
 
 
 class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTrace]):
+    """An implementation of the EMD_ProcessComparator for comparing event logs w.r.t. the timed-control-flow
+    using a weighted post-normalized levenshtein distance as the cost function.
+    """
+
     binner_manager: BinnerManager
 
     def __init__(
@@ -465,6 +474,7 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
     def extract_representations(
         self, log_1: DataFrame, log_2: DataFrame
     ) -> tuple[list[BinnedServiceTimeTrace], list[BinnedServiceTimeTrace]]:
+        """Extract the service time traces from the event logs and bin their activity service times."""
         traces_1 = extract_service_time_traces(log_1)
         traces_2 = extract_service_time_traces(log_2)
 
@@ -485,6 +495,10 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
     def cost_fn(
         self, item1: BinnedServiceTimeTrace, item2: BinnedServiceTimeTrace
     ) -> float:
+        """
+        If `weighted_time_cost` is True, the time costs are all weighted by the maximum possible time difference, `num_bins - 1`.
+        As such, the maximum cost that can be incurred due to time differences in each event is 1.
+        """
         if self.weighted_time_cost:
             return post_normalized_weighted_levenshtein_distance(
                 item1,
@@ -503,6 +517,12 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
 
 
 class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
+    """An implementation of the EMD_ProcessComparator for comparing event logs
+    w.r.t. the timed-control-flow, converting BinnedServiceTimeTraces to graphs
+    and applying the GED approximation from the paper "Comparing Stars: On
+    Approximating Graph Edit Distance" by Zeng et al.
+    """
+
     binner_manager: BinnerManager
 
     def __init__(
