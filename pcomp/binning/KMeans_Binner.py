@@ -1,4 +1,4 @@
-from sklearn.cluster import kmeans_plusplus
+from sklearn.cluster import kmeans_plusplus  # type: ignore
 from pcomp.binning.Binner import Binner
 import numpy as np
 import math

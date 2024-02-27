@@ -108,7 +108,7 @@ def weighted_levenshtein_distance(
     insertion_deletion_cost: Callable[[str], float],
     cost_time_match_rename: Callable[[int, int], float],
     cost_time_insert_delete: Callable[[int], float],
-) -> int:
+) -> float:
     """Compute the levenshtein distance with custom weights. Using strsimpy
 
     Args:
