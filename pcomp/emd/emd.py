@@ -329,7 +329,7 @@ def compare_logs_emd(
     """
 
     if binner_manager is None:
-        binner = BinnerManager(
+        binner_manager = BinnerManager(
             [
                 evt
                 for trace in extract_service_time_traces(
@@ -346,11 +346,11 @@ def compare_logs_emd(
         )
 
     dist1: list[tuple[BinnedServiceTimeTrace, float]] = log_to_stochastic_language(
-        log_1, binner, activity_key, start_time_key, end_time_key
+        log_1, binner_manager, activity_key, start_time_key, end_time_key
     )
 
     dist2: list[tuple[BinnedServiceTimeTrace, float]] = log_to_stochastic_language(
-        log_2, binner, activity_key, start_time_key, end_time_key
+        log_2, binner_manager, activity_key, start_time_key, end_time_key
     )
 
     emd = compute_emd(dist1, dist2, custom_postnormalized_levenshtein_distance)
