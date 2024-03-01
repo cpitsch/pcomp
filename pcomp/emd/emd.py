@@ -508,7 +508,7 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
                 cost_time_match_rename=lambda x, y: abs(x - y)
                 / max(self.num_bins - 1, 1),
                 cost_time_insert_delete=lambda x: x / max(self.num_bins - 1, 1),
-            )
+            ) / (1 + (1 if self.num_bins > 1 else 0))
         else:
             return custom_postnormalized_levenshtein_distance(item1, item2)
 
