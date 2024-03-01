@@ -1,27 +1,26 @@
 import logging
+import math
 from abc import ABC, abstractmethod
 from collections import Counter
 from itertools import zip_longest
-import math
 from timeit import default_timer
 from typing import Callable, Generic, Literal, TypeVar
 
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
 import numpy as np
 import ot  # type: ignore
 import pandas as pd
 import wasserstein  # type: ignore
-from tqdm.auto import tqdm
+from matplotlib.figure import Figure
 
-from pcomp.utils import ensure_start_timestamp_column, pretty_format_duration, log_len
+from pcomp.utils import ensure_start_timestamp_column, log_len, pretty_format_duration
 from pcomp.utils.typing import Numpy1DArray, NumpyMatrix
 from pcomp.utils.utils import create_progress_bar
 
 T = TypeVar("T")
 
 # Literal Types
-BootstrappingStyle = Literal["split sampling", "replacement sublogs"]
+BootstrappingStyle = Literal["split sampling", "replacement sublogs", "resample split"]
 EMDBackend = Literal["wasserstein", "ot", "pot"]
 
 
@@ -63,6 +62,7 @@ class EMD_ProcessComparator(ABC, Generic[T]):
 
             - "replacement sublogs": Randomly sample sublogs of `resample_size` of log_1, and compute their EMD to log_1. This is done `bootstrapping_dist_size` times.
             - "split sampling": Randomly split the log_1 in two, and compute the EMD between the two halves. This is done `bootstrapping_dist_size` times.
+            - "resample split": Randomly sample 2 sublogs of `resample_size` of log_1 and compute their EMD. This is done `bootstrapping_dist_size` times.
 
             emd_backend (EMDBackend, optional): The backend to use for EMD computation. Defaults to "wasserstein" (use the "wasserstein" module). Alternatively, "ot" or "pot" will
             use the "Python Optimal Transport" package.
@@ -187,6 +187,15 @@ class EMD_ProcessComparator(ABC, Generic[T]):
                 self.behavior_1,
                 self.cost_fn,
                 bootstrapping_dist_size=self.bootstrapping_dist_size,
+                emd_backend=self.emd_backend,
+                show_progress_bar=self.verbose,
+            )
+        elif self.bootstrapping_style == "resample split":
+            self_emds = bootstrap_emd_population_resample_split_sampling(
+                self.behavior_1,
+                self.cost_fn,
+                bootstrapping_dist_size=self.bootstrapping_dist_size,
+                resample_size=self.resample_size,
                 emd_backend=self.emd_backend,
                 show_progress_bar=self.verbose,
             )
@@ -637,6 +646,80 @@ def bootstrap_emd_population_split_sampling(
     progress_bar.close()
     emds_end = default_timer()
 
+    _log_bootstrapping_performance(dists_start, dists_end, emds_end)
+
+    return emds
+
+
+def bootstrap_emd_population_resample_split_sampling(
+    population: list[T],
+    cost_fn: Callable[[T, T], float],
+    bootstrapping_dist_size: int = 10_000,
+    resample_size: int | None = None,
+    emd_backend: EMDBackend = "wasserstein",
+    show_progress_bar: bool = True,
+) -> list[float]:
+    """Bootstrap a distribution of EMDs of a population to itself.
+    Computed by randomly drawing two samples with replacement and computing their EMD.
+    This is repeated `bootstrapping_dist_size` times.
+
+    Args:
+        population (list[T]): The population. A list of items.
+        cost_fn (Callable[[T, T], float]): A function to compute the cost between two items.
+        bootstrapping_dist_size (int, optional): The number of EMDs to compute. Defaults to 10_000.
+        resample_size (int | None, optional): The size of the samples. Defaults to None (half the population size).
+        emd_backend (EMDBackend, optional): The backend to use to compute the EMD. Defaults to "wasserstein".
+        show_progress_bar (bool, optional): Whether to show a progress bar for the sampling progress. Defaults to True.
+
+    Returns:
+        list[float]: The list of computed EMDs.
+    """
+    if resample_size is None:
+        resample_size = len(population) // 2
+
+    emds: list[float] = []
+
+    stochastic_lang = population_to_stochastic_language(population)
+    behavior = [item for item, _ in stochastic_lang]
+    freqs = [freq for _, freq in stochastic_lang]
+
+    dists_start = default_timer()
+    # Precompute all distances since statistically, every pair of traces will be needed at least once
+    dists = compute_distance_matrix(behavior, behavior, cost_fn, show_progress_bar)
+    dists_end = default_timer()
+
+    progress_bar = create_progress_bar(
+        show_progress_bar,
+        total=bootstrapping_dist_size,
+        desc="Bootstrapping EMD Null Distribution",
+    )
+
+    # TODO: Could put this in a bootstrapping_dist_size x 2 array (?),
+    # so both samples are stored/generated together?
+    samples_1 = np.random.choice(
+        dists.shape[0], (bootstrapping_dist_size, resample_size), replace=True, p=freqs
+    )
+    samples_2 = np.random.choice(
+        dists.shape[0], (bootstrapping_dist_size, resample_size), replace=True, p=freqs
+    )
+    for idx in range(bootstrapping_dist_size):
+        sample_1 = samples_1[idx]
+        sample_2 = samples_2[idx]
+
+        deduplicated_indices_1, counts_1 = np.unique(sample_1, return_counts=True)
+        deduplicated_indices_2, counts_2 = np.unique(sample_2, return_counts=True)
+
+        emds.append(
+            emd(
+                counts_1 / resample_size,
+                counts_2 / resample_size,
+                dists[deduplicated_indices_1][:, deduplicated_indices_2],
+                backend=emd_backend,
+            )
+        )
+        progress_bar.update()
+    progress_bar.close()
+    emds_end = default_timer()
     _log_bootstrapping_performance(dists_start, dists_end, emds_end)
 
     return emds
