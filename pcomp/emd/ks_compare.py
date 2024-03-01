@@ -357,7 +357,7 @@ class LevenshteinKSComparator(EMD_KS_ProcessComparator[BinnedServiceTimeTrace]):
         traces_2 = extract_service_time_traces(log_2)
 
         self.binner_manager = BinnerManager(
-            [evt for trace in traces_1 + traces_2 for evt in trace],
+            [evt for trace in traces_1 for evt in trace],
             KMeans_Binner,
             k=self.num_bins,
             seed=self.seed,

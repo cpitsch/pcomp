@@ -335,9 +335,6 @@ def compare_logs_emd(
                 for trace in extract_service_time_traces(
                     log_1, activity_key, start_time_key, end_time_key
                 )
-                + extract_service_time_traces(
-                    log_2, activity_key, start_time_key, end_time_key
-                )
                 for evt in trace
             ],
             KMeans_Binner,
@@ -399,7 +396,7 @@ def process_comparison_emd(
     )
 
     binner_manager = BinnerManager(
-        [evt for trace in traces_1 + traces_2 for evt in trace],
+        [evt for trace in traces_1 for evt in trace],
         KMeans_Binner,
         k=num_bins,
         seed=seed,
@@ -479,7 +476,7 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
         traces_2 = extract_service_time_traces(log_2)
 
         self.binner_manager = BinnerManager(
-            [evt for trace in traces_1 + traces_2 for evt in trace],
+            [evt for trace in traces_1 for evt in trace],
             KMeans_Binner,
             # OuterPercentileBinner,
             # outer_percent=10,
@@ -558,7 +555,7 @@ class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
         traces_2 = extract_service_time_traces(log_2)
 
         self.binner_manager = BinnerManager(
-            [evt for trace in traces_1 + traces_2 for evt in trace],
+            [evt for trace in traces_1 for evt in trace],
             KMeans_Binner,
             k=self.num_bins,
             seed=self.seed,
