@@ -203,6 +203,43 @@ class EMD_ProcessComparator(ABC, Generic[T]):
 
         return self._pval
 
+    def plot_result(self) -> Figure:
+        """Plot the bootstrapping distribution and the EMD between the two logs.
+
+        Args:
+            bootstrapping_distribution (list[float]): The bootstrapping distribution of EMDs of the log to itself.
+            logs_emd (float): The EMD between the two logs.
+
+        Returns:
+            plt.figure: The corresponding figure.
+        """
+        fig, ax = plt.subplots()
+
+        bootstrapping_distribution = self.bootstrapping_distribution
+        logs_emd = self.logs_emd
+
+        ax.hist(
+            bootstrapping_distribution,
+            bins=50,
+            edgecolor="black",
+            alpha=0.7,
+            label=r"$D_{l_1l_1}$",
+        )
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlabel("Earth Mover's Distance")
+        ax.set_ylabel("Frequency")
+        ax.axvline(
+            logs_emd,
+            color="red",
+            linestyle="--",
+            linewidth=2,
+            label=r"$d_{l_1l_2}$",
+        )
+        ax.legend(fontsize=12, loc="upper right")
+
+        return fig
+
 
 def compute_emd(
     distribution1: list[tuple[T, float]],
@@ -696,37 +733,3 @@ def compute_time_distance_component(trace_1: Trace, trace_2: Trace) -> float:
             not_matched_durs_1, not_matched_durs_2, fillvalue=0.0
         )
     )
-
-
-def plot_emd_result(bootstrapping_distribution: list[float], logs_emd: float) -> Figure:
-    """Plot the bootstrapping distribution and the EMD between the two logs.
-
-    Args:
-        bootstrapping_distribution (list[float]): The bootstrapping distribution of EMDs of the log to itself.
-        logs_emd (float): The EMD between the two logs.
-
-    Returns:
-        plt.figure: The corresponding figure.
-    """
-    fig, ax = plt.subplots()
-    ax.hist(
-        bootstrapping_distribution,
-        bins=50,
-        edgecolor="black",
-        alpha=0.7,
-        label=r"$D_{l_1l_1}$",
-    )
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_xlabel("Earth Mover's Distance")
-    ax.set_ylabel("Frequency")
-    ax.axvline(
-        logs_emd,
-        color="red",
-        linestyle="--",
-        linewidth=2,
-        label=r"$d_{l_1l_2}$",
-    )
-    ax.legend(fontsize=12, loc="upper right")
-
-    return fig
