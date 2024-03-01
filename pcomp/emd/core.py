@@ -143,6 +143,16 @@ class EMD_ProcessComparator(ABC, Generic[T]):
             )
         return self._bootstrapping_distribution
 
+    @property
+    def pval(self) -> float:
+        """
+        The p-value from the comparison. Computed in `compare`.
+        If `compare` has not been called, accessing this will raise a ValueError.
+        """
+        if not hasattr(self, "_pval"):
+            raise ValueError("Must call `compare` before accessing `pval`.")
+        return self._pval
+
     def compare(self) -> float:
         """Apply the full pipeline to compare the event logs.
 
@@ -189,8 +199,9 @@ class EMD_ProcessComparator(ABC, Generic[T]):
 
         self._logs_emd = emd
         self._bootstrapping_distribution = self_emds
+        self._pval = num_larger_or_equal_bootstrap_dists / self.bootstrapping_dist_size
 
-        return num_larger_or_equal_bootstrap_dists / self.bootstrapping_dist_size
+        return self._pval
 
 
 def compute_emd(
