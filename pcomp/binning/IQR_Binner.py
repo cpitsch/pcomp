@@ -7,7 +7,6 @@ class IQR_Binner(Binner):
     Q_1: float
     Q_3: float
 
-    # TODO: Dont need a seed here right
     def __init__(self, data: list[float], seed: int | None = None):
         super().__init__(data, seed)
         self.Q_1 = np.percentile(self.data, 25)
