@@ -9,8 +9,6 @@ import seaborn as sns
 from matplotlib.figure import Figure
 from scipy.stats import kstest  # type: ignore
 
-from pcomp.binning.Binner import BinnerManager
-from pcomp.binning.KMeans_Binner import KMeans_Binner  # type: ignore
 from pcomp.emd.core import (
     EMDBackend,
     _log_bootstrapping_performance,
@@ -19,13 +17,6 @@ from pcomp.emd.core import (
     compute_distance_matrix,
     emd,
     population_to_stochastic_language,
-)
-from pcomp.emd.emd import (
-    BinnedServiceTimeTrace,
-    custom_postnormalized_levenshtein_distance,
-    extract_service_time_traces,
-    extract_traces_activity_service_times,
-    post_normalized_weighted_levenshtein_distance,
 )
 from pcomp.utils import create_progress_bar, ensure_start_timestamp_column
 
@@ -313,80 +304,3 @@ def bootstrap_emd_population_between_logs(
     _log_bootstrapping_performance(dists_start, dists_end, emds_end)
 
     return emds
-
-
-class LevenshteinKSComparator(EMD_KS_ProcessComparator[BinnedServiceTimeTrace]):
-    """
-    A class to compare two processes by comparing distributions of calculated EMDs. For more information, see the documentation of the abstract class `EMD_KS_ProcessComparator`.
-    Represents the processes through the extracted sequences of (activity, duration) pairs for each case.
-    Uses the Levenshtein distance as a cost function between items.
-    """
-
-    binner_manager: BinnerManager
-
-    def __init__(
-        self,
-        log_1: pd.DataFrame,
-        log_2: pd.DataFrame,
-        bootstrapping_dist_size: int = 10000,
-        verbose: bool = True,
-        cleanup_on_del: bool = True,
-        self_emds_bootstrapping_style: Self_Bootstrapping_Style = "replacement",
-        emd_backend: EMDBackend = "wasserstein",
-        num_bins: int = 3,
-        weighted_time_cost: bool = False,
-        seed: int | None = None,
-    ):
-        super().__init__(
-            log_1,
-            log_2,
-            bootstrapping_dist_size,
-            verbose,
-            cleanup_on_del,
-            self_emds_bootstrapping_style,
-            emd_backend,
-        )
-        self.num_bins = num_bins
-        self.seed = seed
-        self.weighted_time_cost = weighted_time_cost
-
-    def extract_representations(
-        self, log_1: pd.DataFrame, log_2: pd.DataFrame
-    ) -> tuple[list[BinnedServiceTimeTrace], list[BinnedServiceTimeTrace]]:
-        traces_1 = extract_service_time_traces(log_1)
-        traces_2 = extract_service_time_traces(log_2)
-
-        self.binner_manager = BinnerManager(
-            [evt for trace in traces_1 for evt in trace],
-            KMeans_Binner,
-            k=self.num_bins,
-            seed=self.seed,
-        )
-
-        return (
-            extract_traces_activity_service_times(log_1, self.binner_manager),
-            extract_traces_activity_service_times(log_2, self.binner_manager),
-        )
-
-    def cost_fn(
-        self, item1: BinnedServiceTimeTrace, item2: BinnedServiceTimeTrace
-    ) -> float:
-        """
-        If `weighted_time_cost` is True, the time costs are all weighted by the maximum possible time difference, `num_bins - 1`.
-        As such, the maximum cost that can be incurred due to time differences in each event is 1.
-        """
-        if self.weighted_time_cost:
-            return post_normalized_weighted_levenshtein_distance(
-                item1,
-                item2,
-                rename_cost=lambda x, y: 1,
-                insertion_deletion_cost=lambda x: 1,
-                cost_time_match_rename=lambda x, y: abs(x - y)
-                / max(self.num_bins - 1, 1),
-                cost_time_insert_delete=lambda x: x / max(self.num_bins - 1, 1),
-            )
-        else:
-            return custom_postnormalized_levenshtein_distance(item1, item2)
-
-    def cleanup(self) -> None:
-        pass
