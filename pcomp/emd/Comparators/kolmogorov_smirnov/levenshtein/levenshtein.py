@@ -46,9 +46,9 @@ class LevenshteinKSComparator(EMD_KS_ProcessComparator[BinnedServiceTimeTrace]):
             cleanup_on_del,
             self_emds_bootstrapping_style,
             emd_backend,
+            seed,
         )
         self.num_bins = num_bins
-        self.seed = seed
         self.weighted_time_cost = weighted_time_cost
 
     def extract_representations(

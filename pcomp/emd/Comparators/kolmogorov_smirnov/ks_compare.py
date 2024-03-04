@@ -33,6 +33,7 @@ class EMD_KS_ProcessComparator(ABC, Generic[T]):
     verbose: bool
     cleanup_on_del: bool
     emd_backend: EMDBackend
+    seed: int | None
 
     behavior_1: list[T]
     behavior_2: list[T]
@@ -48,6 +49,7 @@ class EMD_KS_ProcessComparator(ABC, Generic[T]):
         cleanup_on_del: bool = True,
         self_emds_bootstrapping_style: Self_Bootstrapping_Style = "replacement",
         emd_backend: EMDBackend = "wasserstein",
+        seed: int | None = None,
     ):
         """Create an instance.
 
@@ -64,6 +66,7 @@ class EMD_KS_ProcessComparator(ABC, Generic[T]):
 
             emd_backend (EMDBackend, optional): The backend to use for EMD computation. Defaults to "wasserstein" (use the "wasserstein" module). Alternatively, "ot" or "pot" will
             use the "Python Optimal Transport" package.
+            seed: (int, optional): The seed to use for sampling in the bootstrapping phase.
         """
         self.log_1 = ensure_start_timestamp_column(log_1)
         self.log_2 = ensure_start_timestamp_column(log_2)
@@ -73,6 +76,10 @@ class EMD_KS_ProcessComparator(ABC, Generic[T]):
         self.verbose = verbose
         self.cleanup_on_del = cleanup_on_del
         self.emd_backend = emd_backend
+
+        self.seed = seed
+        if self.seed is not None:
+            np.random.seed(self.seed)
 
     def __del__(self):
         if self.cleanup_on_del:
