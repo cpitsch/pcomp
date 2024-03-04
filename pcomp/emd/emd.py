@@ -164,8 +164,8 @@ def custom_levenshtein_distance(
     return weighted_levenshtein_distance(
         trace1,
         trace2,
-        rename_cost=lambda x, y: 1,
-        insertion_deletion_cost=lambda x: 1,
+        rename_cost=lambda *_: 1,
+        insertion_deletion_cost=lambda _: 1,
         cost_time_match_rename=lambda x, y: abs(x - y),
         cost_time_insert_delete=lambda x: x,
     )
@@ -205,8 +205,8 @@ def custom_postnormalized_levenshtein_distance(
     return post_normalized_weighted_levenshtein_distance(
         trace1,
         trace2,
-        rename_cost=lambda x, y: 1,
-        insertion_deletion_cost=lambda x: 1,
+        rename_cost=lambda *_: 1,
+        insertion_deletion_cost=lambda _: 1,
         cost_time_match_rename=lambda x, y: abs(x - y),
         cost_time_insert_delete=lambda x: x,
     )
@@ -495,8 +495,8 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
             return post_normalized_weighted_levenshtein_distance(
                 item1,
                 item2,
-                rename_cost=lambda x, y: 1,
-                insertion_deletion_cost=lambda x: 1,
+                rename_cost=lambda *_: 1,
+                insertion_deletion_cost=lambda _: 1,
                 cost_time_match_rename=lambda x, y: abs(x - y)
                 / max(self.num_bins - 1, 1),
                 cost_time_insert_delete=lambda x: x / max(self.num_bins - 1, 1),
