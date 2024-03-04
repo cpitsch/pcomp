@@ -4,7 +4,7 @@
 
 from collections.abc import Callable
 from functools import cache
-from typing import Optional
+from typing import Optional, cast
 
 import pandas as pd
 from pandas import DataFrame
@@ -58,7 +58,11 @@ def extract_service_time_traces(
                     evt[activity_key],
                     (evt[end_time_key] - evt[start_time_key]).total_seconds(),
                 )
-                for (_, evt) in group_df.sort_values(by=end_time_key).iterrows()
+                for (_, evt) in cast(
+                    pd.DataFrame, group_df
+                )  # Tell typing that group_df is a Dataframe since pandas typing is weird
+                .sort_values(by=end_time_key)
+                .iterrows()
             )
         )
         .tolist()
@@ -386,9 +390,6 @@ def process_comparison_emd(
     traces_1 = extract_service_time_traces(
         log_1, activity_key, start_time_key, end_time_key
     )
-    traces_2 = extract_service_time_traces(
-        log_2, activity_key, start_time_key, end_time_key
-    )
 
     binner_manager = BinnerManager(
         [evt for trace in traces_1 for evt in trace],
@@ -468,7 +469,6 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
     ) -> tuple[list[BinnedServiceTimeTrace], list[BinnedServiceTimeTrace]]:
         """Extract the service time traces from the event logs and bin their activity service times."""
         traces_1 = extract_service_time_traces(log_1)
-        traces_2 = extract_service_time_traces(log_2)
 
         self.binner_manager = BinnerManager(
             [evt for trace in traces_1 for evt in trace],
