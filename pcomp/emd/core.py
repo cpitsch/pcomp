@@ -328,40 +328,6 @@ def emd(
         )
 
 
-def _sample_with_replacement(items: list[T], n: int) -> list[T]:
-    """Sample with replacement from a list of items.
-
-    Args:
-        items (list[T]): The items to sample from.
-        n (int): The size of the sample.
-
-    Returns:
-        list[T]: The sampled items.
-    """
-    sampled_indices = np.random.choice(range(len(items)), n, replace=True)
-    return [items[idx] for idx in sampled_indices]
-
-
-def _split_sampling(items: list[T]) -> tuple[list[T], list[T]]:
-    """Split a population into two random non-overlapping halves.
-
-    Args:
-        items (list[T]): The population to split.
-
-    Returns:
-        tuple[list[T], list[T]]: The two halves of the population.
-    """
-    sampled_indices = np.random.choice(
-        range(len(items)), len(items) // 2, replace=False
-    )
-    population_1 = [items[idx] for idx in sampled_indices]
-    population_2 = [
-        item for idx, item in enumerate(items) if idx not in sampled_indices
-    ]
-
-    return population_1, population_2
-
-
 def population_to_stochastic_language(
     population: list[T],
 ) -> list[tuple[T, float]]:
