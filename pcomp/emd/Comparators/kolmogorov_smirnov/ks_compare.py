@@ -37,8 +37,6 @@ class EMD_KS_ProcessComparator(ABC, Generic[T]):
 
     behavior_1: list[T]
     behavior_2: list[T]
-    log_1_self_emds: list[float]
-    emds_log_1_log_2: list[float]
 
     def __init__(
         self,

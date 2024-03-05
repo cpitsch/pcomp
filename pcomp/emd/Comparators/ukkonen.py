@@ -1,8 +1,9 @@
 from functools import cache
+from typing import Any
 
 import pandas as pd
 
-from pcomp.binning import Binner, IQR_Binner
+from pcomp.binning import BinnerFactory, BinnerManager, KMeans_Binner
 from pcomp.emd.approximations.string_edit_distance import ukkonen_distance
 from pcomp.emd.core import (
     BootstrappingStyle,
@@ -14,6 +15,7 @@ from pcomp.emd.emd import (
     BinnedServiceTimeTrace,
     ServiceTimeTrace,
     extract_service_time_traces,
+    extract_traces_activity_service_times,
 )
 
 
@@ -40,6 +42,9 @@ class Ukkonen_Distance_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTra
         cleanup_on_del: bool = True,
         bootstrapping_style: BootstrappingStyle = "replacement sublogs",
         emd_backend: EMDBackend = "wasserstein",
+        seed: int | None = None,
+        binner_factory: BinnerFactory | None = None,
+        binner_args: dict[str, Any] | None = None,
     ):
         super().__init__(
             log_1,
@@ -50,44 +55,50 @@ class Ukkonen_Distance_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTra
             cleanup_on_del,
             bootstrapping_style,
             emd_backend,
+            seed,
+        )
+
+        # Default to KMenas_Binner with 3 bins
+        self.binner_factory = binner_factory or KMeans_Binner
+        self.binner_args = binner_args or (
+            {
+                "k": 3,
+                "seed": self.seed,
+            }
+            if self.binner_factory == KMeans_Binner
+            else {}
         )
 
     def extract_representations(
         self, log_1: pd.DataFrame, log_2: pd.DataFrame
     ) -> tuple[list[BinnedServiceTimeTrace], list[BinnedServiceTimeTrace]]:
         unbinned_traces_1: list[ServiceTimeTrace] = extract_service_time_traces(log_1)
-        unbinned_traces_2: list[ServiceTimeTrace] = extract_service_time_traces(log_2)
 
-        groupby_activity: dict[str, list[float]] = dict()
-        for trace in unbinned_traces_1 + unbinned_traces_2:
-            for act, dur in trace:
-                if act not in groupby_activity:
-                    groupby_activity[act] = []
-                groupby_activity[act].append(dur)
+        self.binner_manager = BinnerManager(
+            [evt for trace in unbinned_traces_1 for evt in trace],
+            self.binner_factory,
+            **self.binner_args,
+        )
 
-        self.binners: dict[str, Binner] = {
-            act: IQR_Binner(durations) for act, durations in groupby_activity.items()
-        }
-
-        binned_traces_1: list[BinnedServiceTimeTrace] = [
-            tuple((act, self.binners[act].bin(dur)) for act, dur in trace)
-            for trace in unbinned_traces_1
-        ]
-        binned_traces_2: list[BinnedServiceTimeTrace] = [
-            tuple((act, self.binners[act].bin(dur)) for act, dur in trace)
-            for trace in unbinned_traces_2
-        ]
+        binned_traces_1 = extract_traces_activity_service_times(
+            log_1, self.binner_manager
+        )
+        binned_traces_2 = extract_traces_activity_service_times(
+            log_2, self.binner_manager
+        )
 
         return binned_traces_1, binned_traces_2
 
-    def cost_fn(self, a: BinnedServiceTimeTrace, b: BinnedServiceTimeTrace) -> float:
+    def cost_fn(
+        self, item1: BinnedServiceTimeTrace, item2: BinnedServiceTimeTrace
+    ) -> float:
         control_flow_dist = _cached_ukkonen_distance(
-            tuple(act for act, _ in a), tuple(act for act, _ in b)
+            tuple(act for act, _ in item1), tuple(act for act, _ in item2)
         )
-        time_dist = _cached_time_distance(a, b)
+        time_dist = _cached_time_distance(item1, item2)
 
         return (control_flow_dist + time_dist) / max(
-            len(a), len(b)
+            len(item1), len(item2)
         )  # Post-normalization
 
     def cleanup(self) -> None:

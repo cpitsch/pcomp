@@ -6,6 +6,7 @@ from .Binner import Binner
 class OuterPercentileBinner(Binner):
     lower_boundary: float
     upper_boundary: float
+    num_bins: int = 3
 
     def __init__(self, data: list[float], outer_percent: float = 10):
         super().__init__(data)

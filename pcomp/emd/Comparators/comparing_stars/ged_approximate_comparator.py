@@ -1,13 +1,14 @@
-from typing import Literal
-from pcomp.binning.Binner import BinnerManager
+from typing import Any, Literal
+
+import pandas as pd
+
+from pcomp.binning import BinnerFactory, BinnerManager
 from pcomp.binning.KMeans_Binner import KMeans_Binner
 from pcomp.emd.approximations.comparing_stars import DiGraph, GraphNode
 from pcomp.emd.approximations.comparing_stars.comparing_stars import (
     timed_star_graph_edit_distance,
 )
 from pcomp.emd.core import BootstrappingStyle, EMD_ProcessComparator, EMDBackend
-import pandas as pd
-
 from pcomp.emd.emd import (
     extract_service_time_traces,
     extract_traces_activity_service_times,
@@ -33,8 +34,9 @@ class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
         cleanup_on_del: bool = True,
         bootstrapping_style: BootstrappingStyle = "replacement sublogs",
         emd_backend: EMDBackend = "wasserstein",
-        num_bins: int = 3,
         seed: int | None = None,
+        binner_factory: BinnerFactory | None = None,
+        binner_args: dict[str, Any] | None = None,
     ):
         super().__init__(
             log_1,
@@ -45,9 +47,19 @@ class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
             cleanup_on_del,
             bootstrapping_style,
             emd_backend,
+            seed,
         )
-        self.num_bins = num_bins
-        self.seed = seed
+
+        # Default to KMeans_Binner with 3 bins
+        self.binner_factory = binner_factory or KMeans_Binner
+        self.binner_args = binner_args or (
+            {
+                "k": 3,
+                "seed": self.seed,
+            }
+            if self.binner_factory == KMeans_Binner
+            else {}
+        )
 
     def extract_representations(
         self, log_1: pd.DataFrame, log_2: pd.DataFrame
@@ -56,9 +68,8 @@ class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
 
         self.binner_manager = BinnerManager(
             [evt for trace in traces_1 for evt in trace],
-            KMeans_Binner,
-            k=self.num_bins,
-            seed=self.seed,
+            self.binner_factory,
+            **self.binner_args
         )
 
         binned_traces_1 = extract_traces_activity_service_times(
@@ -94,7 +105,7 @@ class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
     ) -> float:
         # Scale time differences by the largest possible time difference, num_bins - 1
         lower_bound, upper_bound = timed_star_graph_edit_distance(
-            item1, item2, self.num_bins - 1
+            item1, item2, self.binner_manager.num_bins - 1
         )
 
         # For now, for testing, we only use the lower bound because `compare` doesn't pass the bound in.

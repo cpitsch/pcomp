@@ -1,8 +1,9 @@
-from sklearn.cluster import kmeans_plusplus  # type: ignore
-from pcomp.binning.Binner import Binner
-import numpy as np
 import math
 
+import numpy as np
+from sklearn.cluster import kmeans_plusplus  # type: ignore
+
+from pcomp.binning.Binner import Binner
 from pcomp.utils.typing import Numpy1DArray
 
 
@@ -12,7 +13,7 @@ class KMeans_Binner(Binner):
 
     def __init__(self, data: list[float], k: int, seed: int | None = None):
         super().__init__(data, seed)
-        self.k = k
+        self.num_bins = k
 
         sample_indices = np.random.choice(
             range(len(self.data)),
@@ -21,7 +22,7 @@ class KMeans_Binner(Binner):
 
         self.centroids = kmeans_plusplus(
             np.array(self.data)[sample_indices].reshape(-1, 1),
-            n_clusters=self.k,
+            n_clusters=self.num_bins,
             n_local_trials=10,
             random_state=self.seed,
         )[0]

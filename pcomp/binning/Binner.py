@@ -1,5 +1,7 @@
 import abc
+from collections.abc import Callable
 from typing import Generic, TypeVar
+
 import numpy as np
 
 from pcomp.utils.utils import create_progress_bar
@@ -10,6 +12,7 @@ T = TypeVar("T")
 class Binner(abc.ABC, Generic[T]):
     data: list[T]
     seed: int | None
+    num_bins: int  # The number of bins
 
     def __init__(self, data: list[T], seed: int | None = None):
         self.data = data
@@ -24,17 +27,25 @@ class Binner(abc.ABC, Generic[T]):
         pass
 
 
+# Binner factory is either the class itself or a function that,
+# given a list of datapoints, returns a Binner
+# Using this, any kind of binner could be wrapped appropriately
+# for use in a BinnerManager
+BinnerFactory = type[Binner] | Callable[[list[float]], Binner]
+
+
 class BinnerManager:
     """Manages a collection of binners, used for different classes"""
 
     binners: dict[
         str, Binner
     ]  # Maps "class names" (in our case activity labels) to Binners
+    num_bins: int  # The largest number of bins of all binners
 
     def __init__(
         self,
         data: list[tuple[str, float]] | dict[str, list[float]],
-        binner_class: type[Binner],
+        binner_factory: BinnerFactory,
         show_training_progress_bar: bool = True,
         **kwargs,  # Passed on to binner_factory
     ):
@@ -49,14 +60,20 @@ class BinnerManager:
         pbar = create_progress_bar(
             show_training_progress_bar,
             total=len(grouped_data),
-            desc=f"Creating binners ({binner_class.__name__})",
+            desc=(
+                "Creating binners" + f" ({binner_factory.__name__})"
+                if hasattr(binner_factory, "__name__")
+                else ""
+            ),
         )
         self.binners = {
-            label: binner_class(datapoints, **kwargs)
+            label: binner_factory(datapoints, **kwargs)
             for label, datapoints in grouped_data.items()
             if pbar.update() or True  # Update progress bar each iteration
         }
         pbar.close()
+
+        self.num_bins = max(binner.num_bins for binner in self.binners.values())
 
     def bin(self, label: str, data: float) -> int:
         return self.binners[label].bin(data)

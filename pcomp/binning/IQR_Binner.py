@@ -6,6 +6,7 @@ from .Binner import Binner
 class IQR_Binner(Binner):
     Q_1: float
     Q_3: float
+    num_bins: int = 3
 
     def __init__(self, data: list[float], seed: int | None = None):
         super().__init__(data, seed)

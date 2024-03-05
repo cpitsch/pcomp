@@ -4,14 +4,13 @@
 
 from collections.abc import Callable
 from functools import cache
-from typing import Optional, cast
+from typing import Any, Optional, cast
 
 import pandas as pd
 from pandas import DataFrame
 from strsimpy.weighted_levenshtein import WeightedLevenshtein  # type: ignore
 
-from pcomp.binning import KMeans_Binner
-from pcomp.binning.Binner import BinnerManager
+from pcomp.binning import BinnerFactory, BinnerManager, KMeans_Binner
 from pcomp.emd.core import (
     BootstrappingStyle,
     EMD_ProcessComparator,
@@ -446,9 +445,10 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
         cleanup_on_del: bool = True,
         bootstrapping_style: BootstrappingStyle = "replacement sublogs",
         emd_backend: EMDBackend = "wasserstein",
-        num_bins: int = 3,
-        weighted_time_cost: bool = False,
         seed: int | None = None,
+        weighted_time_cost: bool = False,
+        binner_factory: BinnerFactory | None = None,
+        binner_args: dict[str, Any] | None = None,
     ):
         super().__init__(
             log_1,
@@ -461,8 +461,18 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
             emd_backend,
             seed,
         )
-        self.num_bins = num_bins
         self.weighted_time_cost = weighted_time_cost
+
+        # Default to KMeans_Binner with 3 bins
+        self.binner_factory = binner_factory or KMeans_Binner
+        self.binner_args = binner_args or (
+            {
+                "k": 3,
+                "seed": self.seed,
+            }
+            if self.binner_factory == KMeans_Binner
+            else {}
+        )
 
     def extract_representations(
         self, log_1: DataFrame, log_2: DataFrame
@@ -472,11 +482,8 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
 
         self.binner_manager = BinnerManager(
             [evt for trace in traces_1 for evt in trace],
-            KMeans_Binner,
-            # OuterPercentileBinner,
-            # outer_percent=10,
-            k=self.num_bins,
-            seed=self.seed,
+            self.binner_factory,
+            **self.binner_args,
         )
 
         return (
@@ -498,9 +505,10 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
                 rename_cost=lambda *_: 1,
                 insertion_deletion_cost=lambda _: 1,
                 cost_time_match_rename=lambda x, y: abs(x - y)
-                / max(self.num_bins - 1, 1),
-                cost_time_insert_delete=lambda x: x / max(self.num_bins - 1, 1),
-            ) / (2 if self.num_bins > 0 else 1)
+                / max(self.binner_manager.num_bins - 1, 1),
+                cost_time_insert_delete=lambda x: x
+                / max(self.binner_manager.num_bins - 1, 1),
+            ) / (2 if self.binner_manager.num_bins > 0 else 1)
         else:
             return custom_postnormalized_levenshtein_distance(item1, item2)
 
