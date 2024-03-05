@@ -226,7 +226,7 @@ class EMD_KS_ProcessComparator(ABC, Generic[T]):
                 + ["Logs EMD Distribution"] * len(logs_emds_distribution),
             }
         )
-        sns.histplot(data, ax=ax, x="EMD", hue="Distribution")
+        sns.histplot(data, ax=ax, x="EMD", hue="Distribution", common_bins=False)
         return fig
 
 
