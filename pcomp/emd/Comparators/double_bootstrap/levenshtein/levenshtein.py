@@ -3,7 +3,10 @@ from typing import Any
 import pandas as pd
 
 from pcomp.binning import BinnerFactory, BinnerManager, KMeans_Binner
-from pcomp.emd.Comparators.double_bootstrap import DoubleBootstrapEMDComparator
+from pcomp.emd.Comparators.double_bootstrap import (
+    DoubleBootstrapEMDComparator,
+    DoubleBootstrapStyle,
+)
 from pcomp.emd.core import EMDBackend
 from pcomp.emd.emd import (
     BinnedServiceTimeTrace,
@@ -31,7 +34,8 @@ class LevenshteinDoubleBootstrapComparator(
         log_2: pd.DataFrame,
         bootstrapping_dist_size: int = 10000,
         verbose: bool = True,
-        cleanup_on_del: bool = True,
+        cleanup_on_del: bool = True,  #
+        bootstrapping_style: DoubleBootstrapStyle = "sample_smaller_log_size",
         emd_backend: EMDBackend = "wasserstein",
         weighted_time_cost: bool = False,
         seed: int | None = None,
@@ -44,6 +48,7 @@ class LevenshteinDoubleBootstrapComparator(
             bootstrapping_dist_size,
             verbose,
             cleanup_on_del,
+            bootstrapping_style,
             emd_backend,
         )
         self.seed = seed
