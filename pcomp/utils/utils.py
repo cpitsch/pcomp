@@ -235,6 +235,11 @@ def pretty_format_duration(seconds: float) -> str:
 
 
 def enable_logging(level: int = logging.INFO):
+    """Set the logging level so that the respective log messages are shown.
+
+    Args:
+        level (int, optional): The logging level to use. Defaults to logging.INFO.
+    """
     logging.basicConfig(level=level)
 
 
