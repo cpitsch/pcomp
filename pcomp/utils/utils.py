@@ -11,16 +11,45 @@ from . import constants
 
 
 def import_log(path: str, show_progress_bar: bool = False) -> DataFrame:
+    """Import an event log using pm4py.
+    This function is a wrapper around pm4py.read_xes.
+
+    Args:
+        path (str): The path to the event log file.
+        show_progress_bar (bool, optional): Should a progress bar be shown for the impor? Defaults to False.
+
+    Returns:
+        DataFrame: The imported event log.
+    """
     return read_xes(path, show_progress_bar=show_progress_bar)
 
 
 def log_len(log: DataFrame, traceid_key: str = constants.DEFAULT_TRACEID_KEY) -> int:
-    return len(log[traceid_key].unique())
+    """Compute the number of cases in the event log. (Number of unique trace ids)
+
+    Args:
+        log (DataFrame): The event log.
+        traceid_key (str, optional): The column name for the trace id. Defaults to constants.DEFAULT_TRACEID_KEY.
+
+    Returns:
+        int: The number of unqiue trace ids in the event log.
+    """
+    return log[traceid_key].nunique()
 
 
 def split_log_cases(
     log: DataFrame, frac: float, traceid_key: str = constants.DEFAULT_TRACEID_KEY
 ) -> tuple[DataFrame, DataFrame]:
+    """Split an event log into two parts, with the first part containing `frac` of the cases and the second part containing the rest.
+
+    Args:
+        log (DataFrame): The event log.
+        frac (float): The fraction of cases to assign to the first split. For instance, 0.5 splits the event log in two halves.
+        traceid_key (str, optional): The column name for the trace id. Defaults to "case:concept:name".
+
+    Returns:
+        tuple[DataFrame, DataFrame]: The two splits of the event log.
+    """
     num_cases = log_len(log)
     num_sample_cases = int(num_cases * frac)
 
@@ -48,10 +77,10 @@ def convert_lifecycle_eventlog_to_start_timestamp_eventlog(
 
     Args:
         log (DataFrame): The event log.
-        traceid_key (str, optional): _description_. Defaults to "case:concept:name".
-        activity_key (str, optional): _description_. Defaults to "concept:name".
-        timestamp_key (str, optional): _description_. Defaults to "time:timestamp".
-        lifecycle_key (str, optional): _description_. Defaults to "lifecycle:transition".
+        traceid_key (str, optional): The column name for the trace id. Defaults to "case:concept:name".
+        activity_key (str, optional): The column name for the activity label. Defaults to "concept:name".
+        timestamp_key (str, optional): The column name for the timestamp. Defaults to "time:timestamp".
+        lifecycle_key (str, optional): The column name for the lifecycle information. Defaults to "lifecycle:transition".
         instance_key (str, optional): The key for the id to tell different executions of activities apart. Defaults to "concept:instance". If this column is not present, \
                                         a complete event is always matched to the first found start event in the order of the case.
     Returns:
@@ -147,6 +176,16 @@ def add_event_instance_id_to_log(
     traceid_key: str = constants.DEFAULT_TRACEID_KEY,
     instance_key: str = constants.DEFAULT_INSTANCE_KEY,
 ) -> pd.DataFrame:
+    """Add instance ids to the event log. Adds a unique instance id to each event.
+
+    Args:
+        log (pd.DataFrame): The event log.
+        traceid_key (str, optional): The column for the trace ids. Defaults to "case:concept:name".
+        instance_key (str, optional): The column for the instance ids. Defaults to "concept:instance".
+
+    Returns:
+        pd.DataFrame: The event log with instance ids.
+    """
     new_log = log.copy()
     new_log[instance_key] = log.groupby(by=traceid_key).cumcount() + 1
     new_log[instance_key] = (
@@ -161,6 +200,19 @@ def ensure_start_timestamp_column(
     start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
     lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
 ) -> pd.DataFrame:
+    """Ensure that the event log has a start timestamp column.#
+    If it doesn't, try creating one using lifecycle information.
+    If no lifecycle information is present, try interpret the event log as an atomic event log and create a start timestamp
+    using the end timestamps (same start timestamp and end timestamp for each event).
+
+    Args:
+        df (pd.DataFrame): The event log.
+        start_timestamp_key (str, optional): The column for the start timestamps of events. Defaults to "start_timestamp".
+        lifecycle_key (str, optional): The column for lifecycle information. Defaults to "lifecycle:transition".
+
+    Returns:
+        pd.DataFrame: The (altered) event log with a start timestamp column.
+    """
     if start_timestamp_key not in df.columns:
         if lifecycle_key in df.columns:
             return convert_lifecycle_eventlog_to_start_timestamp_eventlog(df)
@@ -171,6 +223,14 @@ def ensure_start_timestamp_column(
 
 
 def pretty_format_duration(seconds: float) -> str:
+    """Format a durataion in seconds as a string in the format HH:MM:SS
+
+    Args:
+        seconds (float): The duration in seconds.
+
+    Returns:
+        str: The formatted duration.
+    """
     return datetime.strftime(datetime.utcfromtimestamp(seconds), "%H:%M:%S")
 
 
@@ -179,7 +239,9 @@ def enable_logging(level: int = logging.INFO):
 
 
 class DevNullProgressBar:
-    def __init__(self, *args, **kwargs):
+    """A dummy progress bar that does nothing when updated/closed. Used when no progress bar should be shown."""
+
+    def __init__(self, *args, **_):
         if len(args) > 0:
             self.data = args[0]
 
@@ -207,9 +269,11 @@ def create_progress_bar(
 
     Args:
         show_progress_bar (bool, optional): Return a real or dummy progress bar? Defaults to True.
+        *args: Arguments to pass to the progress bar constructor
+        **kwargs: Keyword arguments to pass to the progress bar constructor
 
     Returns:
-        tqdm | DevNullProgressBar: The created (dummy) progress bar
+        tqdm | DevNullProgressBar: The created (dummy) progress bar.
     """
     if show_progress_bar:
         return tqdm(*args, **kwargs)

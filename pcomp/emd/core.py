@@ -394,7 +394,7 @@ def compute_emd_for_index_sample(
         emd_backend (EMDBackend, optional): The backend to use for EMD computation. Defaults to "wasserstein" (Use the "wasserstein" package).
 
     Returns:
-        float: _description_
+        float: The computed EMD.
     """
     deduplicated_indices, counts = np.unique(indices, return_counts=True)
     return emd(
