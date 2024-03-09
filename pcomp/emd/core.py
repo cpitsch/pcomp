@@ -241,8 +241,6 @@ class EMD_ProcessComparator(ABC, Generic[T]):
             alpha=0.7,
             label=r"$D_{l_1l_1}$",
         )
-        ax.set_xticks([])
-        ax.set_yticks([])
         ax.set_xlabel("Earth Mover's Distance")
         ax.set_ylabel("Frequency")
         ax.axvline(
