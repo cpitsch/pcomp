@@ -1,12 +1,13 @@
-from pcomp.utils import (
-    convert_lifecycle_eventlog_to_start_timestamp_eventlog,
-    constants,
-)
-import pandas as pd
 from dataclasses import dataclass
 from typing import Optional
+
+import pandas as pd
 import pytest
 
+from pcomp.utils import (
+    constants,
+    convert_lifecycle_eventlog_to_start_timestamp_eventlog,
+)
 from tests.testing_utilities import Case, create_event_log
 
 

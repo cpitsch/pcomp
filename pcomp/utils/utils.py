@@ -1,13 +1,13 @@
+import logging
 from datetime import datetime
-from pm4py import read_xes  # type: ignore
-from pm4py.utils import sample_cases  # type: ignore
 
 import pandas as pd
 from pandas import DataFrame
-import logging
+from pm4py import read_xes  # type: ignore
+from pm4py.utils import sample_cases  # type: ignore
+from tqdm.auto import tqdm
 
 from . import constants
-from tqdm.auto import tqdm
 
 
 def import_log(path: str, show_progress_bar: bool = False) -> DataFrame:

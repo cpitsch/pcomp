@@ -1,7 +1,8 @@
 from typing import Iterable
-from sklearn.preprocessing import KBinsDiscretizer  # type: ignore
+
 import numpy as np
 import pydantic
+from sklearn.preprocessing import KBinsDiscretizer  # type: ignore
 
 
 class Binner(pydantic.BaseModel, arbitrary_types_allowed=True):

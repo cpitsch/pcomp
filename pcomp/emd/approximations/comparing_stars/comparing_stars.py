@@ -1,10 +1,12 @@
 from collections import Counter
 from dataclasses import dataclass
 from functools import cache
-from scipy.optimize import linear_sum_assignment  # type: ignore
 from itertools import product
+from typing import Literal
+from typing import overload as typing_overload
+
 import numpy as np
-from typing import overload as typing_overload, Literal
+from scipy.optimize import linear_sum_assignment  # type: ignore
 
 EPSILON_NODE_LABEL = "pcomp:ged_approx:epsilon"
 

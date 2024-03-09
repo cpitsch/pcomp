@@ -1,10 +1,11 @@
 from collections import Counter
+from dataclasses import dataclass, field
 from typing import TypeVar
 
 import numpy as np
 import pandas as pd
-from dataclasses import dataclass, field
 from scipy.stats import chi2_contingency  # type: ignore
+
 from pcomp.utils import constants, ensure_start_timestamp_column
 from pcomp.utils.data import Binner, create_binner
 from pcomp.utils.typing import Numpy1DArray

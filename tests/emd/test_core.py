@@ -1,4 +1,5 @@
 import numpy as np
+
 from pcomp.emd.core import (
     compute_emd_for_index_sample,
     compute_emd_for_sample,

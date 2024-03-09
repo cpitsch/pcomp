@@ -3,6 +3,7 @@ Translated from the Javascript implementation https://github.com/sunesimonsen/uk
 """
 
 from typing import Sequence
+
 import numpy as np
 
 
