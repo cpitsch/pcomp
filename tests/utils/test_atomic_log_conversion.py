@@ -1,6 +1,7 @@
+import pandas as pd
 import pydantic
 import pytest
-import pandas as pd
+
 from pcomp.utils import (
     constants,
     convert_atomic_eventlog_to_lifecycle_eventlog,

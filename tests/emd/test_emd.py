@@ -1,10 +1,8 @@
-from pcomp.emd.emd import (
-    post_normalized_weighted_levenshtein_distance,
-    custom_postnormalized_levenshtein_distance,
-    # weightedLevenshteinDistance,
-)
-
 from pcomp.emd.core import compute_emd
+from pcomp.emd.emd import (  # weightedLevenshteinDistance,
+    custom_postnormalized_levenshtein_distance,
+    post_normalized_weighted_levenshtein_distance,
+)
 
 
 def test_postnormalized_weighted_lev_distance():

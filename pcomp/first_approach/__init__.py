@@ -1,12 +1,12 @@
 from .algorithm import (
-    Event,
-    BehaviorGraphNode,
-    NodeAnnotation,
-    EdgeAnnotation,
     AnnotatedGraph,
+    BehaviorGraphNode,
+    EdgeAnnotation,
+    Event,
+    NodeAnnotation,
     calculate_behavior_graph,
-    extract_representation,
-    discretize_populations,
     compare_pops,
     compare_processes,
+    discretize_populations,
+    extract_representation,
 )

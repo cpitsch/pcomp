@@ -1,17 +1,18 @@
+import pandas as pd
+import pytest
+
 from pcomp.first_approach import (
     AnnotatedGraph,
+    EdgeAnnotation,
     Event,
+    NodeAnnotation,
     calculate_behavior_graph,
     compare_processes,
     discretize_populations,
     extract_representation,
-    NodeAnnotation,
-    EdgeAnnotation,
 )
 from pcomp.utils import constants
 from pcomp.utils.utils import split_log_cases
-import pandas as pd
-import pytest
 
 
 def test_behavior_graph_simple(simple_event_log):

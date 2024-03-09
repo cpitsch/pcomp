@@ -2,22 +2,15 @@
 # "Time-aware Concept Drift Detection Using the Earth Mover’s Distance" by Brockhoff et al.
 # Here, we use the idea of this approach to compare two event logs w.r.t. timed control-flow
 
-import math
 from collections.abc import Callable
 from functools import cache
-from typing import Literal, Optional
-from itertools import groupby
+from typing import Any, Optional, cast
 
-import numpy as np
 import pandas as pd
 from pandas import DataFrame
-from sklearn.cluster import kmeans_plusplus  # type: ignore
 from strsimpy.weighted_levenshtein import WeightedLevenshtein  # type: ignore
-from pcomp.emd.approximations.comparing_stars import (
-    DiGraph,
-    GraphNode,
-    timed_star_graph_edit_distance,
-)
+
+from pcomp.binning import BinnerFactory, BinnerManager, KMeans_Binner
 from pcomp.emd.core import (
     BootstrappingStyle,
     EMD_ProcessComparator,
@@ -26,84 +19,13 @@ from pcomp.emd.core import (
     compute_emd,
     population_to_stochastic_language,
 )
-
 from pcomp.utils import constants, ensure_start_timestamp_column
-from pcomp.utils.typing import Numpy1DArray
 
 ServiceTimeEvent = tuple[str, float]
 ServiceTimeTrace = tuple[ServiceTimeEvent, ...]
 
 BinnedServiceTimeEvent = tuple[str, int]
 BinnedServiceTimeTrace = tuple[BinnedServiceTimeEvent, ...]
-
-
-class KMeans_Binner:
-    def __init__(
-        self,
-        data: list[ServiceTimeTrace],
-        num_bins: int,
-        seed: int | None = None,
-    ):
-        self.data = data
-        self.seed = seed
-        self.num_bins = num_bins
-
-        if self.seed is not None:
-            np.random.seed(self.seed)
-
-        sample_indices = np.random.choice(
-            range(len(self.data)),
-            size=math.ceil(0.2 * len(self.data)),
-        )
-
-        durations: dict[str, list[float]] = {
-            key: [dur for _, dur in subiter]
-            for key, subiter in groupby(
-                sorted(
-                    [
-                        evt
-                        for idx, trace in enumerate(self.data)
-                        for evt in trace
-                        if idx in sample_indices
-                    ]
-                ),
-                lambda x: x[0],
-            )
-        }
-
-        # Get a clustering for the service times of each activity
-
-        self.centroids: dict[str, Numpy1DArray[np.float_]] = {
-            act: kmeans_plusplus(
-                np.array(durs).reshape(-1, 1),
-                n_clusters=self.num_bins,
-                n_local_trials=10,
-                random_state=seed,
-            )[0]
-            for act, durs in durations.items()
-        }
-
-    def _closestCentroid1D(
-        self, point: float, centroids: Numpy1DArray[np.float_]
-    ) -> int:
-        mindex = 0
-        minval = centroids[0]
-        for idx, centroid in enumerate(centroids):
-            dist = abs(centroid - point)
-            if dist < minval:
-                mindex = idx
-                minval = dist
-        return mindex
-
-    def bin_event(self, event: ServiceTimeEvent) -> BinnedServiceTimeEvent:
-        act, dur = event
-        return (act, self._closestCentroid1D(dur, self.centroids[act]))
-
-    def bin_trace(self, trace: ServiceTimeTrace) -> BinnedServiceTimeTrace:
-        return tuple(self.bin_event(evt) for evt in trace)
-
-    def bin_log(self, traces: list[ServiceTimeTrace]) -> list[BinnedServiceTimeTrace]:
-        return [self.bin_trace(trace) for trace in traces]
 
 
 def extract_service_time_traces(
@@ -135,7 +57,11 @@ def extract_service_time_traces(
                     evt[activity_key],
                     (evt[end_time_key] - evt[start_time_key]).total_seconds(),
                 )
-                for (_, evt) in group_df.sort_values(by=end_time_key).iterrows()
+                for (_, evt) in cast(
+                    pd.DataFrame, group_df
+                )  # Tell typing that group_df is a Dataframe since pandas typing is weird
+                .sort_values(by=end_time_key)
+                .iterrows()
             )
         )
         .tolist()
@@ -144,7 +70,7 @@ def extract_service_time_traces(
 
 def extract_traces_activity_service_times(
     log: pd.DataFrame,
-    binner: KMeans_Binner,
+    binner_manager: BinnerManager,
     activity_key: str = constants.DEFAULT_NAME_KEY,
     start_time_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
     end_time_key: str = constants.DEFAULT_TIMESTAMP_KEY,
@@ -153,29 +79,34 @@ def extract_traces_activity_service_times(
 
     Args:
         log (EventLog): The event log
-        binner (KMeans_Binner): The binner to use for binning the service times.
-        num_bins (int, optional): The number of bins to cluster the service times into (Using K-Means). Defaults to 3 (intuitively "slow", "medium", "fast").
-        traceid_key (str, optional): The key for the trace id in the event log. Defaults to xes.DEFAULT_TRACEID_KEY.
+        binner_manager (BinnerManager): The binner manager to use for binning the service times.
         activity_key (str, optional): The key for the activity value in the event log. Defaults to xes.DEFAULT_NAME_KEY.
         start_time_key (str, optional): The key in the event log for the start timestamp of the event. Defaults to xes.DEFAULT_START_TIMESTAMP_KEY.
         end_time_key (str, optional): The key in the event log for the completion timestamp of the event. Defaults to xes.DEFAULT_TIMESTAMP_KEY.
-        seed (int | None, optional): The seed for the random number generator for numpy sampling and scipy kmeans++
     Returns:
-        list[ServiceTimeTrace]: A sequence of traces, represented as a tuple of Activities, but here the activities are tuples of the activity name and how long that activity took to complete. Same order as in the original event log.
+        list[ServiceTimeTrace]: A sequence of traces, represented as a tuple of activity and binned duration. Same order as in the original event log.
     """
-    return binner.bin_log(
-        extract_service_time_traces(log, activity_key, start_time_key, end_time_key)
+    service_time_traces = extract_service_time_traces(
+        log, activity_key, start_time_key, end_time_key
     )
+    return [
+        tuple(
+            # Bin the duration with the binner associated to the activitiy
+            (activity, binner_manager.bin(activity, duration))
+            for activity, duration in trace
+        )
+        for trace in service_time_traces
+    ]
 
 
 def weighted_levenshtein_distance(
     trace1: BinnedServiceTimeTrace,
     trace2: BinnedServiceTimeTrace,
-    rename_cost: Callable[[str, str], int],
-    insertion_deletion_cost: Callable[[str], int],
-    cost_time_match_rename: Callable[[int, int], int],
-    cost_time_insert_delete: Callable[[int], int],
-) -> int:
+    rename_cost: Callable[[str, str], float],
+    insertion_deletion_cost: Callable[[str], float],
+    cost_time_match_rename: Callable[[int, int], float],
+    cost_time_insert_delete: Callable[[int], float],
+) -> float:
     """Compute the levenshtein distance with custom weights. Using strsimpy
 
     Args:
@@ -190,10 +121,12 @@ def weighted_levenshtein_distance(
         float: The computed weighted Levenshtein distance.
     """
 
-    def ins_del_cost(x: BinnedServiceTimeEvent) -> int:
+    def ins_del_cost(x: BinnedServiceTimeEvent) -> float:
         return insertion_deletion_cost(x[0]) + cost_time_insert_delete(x[1])
 
-    def substitution_cost(x: BinnedServiceTimeEvent, y: BinnedServiceTimeEvent) -> int:
+    def substitution_cost(
+        x: BinnedServiceTimeEvent, y: BinnedServiceTimeEvent
+    ) -> float:
         cost_rename = (
             0 if x[0] == y[0] else rename_cost(x[0], y[0])
         )  # Allow matching activity while renaming time
@@ -207,7 +140,6 @@ def weighted_levenshtein_distance(
     return dist
 
 
-@cache
 def custom_levenshtein_distance(
     trace1: BinnedServiceTimeTrace, trace2: BinnedServiceTimeTrace
 ) -> float:
@@ -218,7 +150,8 @@ def custom_levenshtein_distance(
         - Time Match/Rename cost: Absolute difference between the times
         - Time Insert/Delete cost: x (The value of the time)
 
-        Thanks to not taking cost functions as inputs, caching (hashing) works correctly and saves time.
+        Thanks to not taking (lambda) cost functions as inputs, caching (hashing) can work correctly and save time.
+        For the implementation with caching, see `cached_custom_levenshtein_distance`.
 
     Args:
         trace1 (BinnedServiceTimeTrace): The first trace.
@@ -230,11 +163,19 @@ def custom_levenshtein_distance(
     return weighted_levenshtein_distance(
         trace1,
         trace2,
-        rename_cost=lambda x, y: 1,
-        insertion_deletion_cost=lambda x: 1,
+        rename_cost=lambda *_: 1,
+        insertion_deletion_cost=lambda _: 1,
         cost_time_match_rename=lambda x, y: abs(x - y),
         cost_time_insert_delete=lambda x: x,
     )
+
+
+@cache
+def cached_custom_levenshtein_distance(
+    trace1: BinnedServiceTimeTrace, trace2: BinnedServiceTimeTrace
+) -> float:
+    """A cached version of `custom_levenshtein_distance`."""
+    return custom_levenshtein_distance(trace1, trace2)
 
 
 def custom_postnormalized_levenshtein_distance(
@@ -263,8 +204,8 @@ def custom_postnormalized_levenshtein_distance(
     return post_normalized_weighted_levenshtein_distance(
         trace1,
         trace2,
-        rename_cost=lambda x, y: 1,
-        insertion_deletion_cost=lambda x: 1,
+        rename_cost=lambda *_: 1,
+        insertion_deletion_cost=lambda _: 1,
         cost_time_match_rename=lambda x, y: abs(x - y),
         cost_time_insert_delete=lambda x: x,
     )
@@ -281,20 +222,20 @@ def cached_custom_postnormalized_levenshtein_distance(
 def post_normalized_weighted_levenshtein_distance(
     trace1: BinnedServiceTimeTrace,
     trace2: BinnedServiceTimeTrace,
-    rename_cost: Callable[[str, str], int],
-    insertion_deletion_cost: Callable[[str], int],
-    cost_time_match_rename: Callable[[int, int], int],
-    cost_time_insert_delete: Callable[[int], int],
+    rename_cost: Callable[[str, str], float],
+    insertion_deletion_cost: Callable[[str], float],
+    cost_time_match_rename: Callable[[int, int], float],
+    cost_time_insert_delete: Callable[[int], float],
 ) -> float:
     """Compute the post-normalized weighted Levenshtein distance. This is used for the calculation of a "time-aware" EMD.
 
     Args:
         trace1 (BinnedServiceTimeTrace): The first trace.
         trace2 (BinnedServiceTimeTrace): The second trace.
-        rename_cost (Callable[[str, str], int]): Custom Cost.
-        insertion_deletion_cost (Callable[[str], int]): Custom Cost.
-        cost_time_match_rename (Callable[[int, int], int]): Custom Cost.
-        cost_time_insert_delete (Callable[[int], int]): Custom Cost.
+        rename_cost (Callable[[str, str], float]): Custom Cost.
+        insertion_deletion_cost (Callable[[str], float]): Custom Cost.
+        cost_time_match_rename (Callable[[int, int], float]): Custom Cost.
+        cost_time_insert_delete (Callable[[int], float]): Custom Cost.
 
     Returns:
         float: The post-normalized weighted Levenshtein distance.
@@ -310,28 +251,28 @@ def post_normalized_weighted_levenshtein_distance(
 
 
 def calc_timing_emd(
-    distribution1: list[tuple[BinnedServiceTimeTrace, float]],
-    distribution2: list[tuple[BinnedServiceTimeTrace, float]],
+    distribution_1: list[tuple[BinnedServiceTimeTrace, float]],
+    distribution_2: list[tuple[BinnedServiceTimeTrace, float]],
 ) -> float:
     """Calculate the Earth Mover's Distance between two populations of BinnedServiceTimeTraces.
 
     Args:
-        distribution1 (list[tuple[BinnedServiceTimeTrace, float]]): The population for the first event log.
-        distribution2 (list[tuple[BinnedServiceTimeTrace, float]]): The population for the second event log.
+        distribution_1 (list[tuple[BinnedServiceTimeTrace, float]]): The population for the first event log.
+        distribution_2 (list[tuple[BinnedServiceTimeTrace, float]]): The population for the second event log.
 
     Returns:
         float: The computed (Time-Aware) Earth Mover's Distance.
     """
     return compute_emd(
-        distribution1,
-        distribution2,
+        distribution_1,
+        distribution_2,
         custom_postnormalized_levenshtein_distance,
     )
 
 
 def log_to_stochastic_language(
     log: pd.DataFrame,
-    binner: KMeans_Binner,
+    binner_manager: BinnerManager,
     activity_key: str = constants.DEFAULT_NAME_KEY,
     start_time_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
     end_time_key: str = constants.DEFAULT_TIMESTAMP_KEY,
@@ -342,7 +283,7 @@ def log_to_stochastic_language(
 
     Args:
         log (pd.DataFrame): The event log.
-        binner (KMeans_Binner): The binner to use to bin the activity service times.
+        binner_manager (BinnerManager): The binner manager to use to bin the activity service times.
         activity_key (str, optional): The key for the activity label in the event log. Defaults to constants.DEFAULT_NAME_KEY.
         start_time_key (str, optional): The key for the start timestamp in the event log. Defaults to constants.DEFAULT_START_TIMESTAMP_KEY.
         end_time_key (str, optional): The key for the end timestamp. Defaults to constants.DEFAULT_TIMESTAMP_KEY.
@@ -351,7 +292,7 @@ def log_to_stochastic_language(
         list[tuple[BinnedServiceTimeTrace, float]]: The extracted stochastic language.
     """
     population: list[BinnedServiceTimeTrace] = extract_traces_activity_service_times(
-        log, binner, activity_key, start_time_key, end_time_key
+        log, binner_manager, activity_key, start_time_key, end_time_key
     )
 
     return population_to_stochastic_language(population)
@@ -360,7 +301,7 @@ def log_to_stochastic_language(
 def compare_logs_emd(
     log_1: pd.DataFrame,
     log_2: pd.DataFrame,
-    binner: Optional[KMeans_Binner] = None,
+    binner_manager: BinnerManager | None = None,
     num_bins: int = 3,
     activity_key: str = constants.DEFAULT_NAME_KEY,
     start_time_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
@@ -374,8 +315,8 @@ def compare_logs_emd(
     Args:
         log_1 (pd.DataFrame): The first event log.
         log_2 (pd.DataFrame): The second event log.
-        binner (KMeans_Binner, optional): The binner to use to bin the activtiy service times. If none provided, one will be trained on the data using `num_bins` bins.
-        num_bins (int, optional): The number of bins to cluster the service times into (Using K-Means). Defaults to 3 (intuitively "slow", "medium", "fast").
+        binner_manager (BinnerManager, optional): The binner to use to bin the activtiy service times. If none provided, one will be trained on the data using a KMeans++ binner with `num_bins` bins.
+        num_bins (int, optional): The number of bins to cluster the service times into (Using K-Means++). Defaults to 3 (intuitively "slow", "medium", "fast").
         activity_key (str, optional): The name of the column containing the label of the executed activity. Defaults to "concept:name".
         start_time_key (str, optional): The name of the column containing the start timestamp of the event. Defaults to "start_timestamp".
         end_time_key (str, optional): The name of the column containing the (end-) timestamp of the event. Defaults to "time:timestamp".
@@ -385,24 +326,26 @@ def compare_logs_emd(
         float: The earth mover's distance between the two event logs.
     """
 
-    if binner is None:
-        binner = KMeans_Binner(
-            extract_service_time_traces(
-                log_1, activity_key, start_time_key, end_time_key
-            )
-            + extract_service_time_traces(
-                log_2, activity_key, start_time_key, end_time_key
-            ),
-            num_bins,
-            seed,
+    if binner_manager is None:
+        binner_manager = BinnerManager(
+            [
+                evt
+                for trace in extract_service_time_traces(
+                    log_1, activity_key, start_time_key, end_time_key
+                )
+                for evt in trace
+            ],
+            KMeans_Binner,
+            k=num_bins,
+            seed=seed,
         )
 
     dist1: list[tuple[BinnedServiceTimeTrace, float]] = log_to_stochastic_language(
-        log_1, binner, activity_key, start_time_key, end_time_key
+        log_1, binner_manager, activity_key, start_time_key, end_time_key
     )
 
     dist2: list[tuple[BinnedServiceTimeTrace, float]] = log_to_stochastic_language(
-        log_2, binner, activity_key, start_time_key, end_time_key
+        log_2, binner_manager, activity_key, start_time_key, end_time_key
     )
 
     emd = compute_emd(dist1, dist2, custom_postnormalized_levenshtein_distance)
@@ -446,14 +389,16 @@ def process_comparison_emd(
     traces_1 = extract_service_time_traces(
         log_1, activity_key, start_time_key, end_time_key
     )
-    traces_2 = extract_service_time_traces(
-        log_2, activity_key, start_time_key, end_time_key
+
+    binner_manager = BinnerManager(
+        [evt for trace in traces_1 for evt in trace],
+        KMeans_Binner,
+        k=num_bins,
+        seed=seed,
     )
 
-    binner = KMeans_Binner(traces_1 + traces_2, num_bins, seed)
-
     log_1_traces = extract_traces_activity_service_times(
-        log_1, binner, activity_key, start_time_key, end_time_key
+        log_1, binner_manager, activity_key, start_time_key, end_time_key
     )  # We sample from in the bootstrapping
 
     log_1_stochastic_language = population_to_stochastic_language(log_1_traces)
@@ -461,7 +406,7 @@ def process_comparison_emd(
     emd = compute_emd(
         log_1_stochastic_language,
         log_to_stochastic_language(  # log_2_stochastic_language
-            log_2, binner, activity_key, start_time_key, end_time_key
+            log_2, binner_manager, activity_key, start_time_key, end_time_key
         ),
         cached_custom_postnormalized_levenshtein_distance,
     )
@@ -484,18 +429,26 @@ def process_comparison_emd(
 
 
 class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTrace]):
+    """An implementation of the EMD_ProcessComparator for comparing event logs w.r.t. the timed-control-flow
+    using a weighted post-normalized levenshtein distance as the cost function.
+    """
+
+    binner_manager: BinnerManager
+
     def __init__(
         self,
         log_1: DataFrame,
         log_2: DataFrame,
         bootstrapping_dist_size: int = 10000,
-        resample_size: int | None = None,
+        resample_size: int | float | None = None,
         verbose: bool = True,
         cleanup_on_del: bool = True,
         bootstrapping_style: BootstrappingStyle = "replacement sublogs",
         emd_backend: EMDBackend = "wasserstein",
-        num_bins: int = 3,
         seed: int | None = None,
+        weighted_time_cost: bool = False,
+        binner_factory: BinnerFactory | None = None,
+        binner_args: dict[str, Any] | None = None,
     ):
         super().__init__(
             log_1,
@@ -506,103 +459,58 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
             cleanup_on_del,
             bootstrapping_style,
             emd_backend,
+            seed,
         )
-        self.num_bins = num_bins
-        self.seed = seed
+        self.weighted_time_cost = weighted_time_cost
+
+        # Default to KMeans_Binner with 3 bins
+        self.binner_factory = binner_factory or KMeans_Binner
+        self.binner_args = binner_args or (
+            {
+                "k": 3,
+                "seed": self.seed,
+            }
+            if self.binner_factory == KMeans_Binner
+            else {}
+        )
 
     def extract_representations(
         self, log_1: DataFrame, log_2: DataFrame
     ) -> tuple[list[BinnedServiceTimeTrace], list[BinnedServiceTimeTrace]]:
+        """Extract the service time traces from the event logs and bin their activity service times."""
         traces_1 = extract_service_time_traces(log_1)
-        traces_2 = extract_service_time_traces(log_2)
 
-        self.binner = KMeans_Binner(traces_1 + traces_2, self.num_bins, self.seed)
+        self.binner_manager = BinnerManager(
+            [evt for trace in traces_1 for evt in trace],
+            self.binner_factory,
+            **self.binner_args,
+        )
 
         return (
-            extract_traces_activity_service_times(log_1, self.binner),
-            extract_traces_activity_service_times(log_2, self.binner),
+            extract_traces_activity_service_times(log_1, self.binner_manager),
+            extract_traces_activity_service_times(log_2, self.binner_manager),
         )
 
     def cost_fn(
         self, item1: BinnedServiceTimeTrace, item2: BinnedServiceTimeTrace
     ) -> float:
-        return custom_postnormalized_levenshtein_distance(item1, item2)
+        """
+        If `weighted_time_cost` is True, the time costs are all weighted by the maximum possible time difference, `num_bins - 1`.
+        As such, the maximum cost that can be incurred due to time differences in each event is 1.
+        """
+        if self.weighted_time_cost:
+            return post_normalized_weighted_levenshtein_distance(
+                item1,
+                item2,
+                rename_cost=lambda *_: 1,
+                insertion_deletion_cost=lambda _: 1,
+                cost_time_match_rename=lambda x, y: abs(x - y)
+                / max(self.binner_manager.num_bins - 1, 1),
+                cost_time_insert_delete=lambda x: x
+                / max(self.binner_manager.num_bins - 1, 1),
+            ) / (2 if self.binner_manager.num_bins > 0 else 1)
+        else:
+            return custom_postnormalized_levenshtein_distance(item1, item2)
 
     def cleanup(self) -> None:
         pass
-
-
-class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
-    def __init__(
-        self,
-        log_1: DataFrame,
-        log_2: DataFrame,
-        bootstrapping_dist_size: int = 10000,
-        resample_size: int | None = None,
-        verbose: bool = True,
-        cleanup_on_del: bool = True,
-        bootstrapping_style: BootstrappingStyle = "replacement sublogs",
-        emd_backend: EMDBackend = "wasserstein",
-        num_bins: int = 3,
-        seed: int | None = None,
-    ):
-        super().__init__(
-            log_1,
-            log_2,
-            bootstrapping_dist_size,
-            resample_size,
-            verbose,
-            cleanup_on_del,
-            bootstrapping_style,
-            emd_backend,
-        )
-        self.num_bins = num_bins
-        self.seed = seed
-
-    def extract_representations(
-        self, log_1: DataFrame, log_2: DataFrame
-    ) -> tuple[list[DiGraph], list[DiGraph]]:
-        traces_1 = extract_service_time_traces(log_1)
-        traces_2 = extract_service_time_traces(log_2)
-
-        self.binner = KMeans_Binner(traces_1 + traces_2, self.num_bins, self.seed)
-
-        binned_traces_1 = extract_traces_activity_service_times(log_1, self.binner)
-        binned_traces_2 = extract_traces_activity_service_times(log_2, self.binner)
-
-        # Create the Graphs
-        graphs_1 = [
-            DiGraph(
-                nodes=tuple(GraphNode(label, duration) for label, duration in trace),
-                edges=frozenset((i, i + 1) for i in range(len(trace) - 1)),
-                # edges=list(zip(nodes, nodes[1:])),
-            )
-            for trace in binned_traces_1
-        ]
-        graphs_2 = [
-            DiGraph(
-                nodes=tuple(GraphNode(label, duration) for label, duration in trace),
-                edges=frozenset((i, i + 1) for i in range(len(trace) - 1)),
-                # edges=list(zip(nodes, nodes[1:])),
-            )
-            for trace in binned_traces_2
-        ]
-
-        return (graphs_1, graphs_2)
-
-    def cost_fn(
-        self,
-        item1: DiGraph,
-        item2: DiGraph,
-        bound: Literal["lower"] | Literal["upper"] = "lower",
-    ) -> float:
-        # Scale time differences by the largest possible time difference, num_bins - 1
-        lower_bound, upper_bound = timed_star_graph_edit_distance(
-            item1, item2, self.num_bins - 1
-        )
-
-        # For now, for testing, we only use the lower bound because `compare` doesn't pass the bound in.
-        return lower_bound if bound == "lower" else upper_bound
-
-    def cleanup(self) -> None:
-        timed_star_graph_edit_distance.cache_clear()

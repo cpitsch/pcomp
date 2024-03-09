@@ -1,12 +1,14 @@
-from typing import Any, Callable, Literal, ForwardRef
+import re
+from random import choice
+from typing import Any, Callable, ForwardRef, Literal
+
 import numpy as np
 import pydantic
-from pandas import DataFrame, Timestamp, Timedelta
-from pcomp.utils import constants
-from random import choice
+from pandas import DataFrame, Timedelta, Timestamp
 from pm4py import write_xes
 from tqdm.auto import tqdm
-import re
+
+from pcomp.utils import constants
 
 ProcessTreeRef = ForwardRef("ProcessTree")
 

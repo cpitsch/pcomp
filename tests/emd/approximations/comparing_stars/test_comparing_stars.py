@@ -1,11 +1,12 @@
 import numpy as np
 from pytest import fixture
+
 from pcomp.emd.approximations.comparing_stars.comparing_stars import (
     DiGraph,
     GraphNode,
     Star,
-    extract_star_representation,
     _normalize_graphs,
+    extract_star_representation,
     graph_edit_distance_stars,
     star_graph_edit_distance,
 )
