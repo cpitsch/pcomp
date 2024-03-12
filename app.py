@@ -233,173 +233,281 @@ def get_logs_with_drift() -> tuple[pd.DataFrame, pd.DataFrame]:
     return log_1, log_2
 
 
-st.title("EMD Process Comparison Exploration")
+def streamlit_main_loop():
+    import streamlit as st
 
-with st.expander("🔧 Parameters", expanded=True):
-    drifts = st.checkbox("Drift between logs")
-    binning_setting = st.selectbox(  # type: ignore
-        "Time Binning",
-        options=["kmeans_1", "kmeans_3", "outer_10"],
-        index=0,
-        format_func=lambda x: binner_setting_to_name[x],
-    )
-    weighted_time_cost = st.checkbox("Weighted Time Cost")
+    st.title("EMD Process Comparison Exploration")
 
-    comparison_technique = st.selectbox(  # type: ignore
-        "Comparison Technique",
-        options=["emd_bootstrap", "ks_bootstrap", "double_bootstrap"],
-        index=0,
-        format_func=lambda x: funcs_to_name[x],
-    )
+    with st.expander("🔧 Parameters", expanded=True):
+        drifts = st.checkbox("Drift between logs")
+        binning_setting = st.selectbox(  # type: ignore
+            "Time Binning",
+            options=["kmeans_1", "kmeans_3", "outer_10"],
+            index=0,
+            format_func=lambda x: binner_setting_to_name[x],
+        )
+        weighted_time_cost = st.checkbox("Weighted Time Cost")
 
+        comparison_technique = st.selectbox(  # type: ignore
+            "Comparison Technique",
+            options=["emd_bootstrap", "ks_bootstrap", "double_bootstrap"],
+            index=0,
+            format_func=lambda x: funcs_to_name[x],
+        )
+
+        if comparison_technique == "emd_bootstrap":
+            bootstrapping_style = st.selectbox(  # type: ignore
+                "Bootstrapping Style",
+                ["replacement sublogs", "resample split", "split sampling"],
+                index=0,
+                format_func=lambda x: x.replace("_", " ").title(),
+            )
+
+            resample_percentage = st.select_slider(  # type: ignore
+                "Resample Percentage",
+                [0.25, 0.5, 1.0],
+                value=1.0,
+                help="Percentage of the size of the reference event log to use as resample size",
+            )
+
+        elif comparison_technique == "ks_bootstrap":
+            bootstrapping_styles_formatted = {
+                "replacement": "Sample 2 Halves with Replacement",
+                "split": "Split the Population into 2 Distinct Halves",
+            }
+            self_bootstrapping_style = st.selectbox(  # type: ignore
+                "Bootstrapping Distribution Sampling Technique",
+                ["split", "replacement"],
+                index=0,
+                format_func=lambda x: bootstrapping_styles_formatted[x],
+            )
+
+        elif comparison_technique == "double_bootstrap":
+            double_bootstrap_styles_formatted = {
+                "sample_smaller_log_size": "Sample with smaller Log Size",
+                "splitted_resampling": "Resample from disjunct halves of Log 1",
+            }
+            double_bootstrap_style = st.selectbox(  # type: ignore
+                "Bootstrapping Style",
+                ["sample_smaller_log_size", "splitted_resampling"],
+                index=0,
+                format_func=lambda x: double_bootstrap_styles_formatted[x],
+            )
+
+    instance: Instance
     if comparison_technique == "emd_bootstrap":
-        bootstrapping_style = st.selectbox(  # type: ignore
-            "Bootstrapping Style",
-            ["replacement sublogs", "resample split", "split sampling"],
-            index=0,
-            format_func=lambda x: x.replace("_", " ").title(),
+        instance = StandardEmdInstance(
+            drifts=drifts,
+            weighted_time_cost=weighted_time_cost,
+            binner_setting=binning_setting,
+            bootstrapping_style=bootstrapping_style,
+            resample_percentage=resample_percentage,
         )
-
-        resample_percentage = st.select_slider(  # type: ignore
-            "Resample Percentage",
-            [0.25, 0.5, 1.0],
-            value=1.0,
-            help="Percentage of the size of the reference event log to use as resample size",
-        )
-
     elif comparison_technique == "ks_bootstrap":
-        bootstrapping_styles_formatted = {
-            "replacement": "Sample 2 Halves with Replacement",
-            "split": "Split the Population into 2 Distinct Halves",
-        }
-        self_bootstrapping_style = st.selectbox(  # type: ignore
-            "Bootstrapping Distribution Sampling Technique",
-            ["split", "replacement"],
-            index=0,
-            format_func=lambda x: bootstrapping_styles_formatted[x],
+        instance = KsEmdInstance(
+            drifts=drifts,
+            weighted_time_cost=weighted_time_cost,
+            binner_setting=binning_setting,
+            self_bootstrapping_style=self_bootstrapping_style,
         )
-
     elif comparison_technique == "double_bootstrap":
-        double_bootstrap_styles_formatted = {
-            "sample_smaller_log_size": "Sample with smaller Log Size",
-            "splitted_resampling": "Resample from disjunct halves of Log 1",
-        }
-        double_bootstrap_style = st.selectbox(  # type: ignore
-            "Bootstrapping Style",
-            ["sample_smaller_log_size", "splitted_resampling"],
-            index=0,
-            format_func=lambda x: double_bootstrap_styles_formatted[x],
+        instance = DoubleBootstrapInstance(
+            drifts=drifts,
+            weighted_time_cost=weighted_time_cost,
+            binner_setting=binning_setting,
+            bootstrapping_style=double_bootstrap_style,
         )
+    else:
+        raise ValueError(f"Unknown comparison technique: {comparison_technique}")
 
-instance: Instance
-if comparison_technique == "emd_bootstrap":
-    instance = StandardEmdInstance(
-        drifts=drifts,
-        weighted_time_cost=weighted_time_cost,
-        binner_setting=binning_setting,
-        bootstrapping_style=bootstrapping_style,
-        resample_percentage=resample_percentage,
-    )
-elif comparison_technique == "ks_bootstrap":
-    instance = KsEmdInstance(
-        drifts=drifts,
-        weighted_time_cost=weighted_time_cost,
-        binner_setting=binning_setting,
-        self_bootstrapping_style=self_bootstrapping_style,
-    )
-elif comparison_technique == "double_bootstrap":
-    instance = DoubleBootstrapInstance(
-        drifts=drifts,
-        weighted_time_cost=weighted_time_cost,
-        binner_setting=binning_setting,
-        bootstrapping_style=double_bootstrap_style,
-    )
-else:
-    raise ValueError(f"Unknown comparison technique: {comparison_technique}")
+    pickle_path = instance.path / "result.pkl"
+    png_path = instance.path / "result.png"
+
+    if not pickle_path.exists():
+        none_found_warning = st.warning("No comparison results found. Run comparison?")
+        if st.button("Go!"):
+            warning = st.warning("Running comparison, please wait...")
+            msg = st.toast("Running comparison, please wait... (~10min)", icon="⌛")
+
+            logs = get_logs_with_drift() if drifts else get_logs_no_drift()
+
+            instance.run_and_save_results(*logs)
+            msg.toast("Comparison Complete!", icon="✅")
+
+            # Clear the warnings
+            none_found_warning.empty()
+            warning.empty()
+
+    if pickle_path.exists():
+        with open(pickle_path, "rb") as pickle_file:
+            comparator = pickle.load(pickle_file)
+
+        st.subheader(f"P-Value: {comparator.pval:.2f}")
+        st.pyplot(comparator.plot_result())
+
+        with st.expander("🔍 Timing Statistics"):
+
+            def get_bin_class_counter_per_act(behavior: list[BinnedServiceTimeTrace]):
+                events = [evt for trace in behavior for evt in trace]
+
+                activities = set(act for act, _ in events)
+
+                datapoints_per_activity = {
+                    act: [
+                        binned_dur for activity, binned_dur in events if activity == act
+                    ]
+                    for act in activities
+                }
+
+                counters_per_activity = {
+                    act: Counter(binned_durs)
+                    for act, binned_durs in datapoints_per_activity.items()
+                }
+
+                return counters_per_activity
+
+            counters_1 = get_bin_class_counter_per_act(comparator.behavior_1)
+            counters_2 = get_bin_class_counter_per_act(comparator.behavior_2)
+
+            all_keys = set(counters_1.keys()).union(counters_2.keys())
+
+            # Create a dataframe
+            df = pd.DataFrame(
+                {
+                    "Activity": list(all_keys),
+                    "Class 0": [
+                        (
+                            counters_1.get(act, Counter()).get(0),
+                            counters_2.get(act, Counter()).get(0),
+                        )
+                        for act in all_keys
+                    ],
+                    "Class 1": [
+                        (
+                            counters_1.get(act, Counter()).get(1),
+                            counters_2.get(act, Counter()).get(1),
+                        )
+                        for act in all_keys
+                    ],
+                    "Class 2": [
+                        (
+                            counters_1.get(act, Counter()).get(2),
+                            counters_2.get(act, Counter()).get(2),
+                        )
+                        for act in all_keys
+                    ],
+                    "Average Class in Log 1": [
+                        mean(counters_1.get(act, Counter()).elements())
+                        for act in all_keys
+                    ],
+                    "Average Class in Log 2": [
+                        mean(counters_2.get(act, Counter()).elements())
+                        for act in all_keys
+                    ],
+                }
+            )
+
+            st.dataframe(df, use_container_width=True)
 
 
-pickle_path = instance.path / "result.pkl"
-png_path = instance.path / "result.png"
+def main() -> None:
+    from multiprocessing import Pool, RLock, cpu_count, freeze_support
 
+    from tqdm.auto import tqdm
 
-if not pickle_path.exists():
-    none_found_warning = st.warning("No comparison results found. Run comparison?")
-    if st.button("Go!"):
-        warning = st.warning("Running comparison, please wait...")
-        msg = st.toast("Running comparison, please wait... (~10min)", icon="⌛")
+    SAVE_CORES = 4
 
-        logs = get_logs_with_drift() if drifts else get_logs_no_drift()
+    binner_settings: list[BinnerSetting] = ["kmeans_1", "kmeans_3", "outer_10"]
+    bootstrapping_styles: list[BootstrappingStyle] = [
+        "replacement sublogs",
+        "resample split",
+        "split sampling",
+    ]
+    ks_self_bootstrapping_styles: list[Self_Bootstrapping_Style] = [
+        "split",
+        "replacement",
+    ]
+    double_bootstrap_styles: list[DoubleBootstrapStyle] = [
+        "sample_smaller_log_size",
+        "splitted_resampling",
+    ]
+    standard_instances: list[Instance] = [
+        StandardEmdInstance(
+            drifts=drifts,
+            binner_setting=binner_setting,
+            weighted_time_cost=weighted_time_cost,
+            bootstrapping_style=bootstrapping_style,
+            resample_percentage=resample_percentage,
+        )
+        for drifts in [True, False]
+        for binner_setting in binner_settings
+        for weighted_time_cost in [True, False]
+        for bootstrapping_style in bootstrapping_styles
+        for resample_percentage in [0.25, 0.5, 1.0]
+    ]
 
+    ks_instances: list[Instance] = [
+        KsEmdInstance(
+            drifts=drifts,
+            binner_setting=binner_setting,
+            weighted_time_cost=weighted_time_cost,
+            self_bootstrapping_style=self_bootstrapping_style,
+        )
+        for drifts in [True, False]
+        for binner_setting in binner_settings
+        for weighted_time_cost in [True, False]
+        for self_bootstrapping_style in ks_self_bootstrapping_styles
+    ]
+    double_bootstrap_instances: list[Instance] = [
+        DoubleBootstrapInstance(
+            drifts=drifts,
+            binner_setting=binner_setting,
+            weighted_time_cost=weighted_time_cost,
+            bootstrapping_style=bootstrapping_style,
+        )
+        for drifts in [True, False]
+        for binner_setting in binner_settings
+        for weighted_time_cost in [True, False]
+        for bootstrapping_style in double_bootstrap_styles
+    ]
+
+    instances = standard_instances + ks_instances + double_bootstrap_instances
+
+    freeze_support()
+    tqdm.set_lock(RLock())
+
+    filtered_args = [
+        instance
+        for instance in instances
+        if not (instance.path / "result.pkl").exists()
+    ]
+
+    print("Remaining instances:", len(filtered_args))
+
+    def run_instance(args: tuple[int, Instance]):
+        idx, instance = args
+        print("Running instance", idx)
+        logs = get_logs_with_drift() if instance.drifts else get_logs_no_drift()
         instance.run_and_save_results(*logs)
-        msg.toast("Comparison Complete!", icon="✅")
 
-        # Clear the warnings
-        none_found_warning.empty()
-        warning.empty()
+    with Pool(
+        cpu_count() - SAVE_CORES, initializer=tqdm.set_lock, initargs=(tqdm.get_lock,)
+    ) as p:
+        p.map(run_instance, enumerate(filtered_args))
 
-if pickle_path.exists():
-    with open(pickle_path, "rb") as pickle_file:
-        comparator = pickle.load(pickle_file)
 
-    st.subheader(f"P-Value: {comparator.pval:.2f}")
-    st.pyplot(comparator.plot_result())
+if __name__ == "__main__":
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
 
-    with st.expander("🔍 Timing Statistics"):
+        if get_script_run_ctx():
+            is_streamlit_run = True
+        else:
+            is_streamlit_run = False
+    except ImportError:
+        is_streamlit_run = False
 
-        def get_bin_class_counter_per_act(behavior: list[BinnedServiceTimeTrace]):
-            events = [evt for trace in behavior for evt in trace]
-
-            activities = set(act for act, _ in events)
-
-            datapoints_per_activity = {
-                act: [binned_dur for activity, binned_dur in events if activity == act]
-                for act in activities
-            }
-
-            counters_per_activity = {
-                act: Counter(binned_durs)
-                for act, binned_durs in datapoints_per_activity.items()
-            }
-
-            return counters_per_activity
-
-        counters_1 = get_bin_class_counter_per_act(comparator.behavior_1)
-        counters_2 = get_bin_class_counter_per_act(comparator.behavior_2)
-
-        all_keys = set(counters_1.keys()).union(counters_2.keys())
-
-        # Create a dataframe
-        df = pd.DataFrame(
-            {
-                "Activity": list(all_keys),
-                "Class 0": [
-                    (
-                        counters_1.get(act, Counter()).get(0),
-                        counters_2.get(act, Counter()).get(0),
-                    )
-                    for act in all_keys
-                ],
-                "Class 1": [
-                    (
-                        counters_1.get(act, Counter()).get(1),
-                        counters_2.get(act, Counter()).get(1),
-                    )
-                    for act in all_keys
-                ],
-                "Class 2": [
-                    (
-                        counters_1.get(act, Counter()).get(2),
-                        counters_2.get(act, Counter()).get(2),
-                    )
-                    for act in all_keys
-                ],
-                "Average Class in Log 1": [
-                    mean(counters_1.get(act, Counter()).elements()) for act in all_keys
-                ],
-                "Average Class in Log 2": [
-                    mean(counters_2.get(act, Counter()).elements()) for act in all_keys
-                ],
-            }
-        )
-
-        st.dataframe(df, use_container_width=True)
+    if is_streamlit_run:
+        streamlit_main_loop()
+    else:
+        main()
