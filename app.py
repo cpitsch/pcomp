@@ -4,10 +4,9 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import mean
-from typing import Any, Generic, Literal, Protocol, TypeVar
+from typing import Any, Generic, Literal, Protocol, TypeVar, get_args
 
 import pandas as pd
-import streamlit as st
 from matplotlib.figure import Figure
 from pm4py import read_xes  # type: ignore
 
@@ -25,21 +24,44 @@ from pcomp.emd.core import BootstrappingStyle
 from pcomp.emd.emd import BinnedServiceTimeTrace
 from pcomp.utils import enable_logging
 
-enable_logging()
+## Types and formatting helpers ##
 
-# Types and formatting helpers
 ComparisonTechnique = Literal["emd_bootstrap", "ks_bootstrap", "double_bootstrap"]
-funcs_to_name = {
+comparison_techniques: list[ComparisonTechnique] = list(get_args(ComparisonTechnique))
+funcs_to_name: dict[ComparisonTechnique, str] = {
     "emd_bootstrap": "Standard EMD Bootstrapping",
     "ks_bootstrap": "Kolmogorov-Smirnov Distribution Comparison",
     "double_bootstrap": "Double Bootstrap EMD",
 }
 
 BinnerSetting = Literal["kmeans_1", "kmeans_3", "outer_10"]
-binner_setting_to_name = {
+binner_settings: list[BinnerSetting] = list(get_args(BinnerSetting))
+binner_setting_to_name: dict[BinnerSetting, str] = {
     "kmeans_1": "KMeans++ 1 Bin (No Time)",
     "kmeans_3": "KMeans++ 3 Bins",
     "outer_10": "Outer Percentile (10%)",
+}
+
+### Standard EMD Bootstrap
+bootstrapping_styles: list[BootstrappingStyle] = list(get_args(BootstrappingStyle))
+resample_percentages: list[float] = [0.25, 0.5, 1.0]
+
+### EMD KS
+ks_self_bootstrapping_styles: list[Self_Bootstrapping_Style] = list(
+    get_args(Self_Bootstrapping_Style)
+)
+ks_bootstrapping_styles_formatter: dict[Self_Bootstrapping_Style, str] = {
+    "replacement": "Sample 2 Halves with Replacement",
+    "split": "Split the Population into 2 Distinct Halves",
+}
+
+### Double Bootstrap
+double_bootstrap_styles: list[DoubleBootstrapStyle] = list(
+    get_args(DoubleBootstrapStyle)
+)
+double_bootstrap_styles_formatter: dict[DoubleBootstrapStyle, str] = {
+    "sample_smaller_log_size": "Sample with smaller Log Size",
+    "splitted_resampling": "Resample from disjunct halves of Log 1",
 }
 
 
@@ -56,23 +78,6 @@ def binner_setting_to_args(
         return OuterPercentileBinner, {}
     else:
         raise ValueError(f"Unknown binner setting: {binner_setting}")
-
-
-# Default values
-drifts: bool = False
-weighted_time_cost: bool = False
-binning_setting: BinnerSetting = "kmeans_1"
-comparison_technique: ComparisonTechnique = "emd_bootstrap"
-
-# EMD Bootstrap
-bootstrapping_style: BootstrappingStyle = "replacement sublogs"
-resample_percentage: float = 1.0
-
-# EMD KS
-self_bootstrapping_style: Self_Bootstrapping_Style = "split"
-
-# Double Bootstrap
-double_bootstrap_style: DoubleBootstrapStyle = "sample_smaller_log_size"
 
 
 class ComparableAndPlottable(Protocol):
@@ -233,8 +238,23 @@ def get_logs_with_drift() -> tuple[pd.DataFrame, pd.DataFrame]:
     return log_1, log_2
 
 
-def streamlit_main_loop():
+def streamlit_main_loop() -> None:
     import streamlit as st
+
+    drifts: bool
+    weighted_time_cost: bool
+    binning_setting: BinnerSetting
+    comparison_technique: ComparisonTechnique
+
+    # EMD Bootstrap
+    bootstrapping_style: BootstrappingStyle
+    resample_percentage: float
+
+    # EMD KS
+    self_bootstrapping_style: Self_Bootstrapping_Style
+
+    # Double Bootstrap
+    double_bootstrap_style: DoubleBootstrapStyle
 
     st.title("EMD Process Comparison Exploration")
 
@@ -242,7 +262,7 @@ def streamlit_main_loop():
         drifts = st.checkbox("Drift between logs")
         binning_setting = st.selectbox(  # type: ignore
             "Time Binning",
-            options=["kmeans_1", "kmeans_3", "outer_10"],
+            options=binner_settings,
             index=0,
             format_func=lambda x: binner_setting_to_name[x],
         )
@@ -250,7 +270,7 @@ def streamlit_main_loop():
 
         comparison_technique = st.selectbox(  # type: ignore
             "Comparison Technique",
-            options=["emd_bootstrap", "ks_bootstrap", "double_bootstrap"],
+            options=comparison_techniques,
             index=0,
             format_func=lambda x: funcs_to_name[x],
         )
@@ -258,40 +278,32 @@ def streamlit_main_loop():
         if comparison_technique == "emd_bootstrap":
             bootstrapping_style = st.selectbox(  # type: ignore
                 "Bootstrapping Style",
-                ["replacement sublogs", "resample split", "split sampling"],
+                bootstrapping_styles,
                 index=0,
                 format_func=lambda x: x.replace("_", " ").title(),
             )
 
             resample_percentage = st.select_slider(  # type: ignore
                 "Resample Percentage",
-                [0.25, 0.5, 1.0],
+                resample_percentages,
                 value=1.0,
                 help="Percentage of the size of the reference event log to use as resample size",
             )
 
         elif comparison_technique == "ks_bootstrap":
-            bootstrapping_styles_formatted = {
-                "replacement": "Sample 2 Halves with Replacement",
-                "split": "Split the Population into 2 Distinct Halves",
-            }
             self_bootstrapping_style = st.selectbox(  # type: ignore
                 "Bootstrapping Distribution Sampling Technique",
-                ["split", "replacement"],
+                ks_self_bootstrapping_styles,
                 index=0,
-                format_func=lambda x: bootstrapping_styles_formatted[x],
+                format_func=lambda x: ks_bootstrapping_styles_formatter.get(x, x),
             )
 
         elif comparison_technique == "double_bootstrap":
-            double_bootstrap_styles_formatted = {
-                "sample_smaller_log_size": "Sample with smaller Log Size",
-                "splitted_resampling": "Resample from disjunct halves of Log 1",
-            }
             double_bootstrap_style = st.selectbox(  # type: ignore
                 "Bootstrapping Style",
-                ["sample_smaller_log_size", "splitted_resampling"],
+                double_bootstrap_styles,
                 index=0,
-                format_func=lambda x: double_bootstrap_styles_formatted[x],
+                format_func=lambda x: double_bootstrap_styles_formatter[x],
             )
 
     instance: Instance
@@ -417,20 +429,6 @@ def main() -> None:
 
     SAVE_CORES = 4
 
-    binner_settings: list[BinnerSetting] = ["kmeans_1", "kmeans_3", "outer_10"]
-    bootstrapping_styles: list[BootstrappingStyle] = [
-        "replacement sublogs",
-        "resample split",
-        "split sampling",
-    ]
-    ks_self_bootstrapping_styles: list[Self_Bootstrapping_Style] = [
-        "split",
-        "replacement",
-    ]
-    double_bootstrap_styles: list[DoubleBootstrapStyle] = [
-        "sample_smaller_log_size",
-        "splitted_resampling",
-    ]
     standard_instances: list[Instance] = [
         StandardEmdInstance(
             drifts=drifts,
@@ -443,7 +441,7 @@ def main() -> None:
         for binner_setting in binner_settings
         for weighted_time_cost in [True, False]
         for bootstrapping_style in bootstrapping_styles
-        for resample_percentage in [0.25, 0.5, 1.0]
+        for resample_percentage in resample_percentages
     ]
 
     ks_instances: list[Instance] = [
@@ -508,6 +506,8 @@ if __name__ == "__main__":
         is_streamlit_run = False
 
     if is_streamlit_run:
+        enable_logging()
         streamlit_main_loop()
     else:
+        enable_logging()
         main()
