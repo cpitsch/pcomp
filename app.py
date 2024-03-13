@@ -174,7 +174,6 @@ def binner_setting_to_args(
             KMeans_Binner,
             {
                 "k": int(config),
-                "seed": 1337,
             },
         )
     elif binner == "outer":
