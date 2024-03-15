@@ -20,7 +20,7 @@ from pcomp.utils.utils import create_progress_bar
 T = TypeVar("T")
 
 # Literal Types
-BootstrappingStyle = Literal["split sampling", "replacement sublogs", "resample split"]
+BootstrappingStyle = Literal["replacement sublogs", "split sampling", "resample split"]
 EMDBackend = Literal["wasserstein", "ot", "pot"]
 
 
