@@ -164,7 +164,8 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
         2. Compute the EMD between the two representations.
         3. Bootstrap a Null-distribution of EMDs (EMDs of samples of log_1 to log_1).
         4. Bootstrap a distribution of EMDs from log_1 to log_2.
-        4. Compute the p-value.
+        5. Compute the p-value.
+
         Returns:
             float: The computed p-value.
         """
@@ -276,7 +277,9 @@ def bootstrap_emd_distribution_with_smaller_log(
     from log_1 and comparing them to log_2.
     This is repeated `bootstrapping_dist_size` times.
     Args:
-        population (list[T]): The population. A list of items.
+
+        population_1 (list[T]): The first population. A list of items.
+        population_2 (list[T]): The second population. A list of items.
         cost_fn (Callable[[T, T], float]): A function to compute the cost between two items.
         bootstrapping_dist_size (int, optional): The number of EMDs to compute. Defaults to 10_000.
         resample_size (int, optional): The size of the samples in bootstrapping. If None, defaults to the size of log_2.
@@ -353,7 +356,7 @@ def _split_range(
 
 
 def bootstrap_emd_distribution_splitted_resampling(
-    population_1: list[T],
+    population: list[T],
     cost_fn: Callable[[T, T], float],
     bootstrapping_dist_size: int,
     resample_size: int,
@@ -383,7 +386,7 @@ def bootstrap_emd_distribution_splitted_resampling(
 
     emds: list[float] = []
 
-    stochastic_lang = population_to_stochastic_language(population_1)
+    stochastic_lang = population_to_stochastic_language(population)
     behavior = [item for item, _ in stochastic_lang]
 
     # Precompute all distances
