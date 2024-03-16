@@ -62,9 +62,13 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
             bootstrapping_dist_size (int, optional): The number of samples for bootstrapping distributions. Defaults to 10_000.
             verbose (bool, optional): If True, show progress bars. Defaults to True.
             cleanup_on_del (bool, optional): If True, call `cleanup` upon destruction, e.g., when the object goes out of scope. Defaults to True.
-            bootstrapping_style (DoubleBootstrapStyle, optional): The bootstrapping style to use. Defaults to "sample_smaller_log_size".
+            bootstrapping_style (DoubleBootstrapStyle, optional): The bootstrapping style to use. Defaults to "sample_smaller_log_size". The options are:
 
-            - TODO: Explain the bootstrapping styles
+            - "sample_smaller_log_size": Commpare two samples of `log_1` of size `len(log_2)` for self-EMDs bootstrapping. Then,
+                draw samples of size `len(log_2)` from `log_1` and and `log_2` (with replacement) and compare them.
+            - "splitted_resampling": Splitt `log_1` into two disjunct halves. Then, draw samples of size `resample_size` from each half
+                (with replacement) and compare them. Then, draw samples of size `len(log_2)` from `log_1` and and `log_2`
+                (with replacement) and compare them.
 
             emd_backend (EMDBackend, optional): The backend to use for EMD computation. Defaults to "wasserstein" (use the "wasserstein" module). Alternatively, "ot" or "pot" will
             use the "Python Optimal Transport" package.
@@ -254,8 +258,6 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
             linewidth=2,
             label="Mean Logs Distance",
         )
-        # TODO: Add an axvline at the mean of the logs_emds_distribution. This is the relevant measure
-        # for the comparison.
         return fig
 
 
