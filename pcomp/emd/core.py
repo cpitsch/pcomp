@@ -88,8 +88,6 @@ class EMD_ProcessComparator(ABC, Generic[T]):
         self.emd_backend = emd_backend
 
         self.seed = seed
-        if self.seed is not None:
-            np.random.seed(self.seed)
 
     def __del__(self):
         if self.cleanup_on_del:
@@ -186,6 +184,7 @@ class EMD_ProcessComparator(ABC, Generic[T]):
                 self.cost_fn,
                 bootstrapping_dist_size=self.bootstrapping_dist_size,
                 resample_size=self.resample_size,
+                seed=self.seed,
                 emd_backend=self.emd_backend,
                 show_progress_bar=self.verbose,
             )
@@ -194,6 +193,7 @@ class EMD_ProcessComparator(ABC, Generic[T]):
                 self.behavior_1,
                 self.cost_fn,
                 bootstrapping_dist_size=self.bootstrapping_dist_size,
+                seed=self.seed,
                 emd_backend=self.emd_backend,
                 show_progress_bar=self.verbose,
             )
@@ -203,6 +203,7 @@ class EMD_ProcessComparator(ABC, Generic[T]):
                 self.cost_fn,
                 bootstrapping_dist_size=self.bootstrapping_dist_size,
                 resample_size=self.resample_size,
+                seed=self.seed,
                 emd_backend=self.emd_backend,
                 show_progress_bar=self.verbose,
             )
@@ -473,6 +474,7 @@ def bootstrap_emd_population(
     cost_fn: Callable[[T, T], float],
     bootstrapping_dist_size: int = 10_000,
     resample_size: int | None = None,
+    seed: int | None = None,
     emd_backend: EMDBackend = "wasserstein",
     show_progress_bar: bool = True,
 ) -> list[float]:
@@ -485,15 +487,19 @@ def bootstrap_emd_population(
         cost_fn (Callable[[T, T], float]): A function to compute the cost between two items.
         bootstrapping_dist_size (int, optional): The number of EMDs to compute. Defaults to 10_000.
         resample_size (int | None, optional): The size of the samples. Defaults to None.
+        seed (int, optional): The seed to use for sampling. Defaults to None.
         emd_backend (EMDBackend, optional): The backend to use to compute the EMD. Defaults to "wasserstein" (use the "wasserstein" module).
         show_progress_bar (bool, optional): Whether to show a progress bar for the sampling progress. Defaults to True.
 
     Returns:
         list[float]: The list of computed EMDs.
     """
+    gen = np.random.default_rng(seed) if seed is not None else None
 
-    if resample_size is None:
-        resample_size = len(population)
+    if seed is not None:
+        gen = np.random.default_rng(seed)
+
+    resample_size = resample_size or len(population)
 
     reference_stochastic_language = population_to_stochastic_language(population)
     reference_freqs = np.array([freq for _, freq in reference_stochastic_language])
@@ -519,7 +525,7 @@ def bootstrap_emd_population(
             return res
 
         # Get the samples for the entire bootstrapping stage, respecting the frequencies of the variants
-        samples = np.random.choice(
+        samples = (gen or np.random).choice(
             dists.shape[0],
             (bootstrapping_dist_size, resample_size),
             replace=True,
@@ -542,6 +548,7 @@ def bootstrap_emd_population_split_sampling(
     population: list[T],
     cost_fn: Callable[[T, T], float],
     bootstrapping_dist_size: int = 10_000,
+    seed: int | None = None,
     emd_backend: EMDBackend = "wasserstein",
     show_progress_bar: bool = True,
 ) -> list[float]:
@@ -553,12 +560,15 @@ def bootstrap_emd_population_split_sampling(
         population (list[T]): The population. A list of items.
         cost_fn (Callable[[T, T], float]): A function to compute the cost between two items.
         bootstrapping_dist_size (int, optional): The number of EMDs to compute. Defaults to 10_000.
+        seed (int, optional): The seed to use for sampling. Defaults to None.
         emd_backend (EMDBackend, optional): The backend to use to compute the EMD. Defaults to "wasserstein".
         show_progress_bar (bool, optional): Whether to show a progress bar for the sampling progress. Defaults to True.
 
     Returns:
         list[float]: The list of computed EMDs.
     """
+    gen = np.random.default_rng(seed) if seed is not None else None
+
     emds: list[float] = []
 
     stochastic_lang = population_to_stochastic_language(population)
@@ -584,7 +594,7 @@ def bootstrap_emd_population_split_sampling(
         # Ideally, would do all the sampling at once, but not sure how to do that with replacement off for each row separately
 
         # First sample from the population so that we respect the frequencies of the variants
-        sample = np.random.choice(
+        sample = (gen or np.random).choice(
             len(population),  # Need to sample from the population.
             len(population) // 2,
             replace=False,
@@ -627,6 +637,7 @@ def bootstrap_emd_population_resample_split_sampling(
     cost_fn: Callable[[T, T], float],
     bootstrapping_dist_size: int = 10_000,
     resample_size: int | None = None,
+    seed: int | None = None,
     emd_backend: EMDBackend = "wasserstein",
     show_progress_bar: bool = True,
 ) -> list[float]:
@@ -639,14 +650,15 @@ def bootstrap_emd_population_resample_split_sampling(
         cost_fn (Callable[[T, T], float]): A function to compute the cost between two items.
         bootstrapping_dist_size (int, optional): The number of EMDs to compute. Defaults to 10_000.
         resample_size (int | None, optional): The size of the samples. Defaults to None (half the population size).
+        seed (int, optional): The seed to use for sampling. Defaults to None.
         emd_backend (EMDBackend, optional): The backend to use to compute the EMD. Defaults to "wasserstein".
         show_progress_bar (bool, optional): Whether to show a progress bar for the sampling progress. Defaults to True.
 
     Returns:
         list[float]: The list of computed EMDs.
     """
-    if resample_size is None:
-        resample_size = len(population) // 2
+    gen = np.random.default_rng(seed) if seed is not None else None
+    resample_size = resample_size or len(population) // 2
 
     emds: list[float] = []
 
@@ -667,10 +679,10 @@ def bootstrap_emd_population_resample_split_sampling(
 
     # TODO: Could put this in a bootstrapping_dist_size x 2 array (?),
     # so both samples are stored/generated together?
-    samples_1 = np.random.choice(
+    samples_1 = (gen or np.random).choice(
         dists.shape[0], (bootstrapping_dist_size, resample_size), replace=True, p=freqs
     )
-    samples_2 = np.random.choice(
+    samples_2 = (gen or np.random).choice(
         dists.shape[0], (bootstrapping_dist_size, resample_size), replace=True, p=freqs
     )
     for idx in range(bootstrapping_dist_size):

@@ -69,6 +69,7 @@ class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
         self.binner_manager = BinnerManager(
             [evt for trace in traces_1 for evt in trace],
             self.binner_factory,
+            seed=self.seed,
             **self.binner_args
         )
 

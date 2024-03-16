@@ -85,8 +85,6 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
         self.emd_backend = emd_backend
 
         self.seed = seed
-        if self.seed is not None:
-            np.random.seed(self.seed)
 
     def __del__(self):
         if self.cleanup_on_del:
@@ -178,6 +176,7 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
                     cost_fn=self.cost_fn,
                     bootstrapping_dist_size=self.bootstrapping_dist_size,
                     resample_size=min(len(self.behavior_1) // 2, len(self.behavior_2)),
+                    seed=self.seed,
                     emd_backend=self.emd_backend,
                     show_progress_bar=self.verbose,
                 )
@@ -188,6 +187,7 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
                 self.cost_fn,
                 bootstrapping_dist_size=self.bootstrapping_dist_size,
                 resample_size=min(len(self.behavior_1) // 2, len(self.behavior_2)),
+                seed=self.seed,
                 emd_backend=self.emd_backend,
                 show_progress_bar=self.verbose,
             )
@@ -198,6 +198,7 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
                     self.cost_fn,
                     bootstrapping_dist_size=self.bootstrapping_dist_size,
                     resample_size=len(self.behavior_2),
+                    seed=self.seed,
                     emd_backend=self.emd_backend,
                     show_progress_bar=self.verbose,
                 )
@@ -208,6 +209,8 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
                 self.behavior_2,
                 self.cost_fn,
                 bootstrapping_dist_size=self.bootstrapping_dist_size,
+                resample_size=len(self.behavior_2),
+                seed=self.seed,
                 emd_backend=self.emd_backend,
                 show_progress_bar=self.verbose,
             )
@@ -262,6 +265,7 @@ def bootstrap_emd_distribution_with_smaller_log(
     cost_fn: Callable[[T, T], float],
     bootstrapping_dist_size: int,
     resample_size: int | None = None,
+    seed: int | None = None,
     emd_backend: EMDBackend = "wasserstein",
     show_progress_bar: bool = True,
 ) -> list[float]:
@@ -274,14 +278,15 @@ def bootstrap_emd_distribution_with_smaller_log(
         cost_fn (Callable[[T, T], float]): A function to compute the cost between two items.
         bootstrapping_dist_size (int, optional): The number of EMDs to compute. Defaults to 10_000.
         resample_size (int, optional): The size of the samples in bootstrapping. If None, defaults to the size of log_2.
+        seed (int, optional): The seed to use for sampling in the bootstrapping phase
         emd_backend (EMDBackend, optional): The backend to use to compute the EMD. Defaults to "wasserstein" (use the "wasserstein" module).
         show_progress_bar (bool, optional): Whether to show a progress bar for the sampling progress. Defaults to True.
 
     Returns:
         list[float]: The list of computed EMDs.
     """
-    if resample_size is None:
-        resample_size = len(population_2)
+    gen = np.random.default_rng(seed) if seed is not None else None
+    resample_size = resample_size or len(population_2)
 
     emds: list[float] = []
 
@@ -304,7 +309,7 @@ def bootstrap_emd_distribution_with_smaller_log(
         desc="Bootstrapping EMDs",
     )
 
-    samples_1 = np.random.choice(
+    samples_1 = (gen or np.random).choice(
         dists.shape[0],  # Sample from the indices in log 1
         (
             bootstrapping_dist_size,
@@ -336,8 +341,10 @@ def bootstrap_emd_distribution_with_smaller_log(
     return emds
 
 
-def split_range(high: int) -> tuple[Numpy1DArray[np.int_], Numpy1DArray[np.int_]]:
-    half_1 = np.random.choice(high, high // 2, replace=False)
+def _split_range(
+    high: int, rng: np.random.Generator | None = None
+) -> tuple[Numpy1DArray[np.int_], Numpy1DArray[np.int_]]:
+    half_1 = (rng or np.random).choice(high, high // 2, replace=False)
     half_2 = np.setdiff1d(np.arange(high, dtype=np.int_), half_1)
 
     return half_1, half_2
@@ -348,6 +355,7 @@ def bootstrap_emd_distribution_splitted_resampling(
     cost_fn: Callable[[T, T], float],
     bootstrapping_dist_size: int,
     resample_size: int,
+    seed: int | None = None,
     emd_backend: EMDBackend = "wasserstein",
     show_progress_bar: bool = True,
 ) -> list[float]:
@@ -361,12 +369,16 @@ def bootstrap_emd_distribution_splitted_resampling(
         resample_size (int): The size of the samples in bootstrapping
         cost_fn (Callable[[T, T], float]): A function to compute the cost between two items.
         bootstrapping_dist_size (int, optional): The number of EMDs to compute. Defaults to 10_000.
+        resample_size (int): The size of the samples in bootstrapping.
+        seed (int, optional): The seed to use for sampling in the bootstrapping phase
         emd_backend (EMDBackend, optional): The backend to use to compute the EMD. Defaults to "wasserstein" (use the "wasserstein" module).
         show_progress_bar (bool, optional): Whether to show a progress bar for the sampling progress. Defaults to True.
 
     Returns:
         list[float]: The list of computed EMDs.
     """
+    gen = np.random.default_rng(seed) if seed is not None else None
+
     emds: list[float] = []
 
     stochastic_lang = population_to_stochastic_language(population_1)
@@ -384,10 +396,10 @@ def bootstrap_emd_distribution_splitted_resampling(
     )
 
     for _ in range(bootstrapping_dist_size):
-        half_1, half_2 = split_range(len(behavior))
+        half_1, half_2 = _split_range(len(behavior), gen)
 
-        sample_1 = np.random.choice(half_1, resample_size, replace=True)
-        sample_2 = np.random.choice(half_2, resample_size, replace=True)
+        sample_1 = (gen or np.random).choice(half_1, resample_size, replace=True)
+        sample_2 = (gen or np.random).choice(half_2, resample_size, replace=True)
 
         deduplicated_indices_1, counts_1 = np.unique(sample_1, return_counts=True)
         deduplicated_indices_2, counts_2 = np.unique(sample_2, return_counts=True)

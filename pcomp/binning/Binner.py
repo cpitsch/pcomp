@@ -12,6 +12,7 @@ T = TypeVar("T")
 class Binner(abc.ABC, Generic[T]):
     data: list[T]
     seed: int | None
+    rng: np.random.Generator | None
     num_bins: int  # The number of bins
 
     def __init__(self, data: list[T], seed: int | None = None):
@@ -19,7 +20,9 @@ class Binner(abc.ABC, Generic[T]):
         self.seed = seed
 
         if self.seed is not None:
-            np.random.seed(self.seed)
+            self.rng = np.random.default_rng(self.seed)
+        else:
+            self.rng = None
 
     @abc.abstractmethod
     def bin(self, data: T) -> int:

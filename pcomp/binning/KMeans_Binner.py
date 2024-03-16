@@ -15,9 +15,9 @@ class KMeans_Binner(Binner):
         super().__init__(data, seed)
         self.num_bins = k
 
-        sample_indices = np.random.choice(
-            range(len(self.data)),
-            size=math.ceil(0.2 * len(self.data)),
+        # If a generator is set (seed is not None), use it. Otherwise, use numpy normally
+        sample_indices = (self.rng or np.random).choice(
+            range(len(self.data)), size=math.ceil(0.2 * len(self.data)), replace=False
         )
 
         self.centroids = kmeans_plusplus(
