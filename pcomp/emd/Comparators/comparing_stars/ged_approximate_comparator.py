@@ -55,7 +55,6 @@ class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
         self.binner_args = binner_args or (
             {
                 "k": 3,
-                "seed": self.seed,
             }
             if self.binner_factory == KMeans_Binner
             else {}

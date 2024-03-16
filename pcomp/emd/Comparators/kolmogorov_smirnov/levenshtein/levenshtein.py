@@ -57,7 +57,6 @@ class LevenshteinKSComparator(EMD_KS_ProcessComparator[BinnedServiceTimeTrace]):
         self.binner_args = binner_args or (
             {
                 "k": 3,
-                "seed": self.seed,
             }
             if self.binner_factory == KMeans_Binner
             else {}
