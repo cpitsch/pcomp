@@ -260,6 +260,7 @@ def compute_emd(
     distribution1: list[tuple[T, float]],
     distribution2: list[tuple[T, float]],
     cost_fn: Callable[[T, T], float],
+    backend: EMDBackend = "wasserstein",
 ) -> float:
     """Compute the Earth Mover's Distance between two distributions.
 
@@ -267,6 +268,8 @@ def compute_emd(
         distribution1 (list[tuple[T, float]]): The first distribution. All distinct behavior with their relative frequencies.
         distribution2 (list[tuple[T, float]]): The second distribution.
         cost_fn (Callable[[T, T], float]): A function to compute the transport cost between two items.
+        backend (EMDBackend, optional): The backend to use for EMD computation. Defaults to "wasserstein" (use the "wasserstein" module). Alternatively, "ot" or "pot" will
+            use the "Python Optimal Transport" package.
 
     Returns:
         float: The computed Earth Mover's Distance.
@@ -285,6 +288,7 @@ def compute_emd(
         np.array([freq for _, freq in distribution1]),
         np.array([freq for _, freq in distribution2]),
         dists,
+        backend=backend,
     )
     emds_end = default_timer()
 
@@ -316,7 +320,8 @@ def emd(
         freqs_1 (Numpy1DArray[np.float_]): 1D histogram of the first distribution. All positive, sums up to 1.
         freqs_2 (Numpy1DArray[np.float_]): 1D histogram of the second distribution. All positive, sums up to 1.
         dists (NumpyMatrix[np.float_]): The cost matrix.
-        backend ("wasserstein" | "ot" | "pot"): The backend to use to compute the EMD. Defaults to "wasserstein" (use the wasserstein package). "ot"/"pot" refers to the Python Optimal Transport package.
+        backend ("wasserstein" | "ot" | "pot"): The backend to use to compute the EMD. Defaults to "wasserstein"
+            (use the wasserstein package). Alternatively, "ot"/"pot" refers to the Python Optimal Transport package.
 
     Returns:
         float: The computed Earth Mover's Distance.

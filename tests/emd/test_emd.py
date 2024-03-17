@@ -1,5 +1,7 @@
-from pcomp.emd.core import compute_emd
-from pcomp.emd.emd import (  # weightedLevenshteinDistance,
+from typing import get_args
+
+from pcomp.emd.core import EMDBackend, compute_emd
+from pcomp.emd.emd import (
     custom_postnormalized_levenshtein_distance,
     post_normalized_weighted_levenshtein_distance,
 )
@@ -66,21 +68,29 @@ def test_emd_normal_example():
         ((("a", 0), ("b", 0), ("e", 0), ("f", 0)), 10 / 100),
     ]
 
-    # Assert almost equal due to floating point arithmetic. 10^-9 is a very reasonable delta.
-    assert_almost_equal(
-        compute_emd(
-            distribution1, distribution2, custom_postnormalized_levenshtein_distance
-        ),
-        0.05,
-        1e-9,
-    )
-    assert_almost_equal(
-        compute_emd(
-            distribution1, distribution3, custom_postnormalized_levenshtein_distance
-        ),
-        0.15,
-        1e-9,
-    )
+    # Check that all available EMD backends return the correct result
+    for backend in get_args(EMDBackend):
+        # Assert almost equal due to floating point arithmetic. 10^-9 is a very reasonable delta.
+        assert_almost_equal(
+            compute_emd(
+                distribution1,
+                distribution2,
+                custom_postnormalized_levenshtein_distance,
+                backend=backend,
+            ),
+            0.05,
+            1e-9,
+        )
+        assert_almost_equal(
+            compute_emd(
+                distribution1,
+                distribution3,
+                custom_postnormalized_levenshtein_distance,
+                backend=backend,
+            ),
+            0.15,
+            1e-9,
+        )
 
 
 def assert_almost_equal(a, b, delta):
