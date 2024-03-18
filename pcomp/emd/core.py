@@ -285,10 +285,12 @@ def compute_emd(
     logger = logging.getLogger("@pcomp")
 
     dists_start = default_timer()
-    dists = np.empty((len(distribution1), len(distribution2)), dtype=float)
-    for i, (item1, _) in enumerate(distribution1):
-        for j, (item2, _) in enumerate(distribution2):
-            dists[i, j] = cost_fn(item1, item2)
+
+    dists = compute_distance_matrix(
+        [trace for trace, _ in distribution1],
+        [trace for trace, _ in distribution2],
+        cost_fn,
+    )
 
     dists_end = default_timer()
 
