@@ -690,13 +690,12 @@ def bootstrap_emd_population_resample_split_sampling(
         desc="Bootstrapping EMD Null Distribution",
     )
 
-    # TODO: Could put this in a bootstrapping_dist_size x 2 array (?),
-    # so both samples are stored/generated together?
-    samples_1 = (gen or np.random).choice(
-        dists.shape[0], (bootstrapping_dist_size, resample_size), replace=True, p=freqs
-    )
-    samples_2 = (gen or np.random).choice(
-        dists.shape[0], (bootstrapping_dist_size, resample_size), replace=True, p=freqs
+    samples_1, samples_2 = (gen or np.random).choice(
+        dists.shape[0],
+        # Every iteration we need two samples of `resample_size` size
+        (2, bootstrapping_dist_size, resample_size),
+        replace=True,
+        p=freqs,
     )
     for idx in range(bootstrapping_dist_size):
         sample_1 = samples_1[idx]
