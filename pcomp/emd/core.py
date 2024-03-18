@@ -1,3 +1,11 @@
+"""
+Core functionality pertaining to the standard EMD Bootstrapping comparison.
+
+This includes the EMD_ProcessComparator abstract class which can be implemented
+for any data extraction and distance functions.
+Apart from that, other important helper functions are also defined. 
+"""
+
 import logging
 import math
 from abc import ABC, abstractmethod
@@ -123,7 +131,7 @@ class EMD_ProcessComparator(ABC, Generic[T]):
 
     @abstractmethod
     def cleanup(self) -> None:
-        """Cleanup function to call after the comparison is done. For instance, clear caches, etc."""
+        """Cleanup function to call after the comparison is done. For instance, clearing caches, etc."""
         pass
 
     @property
@@ -465,7 +473,7 @@ def compute_distance_matrix(
         total=dists.shape[0] * dists.shape[1],
         desc=f"Computing Distance Matrix ({dists.shape[0]}x{dists.shape[1]})",
     ) as dists_progress_bar:
-        # TODO: Could parallelize distance calculation
+        # TODO: Distance calculation could be parallelized
         for i, item1 in enumerate(population_1):
             for j, item2 in enumerate(population_2):
                 dists[i, j] = cost_fn(item1, item2)
