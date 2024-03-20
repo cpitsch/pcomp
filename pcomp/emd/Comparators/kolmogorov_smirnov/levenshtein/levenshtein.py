@@ -71,6 +71,7 @@ class LevenshteinKSComparator(EMD_KS_ProcessComparator[BinnedServiceTimeTrace]):
             [evt for trace in traces_1 for evt in trace],
             self.binner_factory,
             seed=self.seed,
+            show_training_progress_bar=self.verbose,
             **self.binner_args
         )
 

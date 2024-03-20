@@ -77,6 +77,7 @@ class Ukkonen_Distance_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTra
             [evt for trace in unbinned_traces_1 for evt in trace],
             self.binner_factory,
             seed=self.seed,
+            show_training_progress_bar=self.verbose,
             **self.binner_args,
         )
 
