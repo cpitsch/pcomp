@@ -327,6 +327,7 @@ def emd(
     freqs_2: Numpy1DArray[np.float_],
     dists: NumpyMatrix[np.float_],
     backend: EMDBackend = "wasserstein",
+    fall_back: bool = True,
 ) -> float:
     """A wrapper around the EMD computation call.
 
@@ -336,13 +337,26 @@ def emd(
         dists (NumpyMatrix[np.float_]): The cost matrix.
         backend ("wasserstein" | "ot" | "pot"): The backend to use to compute the EMD. Defaults to "wasserstein"
             (use the wasserstein package). Alternatively, "ot"/"pot" refers to the Python Optimal Transport package.
-
+        fall_back (bool, optional): If the wasserstein package is used and an error is thrown, fall back to the ot package. Defaults to True.
     Returns:
         float: The computed Earth Mover's Distance.
     """
     if backend == "wasserstein":
-        solver = wasserstein.EMD()
-        return solver(freqs_1, freqs_2, dists)
+        try:
+            solver = wasserstein.EMD()
+            return solver(freqs_1, freqs_2, dists)
+        except Exception as e:
+            logging.getLogger("@pcomp").warning(
+                "Error thrown by wasserstein package: ",
+                e,
+                " Falling back to ot package." if fall_back else "",
+            )
+            if fall_back:
+                # Apparently, the wasserstein package sometimes runs into issues on small inputs
+                # In that case, we fall back to the ot package
+                return ot.emd2(freqs_1, freqs_2, dists)
+            else:
+                raise e
     elif backend in ["ot", "pot"]:
         # This seems to be slower than the wasserstein package
         # But this could be due to different settings, such as num processes, etc.
