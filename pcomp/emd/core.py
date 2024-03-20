@@ -184,6 +184,7 @@ class EMD_ProcessComparator(ABC, Generic[T]):
             population_to_stochastic_language(self.behavior_1),
             population_to_stochastic_language(self.behavior_2),
             self.cost_fn,
+            show_progress_bar=self.verbose,
         )
 
         if self.bootstrapping_style == "replacement sublogs":
@@ -269,6 +270,7 @@ def compute_emd(
     distribution2: list[tuple[T, float]],
     cost_fn: Callable[[T, T], float],
     backend: EMDBackend = "wasserstein",
+    show_progress_bar: bool = True,
 ) -> float:
     """Compute the Earth Mover's Distance between two distributions.
 
@@ -278,6 +280,7 @@ def compute_emd(
         cost_fn (Callable[[T, T], float]): A function to compute the transport cost between two items.
         backend (EMDBackend, optional): The backend to use for EMD computation. Defaults to "wasserstein" (use the "wasserstein" module). Alternatively, "ot" or "pot" will
             use the "Python Optimal Transport" package.
+        show_progress_bar (bool, optional): Show a progress bar for distance computation. Defaults to True.
 
     Returns:
         float: The computed Earth Mover's Distance.
@@ -290,6 +293,7 @@ def compute_emd(
         [trace for trace, _ in distribution1],
         [trace for trace, _ in distribution2],
         cost_fn,
+        show_progress_bar=show_progress_bar,
     )
 
     dists_end = default_timer()
