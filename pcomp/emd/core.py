@@ -70,9 +70,9 @@ class EMD_ProcessComparator(ABC, Generic[T]):
             cleanup_on_del (bool, optional): If True, call `cleanup` upon destruction, e.g., when the object goes out of scope. Defaults to True.
             bootstrapping_style ("split sampling" | "replacement sublogs", optional): The strategy to use for bootstrapping the null distribution. The strategies work as follows:
 
-            - "replacement sublogs": Randomly sample sublogs of `resample_size` of log_1, and compute their EMD to log_1. This is done `bootstrapping_dist_size` times.
-            - "split sampling": Randomly split the log_1 in two, and compute the EMD between the two halves. This is done `bootstrapping_dist_size` times.
-            - "resample split": Randomly sample 2 sublogs of `resample_size` of log_1 and compute their EMD. This is done `bootstrapping_dist_size` times.
+              - "replacement sublogs": Randomly sample sublogs of `resample_size` of log_1, and compute their EMD to log_1. This is done `bootstrapping_dist_size` times.
+              - "split sampling": Randomly split the log_1 in two, and compute the EMD between the two halves. This is done `bootstrapping_dist_size` times.
+              - "resample split": Randomly sample 2 sublogs of `resample_size` of log_1 and compute their EMD. This is done `bootstrapping_dist_size` times.
 
             emd_backend (EMDBackend, optional): The backend to use for EMD computation. Defaults to "wasserstein" (use the "wasserstein" module). Alternatively, "ot" or "pot" will
             use the "Python Optimal Transport" package.
@@ -347,9 +347,7 @@ def emd(
             return solver(freqs_1, freqs_2, dists)
         except Exception as e:
             logging.getLogger("@pcomp").warning(
-                "Error thrown by wasserstein package: ",
-                e,
-                " Falling back to ot package." if fall_back else "",
+                f"Error thrown by wasserstein package: \"{e}\". {' Falling back to ot package.' if fall_back else ''}",
             )
             if fall_back:
                 # Apparently, the wasserstein package sometimes runs into issues on small inputs
