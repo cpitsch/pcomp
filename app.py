@@ -9,7 +9,7 @@ from typing import Any, Generic, Literal, Protocol, TypeVar, get_args
 
 import pandas as pd
 from matplotlib.figure import Figure
-from pm4py import read_xes, write_xes  # type: ignore
+from pm4py import write_xes  # type: ignore
 
 from pcomp.binning import BinnerFactory, KMeans_Binner, OuterPercentileBinner
 from pcomp.emd import Timed_Levenshtein_EMD_Comparator
@@ -26,95 +26,127 @@ from pcomp.emd.emd import BinnedServiceTimeTrace
 from pcomp.utils import enable_logging, import_log, split_log_cases
 
 
-def prepare_logs():
-    """
-    Create the logs and save them to disk if they don't exist. Makes sure that the
-    logs are always the same and the results are not influenced by random chance.
-    """
-    logs_base_path = Path("Testing Logs", "Run All")
+def prepare_logs() -> None:
+    logs_base_path = Path("Testing Logs")
+    logs_save_base_path = Path("EvaluationLogs")
+    logs_drift_points: dict[EventLog, list[int]] = {
+        "log_cft": [4000, 6000, 8000, 10000, 12000],
+        "log_long_term_dep": [2000],
+        # Case arrival rate goes from 45 to: 60, 45, 30, 45, 25, 45 every 2000 cases
+        # 45 can easily be handled by the resources, so 45->60 and 60->45 have no measurable difference for us
+        "log_soj_drift": [6000, 8000, 10000, 12000],
+    }
 
-    def extract_and_save_logs(
-        log_path: Path, path: Path, drift_point: int, no_drift_point: int
-    ):
-        """Extract the logs for the different comparison contexts: Two logs with a drift in between,
-        and two logs with no drift in between.
+    def get_drift_log_ranges(
+        log: EventLog, radius: int
+    ) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+        drift_points = logs_drift_points[log]
 
-        Then, save the logs to disk in the supplied directory
-
-        Args:
-            log_path (Path): The path to the log to extract and save.
-            path (Path): The directory to save the logs to.
-            drift_point (int): The point at which a drift occurs. Will take 1000 cases before and after
-                this point for the drift logs.
-            no_drift_point (int): A point around which no drift occurs. Will take 1000 cases before and after
-                this point for the no drift logs.
-        """
-        # Read log, split around/between (depending on drift/no drift, respectively) drifts and save to disk
-        logging.getLogger("@pcomp").info(f"Preparing {path.name} for comparison.")
-        log = import_log(log_path.as_posix(), show_progress_bar=False)
-        path.mkdir(parents=True, exist_ok=True)
-        log["caseid_as_int"] = log["case:concept:name"].astype(int)
-
-        drift_range_1 = (drift_point - 1_000, drift_point)
-        drift_range_2 = (drift_point, drift_point + 1_000)
-
-        logging.getLogger("@pcomp").info(
-            f"{log_path.name}: Extracting drift logs for ranges {drift_range_1}, {drift_range_2}."
-        )
-
-        drift_log_1 = log[
-            log["caseid_as_int"].between(*drift_range_1, inclusive="left")
+        ret = [
+            (
+                (drift_point - radius, drift_point),
+                (drift_point, drift_point + radius),
+            )
+            for drift_point in drift_points
         ]
-        drift_log_2 = log[
-            log["caseid_as_int"].between(*drift_range_2, inclusive="left")
+        print("Drift", ret)
+        return ret
+
+    def get_non_drift_log_ranges(log: EventLog, width: int) -> list[tuple[int, int]]:
+        drift_points = logs_drift_points[log]
+
+        ret = [
+            (  # Log part *before* the first drift
+                drift_points[0] - (2 * width),
+                drift_points[0],
+            )
+        ] + [
+            (  # Log ranges *after* each drift
+                drift_point,
+                drift_point + (2 * width),
+            )
+            for drift_point in drift_points
         ]
+        print("Non drift", ret)
+        return ret
 
-        no_drift_range = (no_drift_point - 1_000, no_drift_point + 1_000)
+    for logname in event_logs:
+        log_path = logs_base_path / f"{logname}.xes.gz"
+        save_path = logs_save_base_path / logname
 
-        logging.getLogger("@pcomp").info(
-            f"{log_path.name}: Extracting no drift logs from range {no_drift_range}."
-        )
+        if not ((save_path / "drift").exists() and (save_path / "no_drift").exists()):
+            logging.getLogger("@pcomp").info(
+                f"Preparing {save_path.name} for comparison."
+            )
+            save_path.mkdir(parents=True, exist_ok=True)
+            log = import_log(log_path.as_posix(), show_progress_bar=False)
+            log["caseid_as_int"] = log["case:concept:name"].astype(int)
 
-        no_drift_log_1, no_drift_log_2 = split_log_cases(
-            log[log["caseid_as_int"].between(*no_drift_range, inclusive="left")],
-            frac=0.5,
-        )
+            if not (save_path / "drift").exists():
+                # Drift logs are saved in a path such as:
+                # EvaluationLogs/log_cft/drift/3000_5000/log_1.xes.gz
+                (save_path / "drift").mkdir(parents=True, exist_ok=True)
 
-        write_xes(drift_log_1, Path(path / "drift_log_1.xes.gz").as_posix())
-        write_xes(drift_log_2, Path(path / "drift_log_2.xes.gz").as_posix())
-        write_xes(no_drift_log_1, Path(path / "no_drift_log_1.xes.gz").as_posix())
-        write_xes(no_drift_log_2, Path(path / "no_drift_log_2.xes.gz").as_posix())
+                for drift_range_1, drift_range_2 in get_drift_log_ranges(logname, 1000):
+                    drift_log_1 = log[
+                        log["caseid_as_int"].between(*drift_range_1, inclusive="left")
+                    ]
+                    drift_log_2 = log[
+                        log["caseid_as_int"].between(*drift_range_2, inclusive="left")
+                    ]
 
-    # Assume that if the base path exists, the logs also already exist
-    ## log_cft.xes.gz
-    log_cft_path = logs_base_path / "log_cft"
-    if not log_cft_path.exists():
-        # Drift logs: split into (7000-8000) and (8000-9000) (right side exclusive)
-        # No drift logs: Randomly split range (0, 2000) in half
-        extract_and_save_logs(
-            Path("Testing Logs", "log_cft.xes.gz"), log_cft_path, 8000, 1000
-        )
+                    this_pair_base_path = (
+                        save_path / "drift" / f"{drift_range_1[0]}_{drift_range_2[1]}"
+                    )
 
-    log_long_term_dep_path = logs_base_path / "log_long_term_dep"
-    if not log_long_term_dep_path.exists():
-        # Drift at 2000
-        # Drif Logs: split into (1000-2000) and (2000-3000) (right side exclusive)
-        # No drift logs: Randomly split range (0, 2000) in half
-        extract_and_save_logs(
-            Path("Testing Logs", "log_long_term_dep.xes.gz"),
-            log_long_term_dep_path,
-            2000,
-            1000,
-        )
+                    this_pair_base_path.mkdir(parents=True, exist_ok=True)
 
-    log_soj_drift_path = logs_base_path / "log_soj_drift"
-    if not log_soj_drift_path.exists():
-        # Drift every 2000 cases (like log_cft)
-        # Drift logs: split into (7000-8000) and (8000-9000) (right side exclusive)
-        # No drift logs: Randomly split range (0, 2000) in half
-        extract_and_save_logs(
-            Path("Testing Logs", "log_soj_drift.xes.gz"), log_soj_drift_path, 8000, 1000
-        )
+                    write_xes(
+                        drift_log_1,
+                        Path(this_pair_base_path, "log_1.xes.gz").as_posix(),
+                    )
+                    write_xes(
+                        drift_log_2,
+                        Path(this_pair_base_path, "log_2.xes.gz").as_posix(),
+                    )
+
+            if not (save_path / "no_drift").exists():
+                # Non-drift logs are saved in a path such as:
+                # EvaluationLogs/log_cft/no_drift/3000_5000/log_1.xes.gz
+                (save_path / "no_drift").mkdir(parents=True, exist_ok=True)
+
+                for no_drift_range in get_non_drift_log_ranges(logname, 1000):
+                    no_drift_log_1, no_drift_log_2 = split_log_cases(
+                        log[
+                            log["caseid_as_int"].between(
+                                *no_drift_range, inclusive="left"
+                            )
+                        ],
+                        frac=0.5,
+                    )
+
+                    this_pair_base_path = (
+                        save_path
+                        / "no_drift"
+                        / f"{no_drift_range[0]}_{no_drift_range[1]}"
+                    )
+
+                    this_pair_base_path.mkdir(parents=True, exist_ok=True)
+
+                    write_xes(
+                        no_drift_log_1,
+                        Path(
+                            this_pair_base_path,
+                            "log_1.xes.gz",
+                        ).as_posix(),
+                    )
+                    write_xes(
+                        no_drift_log_2,
+                        Path(
+                            this_pair_base_path,
+                            "log_2.xes.gz",
+                        ).as_posix(),
+                    )
 
 
 ## Types and formatting helpers ##
@@ -126,6 +158,27 @@ event_logs_formatter: dict[EventLog, str] = {
     "log_soj_drift": "Bose Sojourn Time Drift",
 }
 
+
+@dataclass
+class EventLogSetting:
+    log: EventLog
+    drifts: bool
+    log_identifier: str  # "log range", e.g., "3000_5000"
+
+    @property
+    def as_path(self) -> Path:
+        return Path(
+            "EvaluationLogs",
+            self.log,
+            "drift" if self.drifts else "no_drift",
+            self.log_identifier,
+        )
+
+    def get_log_paths(self) -> tuple[Path, Path]:
+        base_path = self.as_path
+        return base_path / "log_1.xes.gz", base_path / "log_2.xes.gz"
+
+
 ComparisonTechnique = Literal["emd_bootstrap", "ks_bootstrap", "double_bootstrap"]
 comparison_techniques: list[ComparisonTechnique] = list(get_args(ComparisonTechnique))
 funcs_to_name: dict[ComparisonTechnique, str] = {
@@ -134,11 +187,15 @@ funcs_to_name: dict[ComparisonTechnique, str] = {
     "double_bootstrap": "Double Bootstrap EMD",
 }
 
-BinnerSetting = Literal["kmeans_1", "kmeans_3", "outer_10"]
+BinnerSetting = Literal[
+    "kmeans_1",
+    # "kmeans_3",
+    "outer_10",
+]
 binner_settings: list[BinnerSetting] = list(get_args(BinnerSetting))
 binner_setting_to_name: dict[BinnerSetting, str] = {
     "kmeans_1": "KMeans++ 1 Bin (No Time)",
-    "kmeans_3": "KMeans++ 3 Bins",
+    # "kmeans_3": "KMeans++ 3 Bins",
     "outer_10": "Outer Percentile (10%)",
 }
 
@@ -195,15 +252,14 @@ T = TypeVar("T", bound=ComparableAndPlottable)
 
 @dataclass
 class Instance(ABC, Generic[T]):
-    log: EventLog
-    drifts: bool
+    log_setting: EventLogSetting
     weighted_time_cost: bool
     binner_setting: BinnerSetting
 
     @property
     def path(self) -> Path:
         return Path(
-            "all_outputs",
+            "EvaluationOutputs",
             self.log,
             self.technique_name,
             "drift" if self.drifts else "no_drift",
@@ -212,34 +268,35 @@ class Instance(ABC, Generic[T]):
         )
 
     @property
+    def log(self) -> EventLog:
+        return self.log_setting.log
+
+    @property
+    def drifts(self) -> bool:
+        return self.log_setting.drifts
+
+    @property
+    def pickle_path(self) -> Path:
+        """The path to the saved pickle file."""
+        return self.path / f"result_{self.log_setting.log_identifier}.pkl"
+
+    @property
     @abstractmethod
     def technique_name(self) -> str:
         raise NotImplementedError("Subclasses must implement `technique_name`")
 
     def get_logs(self) -> tuple[pd.DataFrame, pd.DataFrame]:
-        logs_base_path = Path("Testing Logs", "Run All", self.log)
-        if self.drifts:
-            return (
-                import_log(
-                    Path(logs_base_path, "drift_log_1.xes.gz").as_posix(),
-                    show_progress_bar=False,
-                ),
-                import_log(
-                    Path(logs_base_path, "drift_log_2.xes.gz").as_posix(),
-                    show_progress_bar=False,
-                ),
-            )
-        else:
-            return (
-                import_log(
-                    Path(logs_base_path, "no_drift_log_1.xes.gz").as_posix(),
-                    show_progress_bar=False,
-                ),
-                import_log(
-                    Path(logs_base_path, "no_drift_log_2.xes.gz").as_posix(),
-                    show_progress_bar=False,
-                ),
-            )
+        log_1_path, log_2_path = self.log_setting.get_log_paths()
+        return (
+            import_log(
+                log_1_path.as_posix(),
+                show_progress_bar=False,
+            ),
+            import_log(
+                log_2_path.as_posix(),
+                show_progress_bar=False,
+            ),
+        )
 
     @abstractmethod
     def get_comparator(self, verbose: bool = True) -> T:
@@ -250,26 +307,29 @@ class Instance(ABC, Generic[T]):
         _ = comparator.compare()
 
         # Save results
-        pickle_path = self.path / "result.pkl"
-        png_path = self.path / "result.png"
         self.path.mkdir(parents=True, exist_ok=True)
-        with open(pickle_path, "wb") as f:
+        with open(self.pickle_path, "wb") as f:
             pickle.dump(comparator, f)
-        comparator.plot_result().savefig(png_path.as_posix(), bbox_inches="tight")
 
 
 @dataclass
 class StandardEmdInstance(Instance[Timed_Levenshtein_EMD_Comparator]):
     bootstrapping_style: BootstrappingStyle
-    resample_percentage: float
+    resample_percentage: float | None  # Not needed for "split sampling"
 
     @property
     def path(self) -> Path:
-        return Path(
+        path = Path(
             super().path,
             self.bootstrapping_style.replace(" ", "_"),
-            f"resample_{self.resample_percentage}".replace(".", "-"),
         )
+        if self.bootstrapping_style == "split sampling":
+            return path
+        else:
+            return Path(
+                path,
+                f"resample_{self.resample_percentage}".replace(".", "-"),
+            )
 
     @property
     def technique_name(self) -> str:
@@ -286,6 +346,7 @@ class StandardEmdInstance(Instance[Timed_Levenshtein_EMD_Comparator]):
             weighted_time_cost=self.weighted_time_cost,
             binner_factory=binner_factory,
             binner_args=binner_args,
+            seed=1337,
             verbose=verbose,
         )
 
@@ -312,6 +373,7 @@ class KsEmdInstance(Instance[LevenshteinKSComparator]):
             weighted_time_cost=self.weighted_time_cost,
             binner_factory=binner_factory,
             binner_args=binner_args,
+            seed=1337,
             verbose=verbose,
         )
 
@@ -340,35 +402,12 @@ class DoubleBootstrapInstance(Instance[LevenshteinDoubleBootstrapComparator]):
             weighted_time_cost=self.weighted_time_cost,
             binner_factory=binner_factory,
             binner_args=binner_args,
+            seed=1337,
             verbose=verbose,
         )
 
 
 logs_base_path = Path("Testing Logs", "Run All")
-
-
-# Drifts at [20000,4000,6000,8000, 10000, 12000]
-## Assume that the preprocessed logs already exist
-def get_logs_no_drift() -> tuple[pd.DataFrame, pd.DataFrame]:
-    log_1 = import_log(
-        Path(logs_base_path, "no_drift_log_1.xes.gz").as_posix(),
-        show_progress_bar=False,
-    )
-    log_2 = import_log(
-        Path(logs_base_path, "no_drift_log_2.xes.gz").as_posix(),
-        show_progress_bar=False,
-    )
-    return log_1, log_2
-
-
-def get_logs_with_drift() -> tuple[pd.DataFrame, pd.DataFrame]:
-    log_1 = read_xes(
-        Path(logs_base_path, "drift_log_1.xes.gz").as_posix(), show_progress_bar=False
-    )
-    log_2 = read_xes(
-        Path(logs_base_path, "drift_log_2.xes.gz").as_posix(), show_progress_bar=False
-    )
-    return log_1, log_2
 
 
 def streamlit_main_loop() -> None:
@@ -447,126 +486,167 @@ def streamlit_main_loop() -> None:
                 format_func=lambda x: double_bootstrap_styles_formatter[x],
             )
 
-    instance: Instance
+    instances: list[Instance]
     if comparison_technique == "emd_bootstrap":
-        instance = StandardEmdInstance(
-            log=log,
-            drifts=drifts,
-            weighted_time_cost=weighted_time_cost,
-            binner_setting=binning_setting,
-            bootstrapping_style=bootstrapping_style,
-            resample_percentage=resample_percentage,
-        )
+        instances = [
+            StandardEmdInstance(
+                log_setting=EventLogSetting(
+                    log,
+                    drifts,
+                    log_range.name,
+                ),
+                weighted_time_cost=weighted_time_cost,
+                binner_setting=binning_setting,
+                bootstrapping_style=bootstrapping_style,
+                resample_percentage=resample_percentage,
+            )
+            for log_range in Path(
+                "EvaluationLogs", log, "drift" if drifts else "no_drift"
+            ).iterdir()
+        ]
     elif comparison_technique == "ks_bootstrap":
-        instance = KsEmdInstance(
-            log=log,
-            drifts=drifts,
-            weighted_time_cost=weighted_time_cost,
-            binner_setting=binning_setting,
-            self_bootstrapping_style=self_bootstrapping_style,
-        )
+        instances = [
+            KsEmdInstance(
+                log_setting=EventLogSetting(
+                    log,
+                    drifts,
+                    log_range.name,
+                ),
+                weighted_time_cost=weighted_time_cost,
+                binner_setting=binning_setting,
+                self_bootstrapping_style=self_bootstrapping_style,
+            )
+            for log_range in Path(
+                "EvaluationLogs", log, "drift" if drifts else "no_drift"
+            ).iterdir()
+        ]
     elif comparison_technique == "double_bootstrap":
-        instance = DoubleBootstrapInstance(
-            log=log,
-            drifts=drifts,
-            weighted_time_cost=weighted_time_cost,
-            binner_setting=binning_setting,
-            bootstrapping_style=double_bootstrap_style,
-        )
+        instances = [
+            DoubleBootstrapInstance(
+                log_setting=EventLogSetting(
+                    log,
+                    drifts,
+                    log_range.name,
+                ),
+                weighted_time_cost=weighted_time_cost,
+                binner_setting=binning_setting,
+                bootstrapping_style=double_bootstrap_style,
+            )
+            for log_range in Path(
+                "EvaluationLogs", log, "drift" if drifts else "no_drift"
+            ).iterdir()
+        ]
     else:
         raise ValueError(f"Unknown comparison technique: {comparison_technique}")
 
-    pickle_path = instance.path / "result.pkl"
-    if not pickle_path.exists():
-        none_found_warning = st.warning("No comparison results found. Run comparison?")
-        if st.button("Go!"):
-            warning = st.warning("Running comparison, please wait...")
-            msg = st.toast("Running comparison, please wait... (~10min)", icon="⌛")
+    instances = sorted(
+        instances, key=lambda x: int(x.log_setting.log_identifier.split("_")[0])
+    )
+    for instance in instances:
+        with st.expander(
+            "Log Range: " + instance.log_setting.log_identifier.replace("_", ", "),
+            expanded=True,
+        ):
+            pickle_path = instance.pickle_path
+            if not pickle_path.exists():
+                none_found_warning = st.warning(
+                    "No comparison results found. Run comparison?"
+                )
+                if st.button(
+                    "Go!", key=f"go_key_{instance.log_setting.log_identifier}"
+                ):
+                    warning = st.warning("Running comparison, please wait...")
+                    msg = st.toast(
+                        "Running comparison, please wait... (~10min)", icon="⌛"
+                    )
 
-            instance.run_and_save_results()
-            msg.toast("Comparison Complete!", icon="✅")
+                    instance.run_and_save_results()
+                    msg.toast("Comparison Complete!", icon="✅")
 
-            # Clear the warnings
-            none_found_warning.empty()
-            warning.empty()
+                    # Clear the warnings
+                    none_found_warning.empty()
+                    warning.empty()
 
-    if pickle_path.exists():
-        with open(pickle_path, "rb") as pickle_file:
-            comparator = pickle.load(pickle_file)
+            if pickle_path.exists():
+                with open(pickle_path, "rb") as pickle_file:
+                    comparator = pickle.load(pickle_file)
 
-        st.subheader(f"P-Value: {comparator.pval:.2f}")
-        st.pyplot(comparator.plot_result())
+                st.subheader(f"P-Value: {comparator.pval:.2f}")
+                st.pyplot(comparator.plot_result())
 
-        with st.expander("🔍 Timing Statistics"):
+                # with st.expander("🔍 Timing Statistics"):
 
-            def get_bin_class_counter_per_act(behavior: list[BinnedServiceTimeTrace]):
-                events = [evt for trace in behavior for evt in trace]
+                #     def get_bin_class_counter_per_act(
+                #         behavior: list[BinnedServiceTimeTrace],
+                #     ):
+                #         events = [evt for trace in behavior for evt in trace]
 
-                activities = set(act for act, _ in events)
+                #         activities = set(act for act, _ in events)
 
-                datapoints_per_activity = {
-                    act: [
-                        binned_dur for activity, binned_dur in events if activity == act
-                    ]
-                    for act in activities
-                }
+                #         datapoints_per_activity = {
+                #             act: [
+                #                 binned_dur
+                #                 for activity, binned_dur in events
+                #                 if activity == act
+                #             ]
+                #             for act in activities
+                #         }
 
-                counters_per_activity = {
-                    act: Counter(binned_durs)
-                    for act, binned_durs in datapoints_per_activity.items()
-                }
+                #         counters_per_activity = {
+                #             act: Counter(binned_durs)
+                #             for act, binned_durs in datapoints_per_activity.items()
+                #         }
 
-                return counters_per_activity
+                #         return counters_per_activity
 
-            counters_1 = get_bin_class_counter_per_act(comparator.behavior_1)
-            counters_2 = get_bin_class_counter_per_act(comparator.behavior_2)
+                #     counters_1 = get_bin_class_counter_per_act(comparator.behavior_1)
+                #     counters_2 = get_bin_class_counter_per_act(comparator.behavior_2)
 
-            all_keys = set(counters_1.keys()).union(counters_2.keys())
+                #     all_keys = set(counters_1.keys()).union(counters_2.keys())
 
-            # Create a dataframe
-            df = pd.DataFrame(
-                {
-                    "Activity": list(all_keys),
-                    "Class 0": [
-                        (
-                            counters_1.get(act, Counter()).get(0),
-                            counters_2.get(act, Counter()).get(0),
-                        )
-                        for act in all_keys
-                    ],
-                    "Class 1": [
-                        (
-                            counters_1.get(act, Counter()).get(1),
-                            counters_2.get(act, Counter()).get(1),
-                        )
-                        for act in all_keys
-                    ],
-                    "Class 2": [
-                        (
-                            counters_1.get(act, Counter()).get(2),
-                            counters_2.get(act, Counter()).get(2),
-                        )
-                        for act in all_keys
-                    ],
-                    "Average Class in Log 1": [
-                        mean(counters_1.get(act, Counter()).elements())
-                        for act in all_keys
-                    ],
-                    "Average Class in Log 2": [
-                        mean(counters_2.get(act, Counter()).elements())
-                        for act in all_keys
-                    ],
-                }
-            )
+                #     # Create a dataframe
+                #     df = pd.DataFrame(
+                #         {
+                #             "Activity": list(all_keys),
+                #             "Class 0": [
+                #                 (
+                #                     counters_1.get(act, Counter()).get(0),
+                #                     counters_2.get(act, Counter()).get(0),
+                #                 )
+                #                 for act in all_keys
+                #             ],
+                #             "Class 1": [
+                #                 (
+                #                     counters_1.get(act, Counter()).get(1),
+                #                     counters_2.get(act, Counter()).get(1),
+                #                 )
+                #                 for act in all_keys
+                #             ],
+                #             "Class 2": [
+                #                 (
+                #                     counters_1.get(act, Counter()).get(2),
+                #                     counters_2.get(act, Counter()).get(2),
+                #                 )
+                #                 for act in all_keys
+                #             ],
+                #             "Average Class in Log 1": [
+                #                 mean(counters_1.get(act, Counter()).elements())
+                #                 for act in all_keys
+                #             ],
+                #             "Average Class in Log 2": [
+                #                 mean(counters_2.get(act, Counter()).elements())
+                #                 for act in all_keys
+                #             ],
+                #         }
+                #     )
 
-            st.dataframe(df, use_container_width=True)
+                #     st.dataframe(df, use_container_width=True)
 
 
 def get_standard_emd_instances() -> list[Instance]:
     return [
         StandardEmdInstance(
-            log=log,
-            drifts=drifts,
+            log_setting=EventLogSetting(log, drifts, log_ident.name),
             binner_setting=binner_setting,
             weighted_time_cost=weighted_time_cost,
             bootstrapping_style=bootstrapping_style,
@@ -574,24 +654,34 @@ def get_standard_emd_instances() -> list[Instance]:
         )
         for log in event_logs
         for drifts in [True, False]
+        for log_ident in Path(
+            "EvaluationLogs", log, "drift" if drifts else "no_drift"
+        ).iterdir()
         for binner_setting in binner_settings
         for weighted_time_cost in [True, False]
         for bootstrapping_style in bootstrapping_styles
-        for resample_percentage in resample_percentages
+        for resample_percentage in (
+            # No resample percentage needed for "split sampling"
+            resample_percentages
+            if bootstrapping_style != "split sampling"
+            else [None]  # type: ignore
+        )
     ]
 
 
 def get_ks_emd_instances() -> list[Instance]:
     return [
         KsEmdInstance(
-            log=log,
-            drifts=drifts,
+            log_setting=EventLogSetting(log, drifts, log_ident.name),
             binner_setting=binner_setting,
             weighted_time_cost=weighted_time_cost,
             self_bootstrapping_style=self_bootstrapping_style,
         )
         for log in event_logs
         for drifts in [True, False]
+        for log_ident in Path(
+            "EvaluationLogs", log, "drift" if drifts else "no_drift"
+        ).iterdir()
         for binner_setting in binner_settings
         for weighted_time_cost in [True, False]
         for self_bootstrapping_style in ks_self_bootstrapping_styles
@@ -601,14 +691,16 @@ def get_ks_emd_instances() -> list[Instance]:
 def get_double_bootstrap_instances() -> list[Instance]:
     return [
         DoubleBootstrapInstance(
-            log=log,
-            drifts=drifts,
+            log_setting=EventLogSetting(log, drifts, log_ident.name),
             binner_setting=binner_setting,
             weighted_time_cost=weighted_time_cost,
             bootstrapping_style=bootstrapping_style,
         )
         for log in event_logs
         for drifts in [True, False]
+        for log_ident in Path(
+            "EvaluationLogs", log, "drift" if drifts else "no_drift"
+        ).iterdir()
         for binner_setting in binner_settings
         for weighted_time_cost in [True, False]
         for bootstrapping_style in double_bootstrap_styles
@@ -635,7 +727,7 @@ def main() -> None:
     filtered_args = [
         instance
         for instance in get_all_instances()
-        if not (instance.path / "result.pkl").exists()
+        if not instance.pickle_path.exists()
     ]
 
     prepare_logs()
@@ -661,4 +753,5 @@ if __name__ == "__main__":
         enable_logging()
         streamlit_main_loop()
     else:
+        # enable_logging()
         main()
