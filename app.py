@@ -22,7 +22,6 @@ from pcomp.emd.Comparators.kolmogorov_smirnov import (
     Self_Bootstrapping_Style,
 )
 from pcomp.emd.core import BootstrappingStyle
-from pcomp.emd.emd import BinnedServiceTimeTrace
 from pcomp.utils import enable_logging, import_log, split_log_cases
 
 
@@ -49,7 +48,6 @@ def prepare_logs() -> None:
             )
             for drift_point in drift_points
         ]
-        print("Drift", ret)
         return ret
 
     def get_non_drift_log_ranges(log: EventLog, width: int) -> list[tuple[int, int]]:
@@ -67,27 +65,42 @@ def prepare_logs() -> None:
             )
             for drift_point in drift_points
         ]
-        print("Non drift", ret)
         return ret
 
     for logname in event_logs:
         log_path = logs_base_path / f"{logname}.xes.gz"
         save_path = logs_save_base_path / logname
 
+        DRIFTS_RADIUS = 1000
+        NO_DRIFTS_RADIUS = 1000
         if not ((save_path / "drift").exists() and (save_path / "no_drift").exists()):
-            logging.getLogger("@pcomp").info(
-                f"Preparing {save_path.name} for comparison."
-            )
+            logger = logging.getLogger("@pcomp")
+            logger.info(f"Preparing {save_path.name} for comparison.")
             save_path.mkdir(parents=True, exist_ok=True)
             log = import_log(log_path.as_posix(), show_progress_bar=False)
             log["caseid_as_int"] = log["case:concept:name"].astype(int)
+
+            max_caseid = log["caseid_as_int"].max()
+            min_caseid = log["caseid_as_int"].min()
 
             if not (save_path / "drift").exists():
                 # Drift logs are saved in a path such as:
                 # EvaluationLogs/log_cft/drift/3000_5000/log_1.xes.gz
                 (save_path / "drift").mkdir(parents=True, exist_ok=True)
 
-                for drift_range_1, drift_range_2 in get_drift_log_ranges(logname, 1000):
+                for drift_range_1, drift_range_2 in get_drift_log_ranges(
+                    logname, DRIFTS_RADIUS
+                ):
+                    # Skip drift ranges that would go over the edge of the log
+                    if (
+                        drift_range_1[0] < min_caseid
+                        or drift_range_2[1] > max_caseid + 1
+                    ):
+                        logger.warning(
+                            f"Skipping creating drift log pair for {logname} range {(drift_range_1, drift_range_2)}; Drift range out of bounds",
+                        )
+                        continue
+
                     drift_log_1 = log[
                         log["caseid_as_int"].between(*drift_range_1, inclusive="left")
                     ]
@@ -100,6 +113,10 @@ def prepare_logs() -> None:
                     )
 
                     this_pair_base_path.mkdir(parents=True, exist_ok=True)
+
+                    logger.info(
+                        f"Creating drift log pair {this_pair_base_path.as_posix()}. Log lengths: {(drift_log_1['case:concept:name'].nunique(),drift_log_2['case:concept:name'].nunique())}"
+                    )
 
                     write_xes(
                         drift_log_1,
@@ -115,23 +132,34 @@ def prepare_logs() -> None:
                 # EvaluationLogs/log_cft/no_drift/3000_5000/log_1.xes.gz
                 (save_path / "no_drift").mkdir(parents=True, exist_ok=True)
 
-                for no_drift_range in get_non_drift_log_ranges(logname, 1000):
+                # Skip drift ranges that would go over the edge of the log
+                for range_start, range_end in get_non_drift_log_ranges(
+                    logname, NO_DRIFTS_RADIUS
+                ):
+                    if range_start < min_caseid or range_end > max_caseid + 1:
+                        logger.warning(
+                            f"Skipping creating non-drift log pair for {logname} range {(range_start, range_end)}; Drift range out of bounds",
+                        )
+                        continue
+
                     no_drift_log_1, no_drift_log_2 = split_log_cases(
                         log[
                             log["caseid_as_int"].between(
-                                *no_drift_range, inclusive="left"
+                                range_start, range_end, inclusive="left"
                             )
                         ],
                         frac=0.5,
                     )
 
                     this_pair_base_path = (
-                        save_path
-                        / "no_drift"
-                        / f"{no_drift_range[0]}_{no_drift_range[1]}"
+                        save_path / "no_drift" / f"{range_start}_{range_end}"
                     )
 
                     this_pair_base_path.mkdir(parents=True, exist_ok=True)
+
+                    logger.info(
+                        f"Creating non-drift log pair {this_pair_base_path.as_posix()}. Log lengths: {(no_drift_log_1['case:concept:name'].nunique(),no_drift_log_2['case:concept:name'].nunique())}"
+                    )
 
                     write_xes(
                         no_drift_log_1,
@@ -720,22 +748,31 @@ def run_instance(instance: Instance):
 
 
 def main() -> None:
+    from argparse import ArgumentParser
+
     from mpire import WorkerPool, cpu_count
 
-    SAVE_CORES = 0
-
-    filtered_args = [
-        instance
-        for instance in get_all_instances()
-        if not instance.pickle_path.exists()
-    ]
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--prepare", action="store_true", help="Only prepare the logs and exit."
+    )
+    args = parser.parse_args()
 
     prepare_logs()
 
-    print("Remaining instances:", len(filtered_args))
+    if not args.prepare:
+        SAVE_CORES = 0
 
-    with WorkerPool(cpu_count() - SAVE_CORES) as p:
-        p.map(run_instance, filtered_args, progress_bar=True)
+        filtered_args = [
+            instance
+            for instance in get_all_instances()
+            if not instance.pickle_path.exists()
+        ]
+
+        print("Remaining instances:", len(filtered_args))
+
+        with WorkerPool(cpu_count() - SAVE_CORES) as p:
+            p.map(run_instance, filtered_args, progress_bar=True)
 
 
 if __name__ == "__main__":
