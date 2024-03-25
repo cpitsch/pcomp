@@ -1,10 +1,8 @@
 import logging
 import pickle
 from abc import ABC, abstractmethod
-from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from statistics import mean
 from typing import Any, Generic, Literal, Protocol, TypeVar, get_args
 
 import pandas as pd
@@ -34,6 +32,21 @@ def prepare_logs() -> None:
         # Case arrival rate goes from 45 to: 60, 45, 30, 45, 25, 45 every 2000 cases
         # 45 can easily be handled by the resources, so 45->60 and 60->45 have no measurable difference for us
         "log_soj_drift": [6000, 8000, 10000, 12000],
+        "log_classic_bose": [
+            1201,
+            2401,
+            3601,
+            4801,
+        ],  # Drift point = first caseid in new log
+        # Ceravolo Logs; Lowest caseid is 0
+        "ceravolo_noise0_re": [500],
+        "ceravolo_noise0_rp": [500],
+        # Ostovar Logs; Lowest caseid is 1
+        # Calling drift point the first caseid that is from the new log
+        "ostovar_noise0_sre": [1001, 2001],
+        "ostovar_noise0_cm": [1001, 2001],
+        "ostovar_noise0_rp": [1001, 2001],
+        "ostovar_noise0_cb": [1001, 2001],
     }
 
     def get_drift_log_ranges(
@@ -72,7 +85,22 @@ def prepare_logs() -> None:
         save_path = logs_save_base_path / logname
 
         DRIFTS_RADIUS = 1000
+        if logname.startswith("ceravolo"):
+            DRIFTS_RADIUS = 500
+        elif logname.startswith("ostovar"):
+            DRIFTS_RADIUS = 999
+
         NO_DRIFTS_RADIUS = 1000
+        if logname.startswith("ceravolo"):
+            # Inter-trace-distance is 500, so can only do 250-length non-drift-logs
+            NO_DRIFTS_RADIUS = 250
+        elif logname.startswith("ostovar"):
+            # Inter-trace-distance is 1000, so can only do 500-length non-drift-logs
+            NO_DRIFTS_RADIUS = 499
+        elif logname.startswith("log_classic_bose"):
+            # Inter-trace-distance is 1200, so can only do 600-length non-drift-logs
+            NO_DRIFTS_RADIUS = 600
+
         if not ((save_path / "drift").exists() and (save_path / "no_drift").exists()):
             logger = logging.getLogger("@pcomp")
             logger.info(f"Preparing {save_path.name} for comparison.")
@@ -179,12 +207,32 @@ def prepare_logs() -> None:
 
 
 ## Types and formatting helpers ##
-EventLog = Literal["log_cft", "log_long_term_dep", "log_soj_drift"]
+EventLog = Literal[
+    "log_cft",
+    "log_long_term_dep",
+    "log_soj_drift",
+    "log_classic_bose",
+    # Ceravolo Logs
+    "ceravolo_noise0_re",
+    "ceravolo_noise0_rp",
+    # Ostovar Logs
+    "ostovar_noise0_sre",
+    "ostovar_noise0_cm",
+    "ostovar_noise0_rp",
+    "ostovar_noise0_cb",
+]
 event_logs: list[EventLog] = list(get_args(EventLog))
 event_logs_formatter: dict[EventLog, str] = {
     "log_cft": "Bose CFT Drift",
     "log_long_term_dep": "Bose Long Term Dependence Time Drift",
     "log_soj_drift": "Bose Sojourn Time Drift",
+    "log_classic_bose": "Classic Bose Log (Control-Flow Drift)",
+    "ceravolo_noise0_re": "Ceravolo RE (Actitivy Removal)",
+    "ceravolo_noise0_rp": "Ceravolo RP (Substitute)",
+    "ostovar_noise0_sre": "Ostovar SRE (Serial Removal)",
+    "ostovar_noise0_cm": "Ostovar CM (Conditional Move)",
+    "ostovar_noise0_rp": "Ostovar RP (Substitute)",
+    "ostovar_noise0_cb": "Ostovar CB (Skip)",
 }
 
 
@@ -791,5 +839,5 @@ if __name__ == "__main__":
         enable_logging()
         streamlit_main_loop()
     else:
-        # enable_logging()
+        enable_logging(logging.WARNING)
         main()
