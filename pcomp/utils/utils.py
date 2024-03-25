@@ -38,13 +38,17 @@ def log_len(log: DataFrame, traceid_key: str = constants.DEFAULT_TRACEID_KEY) ->
 
 
 def split_log_cases(
-    log: DataFrame, frac: float, traceid_key: str = constants.DEFAULT_TRACEID_KEY
+    log: DataFrame,
+    frac: float,
+    seed: int | None = None,
+    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
 ) -> tuple[DataFrame, DataFrame]:
     """Split an event log into two parts, with the first part containing `frac` of the cases and the second part containing the rest.
 
     Args:
         log (DataFrame): The event log.
         frac (float): The fraction of cases to assign to the first split. For instance, 0.5 splits the event log in two halves.
+        seed (int, optional): The seed for the random number generator. Defaults to None.
         traceid_key (str, optional): The column name for the trace id. Defaults to "case:concept:name".
 
     Returns:
@@ -54,7 +58,7 @@ def split_log_cases(
     num_sample_cases = int(num_cases * frac)
 
     shuffled_log = log.sample(
-        frac=1
+        frac=1, random_state=seed
     )  # Shuffle the event log so pm4py sample_cases is different every time
 
     sample1 = sample_cases(shuffled_log, num_sample_cases, case_id_key=traceid_key)
