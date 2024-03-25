@@ -149,6 +149,7 @@ def prepare_logs() -> None:
                             )
                         ],
                         frac=0.5,
+                        seed=1337,
                     )
 
                     this_pair_base_path = (
