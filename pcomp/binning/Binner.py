@@ -79,4 +79,11 @@ class BinnerManager:
         self.num_bins = max(binner.num_bins for binner in self.binners.values())
 
     def bin(self, label: str, data: float) -> int:
-        return self.binners[label].bin(data)
+        if label in self.binners:
+            return self.binners[label].bin(data)
+        else:
+            # Idea: This activity does not occur in our reference log
+            # So: Give it bin number 0 = Don't care about it
+            # Then again, this raises the question we had before about
+            # if an activity rename should take into account the time or not
+            return 0
