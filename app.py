@@ -812,13 +812,12 @@ def main() -> None:
     if not args.prepare:
         SAVE_CORES = 0
 
+        all_instances = get_all_instances()
         filtered_args = [
-            instance
-            for instance in get_all_instances()
-            if not instance.pickle_path.exists()
+            instance for instance in all_instances if not instance.pickle_path.exists()
         ]
 
-        print("Remaining instances:", len(filtered_args))
+        print("Remaining instances:", len(filtered_args), "of", len(all_instances))
 
         with WorkerPool(cpu_count() - SAVE_CORES) as p:
             p.map(run_instance, filtered_args, progress_bar=True)
