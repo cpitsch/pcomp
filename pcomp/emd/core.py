@@ -527,9 +527,6 @@ def bootstrap_emd_population(
     """
     gen = np.random.default_rng(seed) if seed is not None else None
 
-    if seed is not None:
-        gen = np.random.default_rng(seed)
-
     resample_size = resample_size or len(population)
 
     reference_stochastic_language = population_to_stochastic_language(population)
