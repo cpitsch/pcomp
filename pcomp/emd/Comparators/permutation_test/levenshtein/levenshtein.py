@@ -15,7 +15,7 @@ from pcomp.emd.emd import (
 )
 
 
-class Timed_Levenshtein_PermuationComparator(
+class Timed_Levenshtein_PermutationComparator(
     Permutation_Test_Comparator[BinnedServiceTimeTrace]
 ):
     binner_manager: BinnerManager

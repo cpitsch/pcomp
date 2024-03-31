@@ -123,7 +123,7 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
         return self._logs_emd
 
     @property
-    def permuation_distribution(self) -> Numpy1DArray[np.float_]:
+    def permutation_distribution(self) -> Numpy1DArray[np.float_]:
         """
         The distribution of EMDs computed for the permutation test. Computed in `compare`.
         If `compare` has not been called, accessing this will raise a ValueError.
@@ -294,7 +294,7 @@ def compute_permutation_test_distribution(
     )
 
     emds = np.empty(distribution_size, dtype=np.float_)
-    for idx in tqdm(range(distribution_size), "Computing EMDs for Permuation Test"):
+    for idx in tqdm(range(distribution_size), "Computing EMDs for Permutation Test"):
         sample_1 = samples[idx][: len(population_1)]
         sample_2 = samples[idx][len(population_1) :]
 

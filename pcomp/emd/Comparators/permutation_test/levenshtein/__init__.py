@@ -1,1 +1,1 @@
-from .levenshtein import Timed_Levenshtein_PermuationComparator
+from .levenshtein import Timed_Levenshtein_PermutationComparator
