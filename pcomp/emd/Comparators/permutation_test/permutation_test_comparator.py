@@ -1,3 +1,4 @@
+import logging
 from abc import ABC, abstractmethod
 from timeit import default_timer
 from typing import Callable, Generic, TypeVar
@@ -12,12 +13,15 @@ from pcomp.emd.core import (
     EMDBackend,
     _log_bootstrapping_performance,
     compute_distance_matrix,
-    compute_emd,
     emd,
     population_to_stochastic_language,
 )
-from pcomp.utils.typing import Numpy1DArray
-from pcomp.utils.utils import ensure_start_timestamp_column
+from pcomp.utils.typing import Numpy1DArray, NumpyMatrix
+from pcomp.utils.utils import (
+    create_progress_bar,
+    ensure_start_timestamp_column,
+    pretty_format_duration,
+)
 
 T = TypeVar("T")
 
@@ -155,28 +159,52 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
             self.log_1, self.log_2
         )
 
-        # TODO: Could precompute the distance matrix for _everything_
-        emd = compute_emd(
-            population_to_stochastic_language(self.behavior_1),
-            population_to_stochastic_language(self.behavior_2),
-            self.cost_fn,
-            show_progress_bar=self.verbose,
+        stoch_lang_1 = population_to_stochastic_language(self.behavior_1)
+        stoch_lang_2 = population_to_stochastic_language(self.behavior_2)
+        combined_stoch_lang = population_to_stochastic_language(
+            self.behavior_1 + self.behavior_2
+        )
+        combined_behavior = [item for item, _ in combined_stoch_lang]
+
+        dists_start = default_timer()
+        large_distance_matrix = compute_symmetric_distance_matrix(
+            combined_behavior, self.cost_fn, self.verbose
+        )
+        dists_end = default_timer()
+        logging.getLogger("@pcomp").info(
+            f"Computing Complete Distance Matrix took {pretty_format_duration(dists_end - dists_start)}"
         )
 
-        permutation_test_distribution = compute_permutation_test_distribution(
-            self.behavior_1,
-            self.behavior_2,
-            self.cost_fn,
-            self.distribution_size,
-            self.seed,
+        log_1_log_2_distances = project_large_distance_matrix(
+            large_distance_matrix,
+            combined_behavior,
+            [item for item, _ in stoch_lang_1],
+            [item for item, _ in stoch_lang_2],
+        )
+
+        self._logs_emd = emd(
+            np.array([freq for _, freq in stoch_lang_1]),
+            np.array([freq for _, freq in stoch_lang_2]),
+            log_1_log_2_distances,
             self.emd_backend,
+        )
+
+        permutation_test_distribution = (
+            compute_permutation_test_distribution_precomputed_distances(
+                self.behavior_1,
+                self.behavior_2,
+                combined_behavior,
+                large_distance_matrix,
+                self.distribution_size,
+                self.seed,
+                self.emd_backend,
+            )
         )
 
         # TODO: Video says > not >=, using > for now.
         # Although it will likely never really matter
-        num_larger_dists = (permutation_test_distribution > emd).sum()
+        num_larger_dists = (permutation_test_distribution > self._logs_emd).sum()
 
-        self._logs_emd = emd
         self._permutation_distribution = permutation_test_distribution
         self._pval = num_larger_dists / self.distribution_size
 
@@ -291,4 +319,151 @@ def compute_permutation_test_distribution(
     emds_end = default_timer()
 
     _log_bootstrapping_performance(dists_start, dists_end, emds_end)
+    return emds
+
+
+def compute_symmetric_distance_matrix(
+    population: list[T],
+    cost_fn: Callable[[T, T], float],
+    show_progress_bar: bool = True,
+) -> NumpyMatrix[np.float_]:
+    """Compute the distance matrix from the population to itself, assuming a symmetric
+    cost function. Due to this assumption, we can cut the computation workload in half,
+    only needing to compute one half of the matrix explicitly.
+
+    Args:
+        population (list[T]): The population of behavior to compute the distance_matrix
+            for. Assumed to hold unique values.
+        cost_fn (Callable[[T, T], float]): The _symmetric_ cost function to use.
+        show_progress_bar (bool, optional): Show a progress bar for the computation?
+            Defaults to True.
+
+    Returns:
+        NumpyMatrix[np.float_]: The distance matrix using the indices of values in
+            `population`.
+    """
+    dists = np.empty((len(population), len(population)), dtype=np.float_)
+    with create_progress_bar(
+        show_progress_bar,
+        total=dists.shape[0] * dists.shape[1],
+        desc=f"Computing Distance Matrix ({dists.shape[0]}x{dists.shape[1]})",
+    ) as progress_bar:
+        for i, item_1 in enumerate(population):
+            for j, item_2 in enumerate(population[i:], start=i):
+                dists[i, j] = cost_fn(item_1, item_2)
+                dists[j, i] = dists[i, j]
+                progress_bar.update(2)
+
+    return dists
+
+
+def project_large_distance_matrix(
+    dist_matrix: NumpyMatrix[np.float_],
+    dist_matrix_source_population: list[T],
+    population_1: list[T],
+    population_2: list[T],
+) -> NumpyMatrix[np.float_]:
+    """Project a large distance matrix to the distance matrix induced by the two given
+    populations.
+
+    Args:
+        dist_matrix (NumpyMatrix[np.float_]): The large distance matrix.
+        dist_matrix_source_population (list[T]): The population used to generate the
+            distance matrix. The distance matrix should have dimension
+            |source_population|x|source_population. Used to find the indices in the
+            distance matrix to project to.
+        population_1 (list[T]): The first population for which we to the projection.
+            Defines the rows to project to.
+        population_2 (list[T]): The second population for which to do the projection.
+            Defines the columns to project to.
+
+    Returns:
+        NumpyMatrix[np.float_]: The projected distance matrix
+    """
+    population_1_matrix_indices = [
+        dist_matrix_source_population.index(item) for item in population_1
+    ]
+    population_2_matrix_indices = [
+        dist_matrix_source_population.index(item) for item in population_2
+    ]
+
+    return dist_matrix[population_1_matrix_indices, :][:, population_2_matrix_indices]
+
+
+def compute_permutation_test_distribution_precomputed_distances(
+    behavior_1: list[T],
+    behavior_2: list[T],
+    distance_matrix_source_population: list[T],
+    distance_matrix: NumpyMatrix[np.float_],
+    distribution_size: int = 10_000,
+    seed: int | None = None,
+    emd_backend: EMDBackend = "wasserstein",
+):
+    """Compute the distribution for a permutation test.
+
+
+    Args:
+        behavior_1 (list[T]): The behavior extracted from the first event log.
+            (|Log_1| items).
+        behavior_2 (list[T]): The behavior extracted from the second event log.
+            (|Log_2| items).
+        distance_matrix_source_population (list[T]): The population used to compute the
+            distance matrix. Used to map indices in the behavior lists to indices in the
+            distance matrix.
+        distance_matrix (NumpyMatrix[np.float_]): The distance matrix.
+        distribution_size (int, optional): The number of EMDs to compute. Defaults to
+            10_000.
+        seed (int | None, optional): The seed to use for sampling. Defaults to None.
+        emd_backend (EMDBackend, optional): The backend to use for EMD computation.
+            Defaults to "wasserstein" (use the wasserstein package). Alternatively,
+            "pot" uses "Python Optimal Transport" to compute the EMD.
+
+    Returns:
+        Numpy1DArray[np.float_]: The computed EMDs
+    """
+    gen = np.random.default_rng(seed)
+
+    # Matrix of rows of 1...size_of_logs
+    unpermuted_sample = np.tile(
+        np.arange(len(behavior_1) + len(behavior_2)), (distribution_size, 1)
+    )
+    samples = gen.permuted(unpermuted_sample, axis=1)
+
+    # Map index in event logs to variant indices
+    population_indices_to_variant_indices = np.array(
+        [
+            distance_matrix_source_population.index(item)
+            for item in behavior_1 + behavior_2
+        ]
+    )
+
+    emds_start = default_timer()
+    emds = np.empty(distribution_size, dtype=np.float_)
+    for idx in tqdm(range(distribution_size), "Computing EMDs for Permutation Test"):
+        sample_1 = samples[idx][: len(behavior_1)]
+        sample_2 = samples[idx][len(behavior_1) :]
+
+        # Translate indices in population to variant
+        translated_sample_1 = population_indices_to_variant_indices[sample_1]
+        translated_sample_2 = population_indices_to_variant_indices[sample_2]
+
+        deduplicated_sample_1, counts_1 = np.unique(
+            translated_sample_1, return_counts=True
+        )
+        deduplicated_sample_2, counts_2 = np.unique(
+            translated_sample_2, return_counts=True
+        )
+
+        emds[idx] = emd(
+            counts_1 / translated_sample_1.shape[0],
+            counts_2 / translated_sample_2.shape[0],
+            distance_matrix[deduplicated_sample_1][:, deduplicated_sample_2],
+            backend=emd_backend,
+        )
+
+    emds_end = default_timer()
+
+    logging.getLogger("@pcomp").info(
+        f"Computing Permutation Test Distribution took {pretty_format_duration(emds_end - emds_start)}"
+    )
     return emds
