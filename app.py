@@ -19,6 +19,9 @@ from pcomp.emd.Comparators.kolmogorov_smirnov import (
     LevenshteinKSComparator,
     Self_Bootstrapping_Style,
 )
+from pcomp.emd.Comparators.permutation_test.levenshtein.levenshtein import (
+    Timed_Levenshtein_PermutationComparator,
+)
 from pcomp.emd.core import BootstrappingStyle
 from pcomp.utils import enable_logging, import_log, split_log_cases
 
@@ -227,7 +230,7 @@ event_logs_formatter: dict[EventLog, str] = {
     "log_long_term_dep": "Bose Long Term Dependence Time Drift",
     "log_soj_drift": "Bose Sojourn Time Drift",
     "log_classic_bose": "Classic Bose Log (Control-Flow Drift)",
-    "ceravolo_noise0_re": "Ceravolo RE (Actitivy Removal)",
+    "ceravolo_noise0_re": "Ceravolo RE (Activity Removal)",
     "ceravolo_noise0_rp": "Ceravolo RP (Substitute)",
     "ostovar_noise0_sre": "Ostovar SRE (Serial Removal)",
     "ostovar_noise0_cm": "Ostovar CM (Conditional Move)",
@@ -256,22 +259,25 @@ class EventLogSetting:
         return base_path / "log_1.xes.gz", base_path / "log_2.xes.gz"
 
 
-ComparisonTechnique = Literal["emd_bootstrap", "ks_bootstrap", "double_bootstrap"]
+ComparisonTechnique = Literal[
+    "emd_bootstrap", "ks_bootstrap", "double_bootstrap", "permutation_test"
+]
 comparison_techniques: list[ComparisonTechnique] = list(get_args(ComparisonTechnique))
 funcs_to_name: dict[ComparisonTechnique, str] = {
     "emd_bootstrap": "Standard EMD Bootstrapping",
     "ks_bootstrap": "Kolmogorov-Smirnov Distribution Comparison",
     "double_bootstrap": "Double Bootstrap EMD",
+    "permutation_test": "Permutation Test",
 }
 
 BinnerSetting = Literal[
-    "kmeans_1",
+    # "kmeans_1",
     # "kmeans_3",
     "outer_10",
 ]
 binner_settings: list[BinnerSetting] = list(get_args(BinnerSetting))
 binner_setting_to_name: dict[BinnerSetting, str] = {
-    "kmeans_1": "KMeans++ 1 Bin (No Time)",
+    # "kmeans_1": "KMeans++ 1 Bin (No Time)",
     # "kmeans_3": "KMeans++ 3 Bins",
     "outer_10": "Outer Percentile (10%)",
 }
@@ -484,6 +490,32 @@ class DoubleBootstrapInstance(Instance[LevenshteinDoubleBootstrapComparator]):
         )
 
 
+@dataclass
+class PermutationTestInstance(Instance[Timed_Levenshtein_PermutationComparator]):
+    @property
+    def path(self) -> Path:
+        return super().path
+
+    @property
+    def technique_name(self) -> str:
+        return "permutation_test"
+
+    def get_comparator(
+        self, verbose: bool = True
+    ) -> Timed_Levenshtein_PermutationComparator:
+        binner_factory, binner_args = binner_setting_to_args(self.binner_setting)
+        log_1, log_2 = self.get_logs()
+        return Timed_Levenshtein_PermutationComparator(
+            log_1,
+            log_2,
+            weighted_time_cost=self.weighted_time_cost,
+            binner_factory=binner_factory,
+            binner_args=binner_args,
+            seed=1337,
+            verbose=verbose,
+        )
+
+
 logs_base_path = Path("Testing Logs", "Run All")
 
 
@@ -613,6 +645,17 @@ def streamlit_main_loop() -> None:
                 "EvaluationLogs", log, "drift" if drifts else "no_drift"
             ).iterdir()
         ]
+    elif comparison_technique == "permutation_test":
+        instances = [
+            PermutationTestInstance(
+                log_setting=EventLogSetting(log, drifts, log_range.name),
+                weighted_time_cost=weighted_time_cost,
+                binner_setting=binning_setting,
+            )
+            for log_range in Path(
+                "EvaluationLogs", log, "drift" if drifts else "no_drift"
+            ).iterdir()
+        ]
     else:
         raise ValueError(f"Unknown comparison technique: {comparison_technique}")
 
@@ -650,74 +693,6 @@ def streamlit_main_loop() -> None:
 
                 st.subheader(f"P-Value: {comparator.pval:.2f}")
                 st.pyplot(comparator.plot_result())
-
-                # with st.expander("🔍 Timing Statistics"):
-
-                #     def get_bin_class_counter_per_act(
-                #         behavior: list[BinnedServiceTimeTrace],
-                #     ):
-                #         events = [evt for trace in behavior for evt in trace]
-
-                #         activities = set(act for act, _ in events)
-
-                #         datapoints_per_activity = {
-                #             act: [
-                #                 binned_dur
-                #                 for activity, binned_dur in events
-                #                 if activity == act
-                #             ]
-                #             for act in activities
-                #         }
-
-                #         counters_per_activity = {
-                #             act: Counter(binned_durs)
-                #             for act, binned_durs in datapoints_per_activity.items()
-                #         }
-
-                #         return counters_per_activity
-
-                #     counters_1 = get_bin_class_counter_per_act(comparator.behavior_1)
-                #     counters_2 = get_bin_class_counter_per_act(comparator.behavior_2)
-
-                #     all_keys = set(counters_1.keys()).union(counters_2.keys())
-
-                #     # Create a dataframe
-                #     df = pd.DataFrame(
-                #         {
-                #             "Activity": list(all_keys),
-                #             "Class 0": [
-                #                 (
-                #                     counters_1.get(act, Counter()).get(0),
-                #                     counters_2.get(act, Counter()).get(0),
-                #                 )
-                #                 for act in all_keys
-                #             ],
-                #             "Class 1": [
-                #                 (
-                #                     counters_1.get(act, Counter()).get(1),
-                #                     counters_2.get(act, Counter()).get(1),
-                #                 )
-                #                 for act in all_keys
-                #             ],
-                #             "Class 2": [
-                #                 (
-                #                     counters_1.get(act, Counter()).get(2),
-                #                     counters_2.get(act, Counter()).get(2),
-                #                 )
-                #                 for act in all_keys
-                #             ],
-                #             "Average Class in Log 1": [
-                #                 mean(counters_1.get(act, Counter()).elements())
-                #                 for act in all_keys
-                #             ],
-                #             "Average Class in Log 2": [
-                #                 mean(counters_2.get(act, Counter()).elements())
-                #                 for act in all_keys
-                #             ],
-                #         }
-                #     )
-
-                #     st.dataframe(df, use_container_width=True)
 
 
 def get_standard_emd_instances() -> list[Instance]:
@@ -784,12 +759,35 @@ def get_double_bootstrap_instances() -> list[Instance]:
     ]
 
 
+def get_permutation_test_instances() -> list[Instance]:
+    return [
+        PermutationTestInstance(
+            log_setting=EventLogSetting(log, drifts, log_ident.name),
+            binner_setting=binner_setting,
+            weighted_time_cost=weighted_time_cost,
+        )
+        for log in event_logs
+        for drifts in [True, False]
+        for log_ident in Path(
+            "EvaluationLogs", log, "drift" if drifts else "no_drift"
+        ).iterdir()
+        for binner_setting in binner_settings
+        for weighted_time_cost in [True, False]
+    ]
+
+
 def get_all_instances() -> list[Instance]:
     standard_instances: list[Instance] = get_standard_emd_instances()
     ks_instances = get_ks_emd_instances()
     double_bootstrap_instances = get_double_bootstrap_instances()
+    permutation_test_instances = get_permutation_test_instances()
 
-    return standard_instances + ks_instances + double_bootstrap_instances
+    return (
+        standard_instances
+        + ks_instances
+        + double_bootstrap_instances
+        + permutation_test_instances
+    )
 
 
 def run_instance(instance: Instance):
