@@ -6,12 +6,27 @@ def test_log_len(event_log):
 
 
 def test_log_splitting(large_event_log):
-    """Test that log splitting is random, i.e., multiple runs return different results"""
+    """
+    Test that log splitting is random, i.e., multiple runs return different results.
+    """
     run1 = split_log_cases(large_event_log, 0.5)
     run2 = split_log_cases(large_event_log, 0.5)
 
-    # No need to check for run1[1] and run2[1] because they are the complements of run1[0] and run2[0]
+    # No need to check for run1[1] and run2[1] because they are the complements of
+    # run1[0] and run2[0]
     assert not run1[0].equals(run2[0])
+
+
+def test_seeded_log_splitting(large_event_log):
+    """
+    Test that seeded log splitting, i.e., repeated application yields same result.
+    """
+    run1 = split_log_cases(large_event_log, 0.5, seed=42)
+    run2 = split_log_cases(large_event_log, 0.5, seed=42)
+
+    # No need to check for run1[1] and run2[1] because they are the complements of
+    # run1[0] and run2[0]
+    assert run1[0].equals(run2[0])
 
 
 def test_log_splitting_retains_all_cases(large_event_log):
