@@ -736,7 +736,11 @@ def streamlit_main_loop() -> None:
                 with open(pickle_path, "rb") as pickle_file:
                     comparator = pickle.load(pickle_file)
 
-                st.subheader(f"P-Value: {comparator.pval:.2f}")
+                correct = (comparator.pval < 0.05 and drifts) or (
+                    comparator.pval >= 0.05 and not drifts
+                )
+                symbol = "✅" if correct else "❌"
+                st.subheader(f"{symbol} P-Value: {comparator.pval:.2f}")
                 st.pyplot(comparator.plot_result())
 
 
