@@ -11,6 +11,9 @@ from pm4py import write_xes  # type: ignore
 
 from pcomp.binning import BinnerFactory, KMeans_Binner, OuterPercentileBinner
 from pcomp.emd import Timed_Levenshtein_EMD_Comparator
+from pcomp.emd.Comparators.classic_bootstrap import (
+    Timed_Levenshtein_BootstrapComparator,
+)
 from pcomp.emd.Comparators.double_bootstrap import (
     DoubleBootstrapStyle,
     LevenshteinDoubleBootstrapComparator,
@@ -260,7 +263,11 @@ class EventLogSetting:
 
 
 ComparisonTechnique = Literal[
-    "emd_bootstrap", "ks_bootstrap", "double_bootstrap", "permutation_test"
+    "emd_bootstrap",
+    "ks_bootstrap",
+    "double_bootstrap",
+    "permutation_test",
+    "classic_bootstrap",
 ]
 comparison_techniques: list[ComparisonTechnique] = list(get_args(ComparisonTechnique))
 funcs_to_name: dict[ComparisonTechnique, str] = {
@@ -268,6 +275,7 @@ funcs_to_name: dict[ComparisonTechnique, str] = {
     "ks_bootstrap": "Kolmogorov-Smirnov Distribution Comparison",
     "double_bootstrap": "Double Bootstrap EMD",
     "permutation_test": "Permutation Test",
+    "classic_bootstrap": "Classic Bootstrapping",
 }
 
 BinnerSetting = Literal[
@@ -516,6 +524,32 @@ class PermutationTestInstance(Instance[Timed_Levenshtein_PermutationComparator])
         )
 
 
+@dataclass
+class ClassicBootstrapInstance(Instance[Timed_Levenshtein_BootstrapComparator]):
+    @property
+    def path(self) -> Path:
+        return super().path
+
+    @property
+    def technique_name(self) -> str:
+        return "classic_bootstrap"
+
+    def get_comparator(
+        self, verbose: bool = True
+    ) -> Timed_Levenshtein_BootstrapComparator:
+        binner_factory, binner_args = binner_setting_to_args(self.binner_setting)
+        log_1, log_2 = self.get_logs()
+        return Timed_Levenshtein_BootstrapComparator(
+            log_1,
+            log_2,
+            weighted_time_cost=self.weighted_time_cost,
+            binner_factory=binner_factory,
+            binner_args=binner_args,
+            seed=1337,
+            verbose=verbose,
+        )
+
+
 logs_base_path = Path("Testing Logs", "Run All")
 
 
@@ -656,6 +690,17 @@ def streamlit_main_loop() -> None:
                 "EvaluationLogs", log, "drift" if drifts else "no_drift"
             ).iterdir()
         ]
+    elif comparison_technique == "classic_bootstrap":
+        instances = [
+            ClassicBootstrapInstance(
+                log_setting=EventLogSetting(log, drifts, log_range.name),
+                weighted_time_cost=weighted_time_cost,
+                binner_setting=binning_setting,
+            )
+            for log_range in Path(
+                "EvaluationLogs", log, "drift" if drifts else "no_drift"
+            ).iterdir()
+        ]
     else:
         raise ValueError(f"Unknown comparison technique: {comparison_technique}")
 
@@ -776,17 +821,36 @@ def get_permutation_test_instances() -> list[Instance]:
     ]
 
 
+def get_classic_bootstrap_instances() -> list[Instance]:
+    return [
+        ClassicBootstrapInstance(
+            log_setting=EventLogSetting(log, drifts, log_ident.name),
+            binner_setting=binner_setting,
+            weighted_time_cost=weighted_time_cost,
+        )
+        for log in event_logs
+        for drifts in [True, False]
+        for log_ident in Path(
+            "EvaluationLogs", log, "drift" if drifts else "no_drift"
+        ).iterdir()
+        for binner_setting in binner_settings
+        for weighted_time_cost in [True, False]
+    ]
+
+
 def get_all_instances() -> list[Instance]:
     standard_instances: list[Instance] = get_standard_emd_instances()
     ks_instances = get_ks_emd_instances()
     double_bootstrap_instances = get_double_bootstrap_instances()
     permutation_test_instances = get_permutation_test_instances()
+    classic_bootstrap_instances = get_classic_bootstrap_instances()
 
     return (
         standard_instances
         + ks_instances
         + double_bootstrap_instances
         + permutation_test_instances
+        + classic_bootstrap_instances
     )
 
 
