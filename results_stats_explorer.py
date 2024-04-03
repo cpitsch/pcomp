@@ -41,13 +41,9 @@ df = load_df()
 def write_classification_classes_summary(df):
     counts = {k: v for k, v in df["classification_class"].value_counts().items()}
 
-    print(counts)
     accuracy = (counts.get("TP", 0) + counts.get("TN", 0)) / sum(counts.values())
-    print(accuracy)
     precision = counts.get("TP", 0) / (counts.get("TP", 0) + counts.get("FP", 0))
-    print(precision)
     recall = counts.get("TP", 0) / (counts.get("TP", 0) + counts.get("FN", 0))
-    print(recall)
     f1 = 2 * (precision * recall) / (precision + recall)
 
     st.dataframe(
