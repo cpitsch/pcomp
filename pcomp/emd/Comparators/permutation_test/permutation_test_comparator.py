@@ -62,7 +62,8 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
             emd_backend (EMDBackend, optional): The backend to use for EMD computation.
                 Defaults to "wasserstein" (use the "wasserstein" module). Alternatively, "ot" or "pot" will
             use the "Python Optimal Transport" package.
-            seed (int, optional): The seed to use for sampling in the bootstrapping phase.
+            seed (int, optional): The seed to use for sampling in the permutation test
+                phase.
         """
         self.log_1 = ensure_start_timestamp_column(log_1)
         self.log_2 = ensure_start_timestamp_column(log_2)
@@ -150,8 +151,9 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
         1. Extract the representations from the event logs using
             `self.extract_representations`.
         2. Compute the EMD between the two representations.
-        3. Bootstrap a Null distribution of EMDs (EMDs of samples of log_1 to log_1).
-        4. Compute the p-value.
+        3. Compute a distribution of EMDs using a Permutation test.
+        4. Compute the p-value. As the fraction of permutation distribution EMDs that
+           are larger than the logs EMD computed in step (2).
         Returns:
             float: The computed p-value.
         """
@@ -211,18 +213,15 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
         return self._pval
 
     def plot_result(self) -> Figure:
-        """Plot the bootstrapping distribution and the EMD between the two logs.
+        """Plot the computed distribution and the EMD between the two logs.
 
         Returns:
             plt.figure: The corresponding figure.
         """
         fig, ax = plt.subplots()
 
-        bootstrapping_distribution = self._permutation_distribution
-        logs_emd = self.logs_emd
-
         ax.hist(
-            bootstrapping_distribution,
+            self._permutation_distribution,
             bins=50,
             edgecolor="black",
             alpha=0.7,
@@ -231,7 +230,7 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
         ax.set_xlabel("Earth Mover's Distance")
         ax.set_ylabel("Frequency")
         ax.axvline(
-            logs_emd,
+            self.logs_emd,
             color="red",
             linestyle="--",
             linewidth=2,
@@ -351,6 +350,7 @@ def compute_symmetric_distance_matrix(
         for i, item_1 in enumerate(population):
             for j, item_2 in enumerate(population[i:], start=i):
                 dists[i, j] = cost_fn(item_1, item_2)
+                # Assumes symmetric cost function
                 dists[j, i] = dists[i, j]
                 progress_bar.update(2)
 
@@ -398,7 +398,7 @@ def compute_permutation_test_distribution_precomputed_distances(
     distribution_size: int = 10_000,
     seed: int | None = None,
     emd_backend: EMDBackend = "wasserstein",
-):
+) -> Numpy1DArray[np.float_]:
     """Compute the distribution for a permutation test.
 
 
