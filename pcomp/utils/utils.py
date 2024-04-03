@@ -227,7 +227,7 @@ def ensure_start_timestamp_column(
 
 
 def pretty_format_duration(seconds: float) -> str:
-    """Format a durataion in seconds as a string in the format HH:MM:SS
+    """Format a duration in seconds as a string in the format HH:MM:SS
 
     Args:
         seconds (float): The duration in seconds.
