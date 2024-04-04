@@ -352,7 +352,7 @@ def compute_symmetric_distance_matrix(
                 dists[i, j] = cost_fn(item_1, item_2)
                 # Assumes symmetric cost function
                 dists[j, i] = dists[i, j]
-                progress_bar.update(2)
+                progress_bar.update(2 if i != j else 1)
 
     return dists
 
