@@ -9,13 +9,7 @@ import pandas as pd
 from matplotlib.figure import Figure
 from tqdm.auto import tqdm
 
-from pcomp.emd.core import (
-    EMDBackend,
-    _log_bootstrapping_performance,
-    compute_distance_matrix,
-    emd,
-    population_to_stochastic_language,
-)
+from pcomp.emd.core import EMDBackend, emd, population_to_stochastic_language
 from pcomp.utils.typing import Numpy1DArray, NumpyMatrix
 from pcomp.utils.utils import (
     create_progress_bar,
@@ -168,13 +162,8 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
         )
         combined_behavior = [item for item, _ in combined_stoch_lang]
 
-        dists_start = default_timer()
         large_distance_matrix = compute_symmetric_distance_matrix(
             combined_behavior, self.cost_fn, self.verbose
-        )
-        dists_end = default_timer()
-        logging.getLogger("@pcomp").info(
-            f"Computing Complete Distance Matrix took {pretty_format_duration(dists_end - dists_start)}"
         )
 
         log_1_log_2_distances = project_large_distance_matrix(
@@ -250,7 +239,10 @@ def compute_permutation_test_distribution(
     emd_backend: EMDBackend = "wasserstein",
     show_progress_bar: bool = True,
 ) -> Numpy1DArray[np.float_]:
-    """Compute the distribution for a permutation test.
+    """Compute the distribution for a permutation test. Computes the distance matrix
+    for all behavior. If some distances are already computed before this, it is likely
+    worth precomputing all distances and calling
+    `compute_permutation_test_distribution_precomputed_distances` instead.
 
     Args:
         population_1 (list[T]): The first population of behavior.
@@ -268,57 +260,24 @@ def compute_permutation_test_distribution(
     Returns:
         Numpy1DArray[np.float_]: The distribution of permutation test EMDs
     """
-    gen = np.random.default_rng(seed)  # If seed is None, it is random
-
-    combined_population = population_1 + population_2
-
-    stochastic_language_all = population_to_stochastic_language(combined_population)
+    stochastic_language_all = population_to_stochastic_language(
+        population_1 + population_2
+    )
     all_variants = [item for item, _ in stochastic_language_all]
 
-    dists_start = default_timer()
-    dists = compute_distance_matrix(
-        all_variants, all_variants, cost_fn, show_progress_bar=show_progress_bar
-    )
-    dists_end = default_timer()
-
-    unpermuted_matrix = np.tile(
-        np.arange(len(combined_population)), (distribution_size, 1)
+    dists = compute_symmetric_distance_matrix(
+        all_variants, cost_fn, show_progress_bar=show_progress_bar
     )
 
-    # Permute the rows to get our permutation samples
-    samples = gen.permuted(unpermuted_matrix, axis=1)
-
-    population_indices_to_variant_indices = np.array(
-        [all_variants.index(item) for item in population_1 + population_2]
+    return compute_permutation_test_distribution_precomputed_distances(
+        population_1,
+        population_2,
+        all_variants,
+        dists,
+        distribution_size,
+        seed,
+        emd_backend,
     )
-
-    emds = np.empty(distribution_size, dtype=np.float_)
-    for idx in tqdm(range(distribution_size), "Computing EMDs for Permutation Test"):
-        sample_1 = samples[idx][: len(population_1)]
-        sample_2 = samples[idx][len(population_1) :]
-
-        # Translate indices in population to variant indices (index in the distance matrix)
-        translated_sample_1 = population_indices_to_variant_indices[sample_1]
-        translated_sample_2 = population_indices_to_variant_indices[sample_2]
-
-        deduplicated_sample_1, counts_1 = np.unique(
-            translated_sample_1, return_counts=True
-        )
-        deduplicated_sample_2, counts_2 = np.unique(
-            translated_sample_2, return_counts=True
-        )
-
-        emds[idx] = emd(
-            counts_1 / translated_sample_1.shape[0],
-            counts_2 / translated_sample_2.shape[0],
-            dists[deduplicated_sample_1][:, deduplicated_sample_2],
-            backend=emd_backend,
-        )
-
-    emds_end = default_timer()
-
-    _log_bootstrapping_performance(dists_start, dists_end, emds_end)
-    return emds
 
 
 def compute_symmetric_distance_matrix(
@@ -341,6 +300,7 @@ def compute_symmetric_distance_matrix(
         NumpyMatrix[np.float_]: The distance matrix using the indices of values in
             `population`.
     """
+    dists_start = default_timer()
     dists = np.empty((len(population), len(population)), dtype=np.float_)
     with create_progress_bar(
         show_progress_bar,
@@ -354,6 +314,10 @@ def compute_symmetric_distance_matrix(
                 dists[j, i] = dists[i, j]
                 progress_bar.update(2 if i != j else 1)
 
+    dists_end = default_timer()
+    logging.getLogger("@pcomp").info(
+        f"Computing Complete Distance Matrix took {pretty_format_duration(dists_end - dists_start)}"
+    )
     return dists
 
 
@@ -390,6 +354,33 @@ def project_large_distance_matrix(
     return dist_matrix[population_1_matrix_indices, :][:, population_2_matrix_indices]
 
 
+def get_permutation_sample(
+    sample_range: int,
+    number_of_samples: int,
+    seed: int | None | np.random.Generator,
+) -> NumpyMatrix[np.float_]:
+    """Get a number of permutations of numbers from 0..sample_range.
+
+    Args:
+        sample_range (int): The number of distinct possible values. Samples will contain
+            numbers from 0 to sample_range - 1
+        number_of_samples (int): The number of samples to create. The number of rows in
+            the result matrix.
+        seed (int | None | np.random.Generator): The seed to use for sampling.
+
+    Returns:
+        NumpyMatrix[np.float_]: The permutation samples. Has the diimensions
+            sample_range x number_of_samples. Each row contains numbers from the
+            interval [0, sample_range) in a random order.
+    """
+    gen = np.random.default_rng(seed)
+
+    # Create matrix with rows containing 0...sample_range - 1
+    unpermuted_sample = np.tile(np.arange(sample_range), (number_of_samples, 1))
+    # Permute the rows to get the sample
+    return gen.permuted(unpermuted_sample, axis=1)
+
+
 def compute_permutation_test_distribution_precomputed_distances(
     behavior_1: list[T],
     behavior_2: list[T],
@@ -419,15 +410,13 @@ def compute_permutation_test_distribution_precomputed_distances(
             "pot" uses "Python Optimal Transport" to compute the EMD.
 
     Returns:
-        Numpy1DArray[np.float_]: The computed EMDs
+        Numpy1DArray[np.float_]: The computed EMDs.
     """
-    gen = np.random.default_rng(seed)
 
     # Matrix of rows of 1...size_of_logs
-    unpermuted_sample = np.tile(
-        np.arange(len(behavior_1) + len(behavior_2)), (distribution_size, 1)
+    samples = get_permutation_sample(
+        len(behavior_1) + len(behavior_2), distribution_size, seed
     )
-    samples = gen.permuted(unpermuted_sample, axis=1)
 
     # Map index in event logs to variant indices
     population_indices_to_variant_indices = np.array(
