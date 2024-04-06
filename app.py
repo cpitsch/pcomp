@@ -233,8 +233,10 @@ event_logs_formatter: dict[EventLog, str] = {
     "log_long_term_dep": "Bose Long Term Dependence Time Drift",
     "log_soj_drift": "Bose Sojourn Time Drift",
     "log_classic_bose": "Classic Bose Log (Control-Flow Drift)",
+    # Ceravolo Logs
     "ceravolo_noise0_re": "Ceravolo RE (Activity Removal)",
     "ceravolo_noise0_rp": "Ceravolo RP (Substitute)",
+    # Ostovar Logs
     "ostovar_noise0_sre": "Ostovar SRE (Serial Removal)",
     "ostovar_noise0_cm": "Ostovar CM (Conditional Move)",
     "ostovar_noise0_rp": "Ostovar RP (Substitute)",
