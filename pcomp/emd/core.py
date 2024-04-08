@@ -525,7 +525,7 @@ def bootstrap_emd_population(
     Returns:
         list[float]: The list of computed EMDs.
     """
-    gen = np.random.default_rng(seed) if seed is not None else None
+    gen = np.random.default_rng(seed)
 
     resample_size = resample_size or len(population)
 
@@ -553,7 +553,7 @@ def bootstrap_emd_population(
             return res
 
         # Get the samples for the entire bootstrapping stage, respecting the frequencies of the variants
-        samples = (gen or np.random).choice(
+        samples = gen.choice(
             dists.shape[0],
             (bootstrapping_dist_size, resample_size),
             replace=True,
@@ -595,7 +595,7 @@ def bootstrap_emd_population_split_sampling(
     Returns:
         list[float]: The list of computed EMDs.
     """
-    gen = np.random.default_rng(seed) if seed is not None else None
+    gen = np.random.default_rng(seed)
 
     emds: list[float] = []
 
@@ -622,7 +622,7 @@ def bootstrap_emd_population_split_sampling(
         # Ideally, would do all the sampling at once, but not sure how to do that with replacement off for each row separately
 
         # First sample from the population so that we respect the frequencies of the variants
-        sample = (gen or np.random).choice(
+        sample = gen.choice(
             len(population),  # Need to sample from the population.
             len(population) // 2,
             replace=False,
@@ -685,7 +685,7 @@ def bootstrap_emd_population_resample_split_sampling(
     Returns:
         list[float]: The list of computed EMDs.
     """
-    gen = np.random.default_rng(seed) if seed is not None else None
+    gen = np.random.default_rng(seed)
     resample_size = resample_size or len(population) // 2
 
     emds: list[float] = []
@@ -705,7 +705,7 @@ def bootstrap_emd_population_resample_split_sampling(
         desc="Bootstrapping EMD Null Distribution",
     )
 
-    samples_1, samples_2 = (gen or np.random).choice(
+    samples_1, samples_2 = gen.choice(
         dists.shape[0],
         # Every iteration we need two samples of `resample_size` size
         (2, bootstrapping_dist_size, resample_size),

@@ -290,22 +290,19 @@ def bootstrap_emd_distribution_with_smaller_log(
     Returns:
         list[float]: The list of computed EMDs.
     """
-    gen = np.random.default_rng(seed) if seed is not None else None
+    gen = np.random.default_rng(seed)
     resample_size = resample_size or len(population_2)
 
     emds: list[float] = []
 
-    stochastic_lang_1 = population_to_stochastic_language(population_1)
-    behavior_1 = [item for item, _ in stochastic_lang_1]
-    freqs_1 = [freq for _, freq in stochastic_lang_1]
-
-    stochastic_lang_2 = population_to_stochastic_language(population_2)
-    behavior_2 = [item for item, _ in stochastic_lang_2]
-    freqs_2 = [freq for _, freq in stochastic_lang_2]
+    stoch_lang_1 = population_to_stochastic_language_split(population_1)
+    stoch_lang_2 = population_to_stochastic_language_split(population_2)
 
     # Precompute all distances
     dists_start = default_timer()
-    dists = compute_distance_matrix(behavior_1, behavior_2, cost_fn, show_progress_bar)
+    dists = compute_distance_matrix(
+        stoch_lang_1.variants, stoch_lang_2.variants, cost_fn, show_progress_bar
+    )
     dists_end = default_timer()
 
     progress_bar = create_progress_bar(
@@ -314,7 +311,7 @@ def bootstrap_emd_distribution_with_smaller_log(
         desc="Bootstrapping EMDs",
     )
 
-    samples_1 = (gen or np.random).choice(
+    samples_1 = gen.choice(
         dists.shape[0],  # Sample from the indices in log 1
         (
             bootstrapping_dist_size,
@@ -349,7 +346,8 @@ def bootstrap_emd_distribution_with_smaller_log(
 def _split_range(
     high: int, rng: np.random.Generator | None = None
 ) -> tuple[Numpy1DArray[np.int_], Numpy1DArray[np.int_]]:
-    half_1 = (rng or np.random).choice(high, high // 2, replace=False)
+    gen = np.random.default_rng(rng)  # Either the passed in generator or a new one
+    half_1 = gen.choice(high, high // 2, replace=False)
     half_2 = np.setdiff1d(np.arange(high, dtype=np.int_), half_1)
 
     return half_1, half_2
@@ -382,7 +380,7 @@ def bootstrap_emd_distribution_splitted_resampling(
     Returns:
         list[float]: The list of computed EMDs.
     """
-    gen = np.random.default_rng(seed) if seed is not None else None
+    gen = np.random.default_rng(seed)
 
     emds: list[float] = []
 
@@ -403,8 +401,8 @@ def bootstrap_emd_distribution_splitted_resampling(
     for _ in range(bootstrapping_dist_size):
         half_1, half_2 = _split_range(len(behavior), gen)
 
-        sample_1 = (gen or np.random).choice(half_1, resample_size, replace=True)
-        sample_2 = (gen or np.random).choice(half_2, resample_size, replace=True)
+        sample_1 = gen.choice(half_1, resample_size, replace=True)
+        sample_2 = gen.choice(half_2, resample_size, replace=True)
 
         deduplicated_indices_1, counts_1 = np.unique(sample_1, return_counts=True)
         deduplicated_indices_2, counts_2 = np.unique(sample_2, return_counts=True)

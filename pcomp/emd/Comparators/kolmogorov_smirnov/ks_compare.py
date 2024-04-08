@@ -256,21 +256,21 @@ def bootstrap_emd_population_between_logs(
     Returns:
         list[float]: The list of computed EMDs
     """
-    gen = np.random.default_rng(seed) if seed is not None else None
+    gen = np.random.default_rng(seed)
 
     emds: list[float] = []
 
-    stochastic_lang_1 = population_to_stochastic_language(population_1)
-    behavior_1 = [item for item, _ in stochastic_lang_1]
-    freqs_1 = [freq for _, freq in stochastic_lang_1]
-
-    stochastic_lang_2 = population_to_stochastic_language(population_2)
-    behavior_2 = [item for item, _ in stochastic_lang_2]
-    freqs_2 = [freq for _, freq in stochastic_lang_2]
+    stochastic_lang_1 = population_to_stochastic_language_split(population_1)
+    stochastic_lang_2 = population_to_stochastic_language_split(population_2)
 
     # Precompute all distances since statistically, every pair of traces will be needed at least once
     dists_start = default_timer()
-    dists = compute_distance_matrix(behavior_1, behavior_2, cost_fn, show_progress_bar)
+    dists = compute_distance_matrix(
+        stochastic_lang_1.variants,
+        stochastic_lang_2.variants,
+        cost_fn,
+        show_progress_bar,
+    )
     dists_end = default_timer()
 
     progress_bar = create_progress_bar(
@@ -281,13 +281,13 @@ def bootstrap_emd_population_between_logs(
 
     SAMPLE_SIZE_1 = len(population_1) // 2
     SAMPLE_SIZE_2 = len(population_2) // 2
-    samples_1 = (gen or np.random).choice(
+    samples_1 = gen.choice(
         dists.shape[0],
         (bootstrapping_dist_size, SAMPLE_SIZE_1),
         replace=True,
         p=freqs_1,
     )
-    samples_2 = (gen or np.random).choice(
+    samples_2 = gen.choice(
         dists.shape[1],
         (bootstrapping_dist_size, SAMPLE_SIZE_2),
         replace=True,
