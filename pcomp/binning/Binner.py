@@ -12,14 +12,14 @@ T = TypeVar("T")
 class Binner(abc.ABC, Generic[T]):
     data: list[T]
     seed: int | None
+    rng: np.random.Generator
     num_bins: int  # The number of bins
 
     def __init__(self, data: list[T], seed: int | None = None):
         self.data = data
         self.seed = seed
 
-        if self.seed is not None:
-            np.random.seed(self.seed)
+        self.rng = np.random.default_rng(self.seed)
 
     @abc.abstractmethod
     def bin(self, data: T) -> int:
@@ -76,4 +76,11 @@ class BinnerManager:
         self.num_bins = max(binner.num_bins for binner in self.binners.values())
 
     def bin(self, label: str, data: float) -> int:
-        return self.binners[label].bin(data)
+        if label in self.binners:
+            return self.binners[label].bin(data)
+        else:
+            # Idea: This activity does not occur in our reference log
+            # So: Give it bin number 0 = Don't care about it
+            # Then again, this raises the question we had before about
+            # if an activity rename should take into account the time or not
+            return 0

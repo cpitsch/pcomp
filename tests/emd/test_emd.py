@@ -1,8 +1,55 @@
-from pcomp.emd.core import compute_emd
-from pcomp.emd.emd import (  # weightedLevenshteinDistance,
+from datetime import timedelta
+from typing import get_args
+
+from pcomp.emd.core import EMDBackend, compute_emd
+from pcomp.emd.emd import (
     custom_postnormalized_levenshtein_distance,
+    extract_service_time_traces,
     post_normalized_weighted_levenshtein_distance,
 )
+from pcomp.utils import ensure_start_timestamp_column
+
+#### Test Extraction ####
+
+
+def test_service_time_trace_extraction_simple_event_log(simple_event_log):
+    internal_log = ensure_start_timestamp_column(simple_event_log)
+
+    service_time_traces = extract_service_time_traces(
+        internal_log,
+        activity_key="concept:name",
+        start_time_key="start_timestamp",
+        end_time_key="time:timestamp",
+    )
+
+    day = timedelta(days=1).total_seconds()
+    expected = [(("a", 0 * day), ("b", 1 * day), ("c", 1 * day), ("d", 0 * day))]
+    assert service_time_traces == expected
+
+
+def test_service_time_trace_extraction_event_log(event_log):
+    internal_log = ensure_start_timestamp_column(event_log)
+
+    service_time_traces = extract_service_time_traces(
+        internal_log,
+        activity_key="concept:name",
+        start_time_key="start_timestamp",
+        end_time_key="time:timestamp",
+    )
+
+    day = timedelta(days=1).total_seconds()
+
+    # If we order by completion timestamp, we get b, a_2, a_1 for the second case
+    expected = [
+        (("a", 2 * day), ("c", 1 * day), ("b", 4 * day), ("d", 0 * day)),
+        (("b", 2 * day), ("a", 2 * day), ("a", 5 * day)),
+    ]
+    print(service_time_traces)
+    print(expected)
+    assert service_time_traces == expected
+
+
+#### Test Edit Distances
 
 
 def test_postnormalized_weighted_lev_distance():
@@ -66,21 +113,29 @@ def test_emd_normal_example():
         ((("a", 0), ("b", 0), ("e", 0), ("f", 0)), 10 / 100),
     ]
 
-    # Assert almost equal due to floating point arithmetic. 10^-9 is a very reasonable delta.
-    assert_almost_equal(
-        compute_emd(
-            distribution1, distribution2, custom_postnormalized_levenshtein_distance
-        ),
-        0.05,
-        1e-9,
-    )
-    assert_almost_equal(
-        compute_emd(
-            distribution1, distribution3, custom_postnormalized_levenshtein_distance
-        ),
-        0.15,
-        1e-9,
-    )
+    # Check that all available EMD backends return the correct result
+    for backend in get_args(EMDBackend):
+        # Assert almost equal due to floating point arithmetic. 10^-9 is a very reasonable delta.
+        assert_almost_equal(
+            compute_emd(
+                distribution1,
+                distribution2,
+                custom_postnormalized_levenshtein_distance,
+                backend=backend,
+            ),
+            0.05,
+            1e-9,
+        )
+        assert_almost_equal(
+            compute_emd(
+                distribution1,
+                distribution3,
+                custom_postnormalized_levenshtein_distance,
+                backend=backend,
+            ),
+            0.15,
+            1e-9,
+        )
 
 
 def assert_almost_equal(a, b, delta):

@@ -2,11 +2,9 @@ from typing import Any
 
 import pandas as pd
 
-from pcomp.binning import BinnerFactory, BinnerManager, KMeans_Binner
-from pcomp.emd.Comparators.double_bootstrap import (
-    DoubleBootstrapEMDComparator,
-    DoubleBootstrapStyle,
-)
+from pcomp.binning.Binner import BinnerFactory, BinnerManager
+from pcomp.binning.KMeans_Binner import KMeans_Binner
+from pcomp.emd.Comparators.permutation_test import Permutation_Test_Comparator
 from pcomp.emd.core import EMDBackend
 from pcomp.emd.emd import (
     BinnedServiceTimeTrace,
@@ -17,44 +15,36 @@ from pcomp.emd.emd import (
 )
 
 
-class LevenshteinDoubleBootstrapComparator(
-    DoubleBootstrapEMDComparator[BinnedServiceTimeTrace]
+class Timed_Levenshtein_PermutationComparator(
+    Permutation_Test_Comparator[BinnedServiceTimeTrace]
 ):
-    """
-    A class to compare two processes by comparing distributions of calculated EMDs. For more information, see the documentation of the abstract class `DoubleBootstrapEMDComparator`.
-    Represents the processes through the extracted sequences of (activity, duration) pairs for each case.
-    Uses the Levenshtein distance as a cost function between items.
-    """
-
     binner_manager: BinnerManager
 
     def __init__(
         self,
         log_1: pd.DataFrame,
         log_2: pd.DataFrame,
-        bootstrapping_dist_size: int = 10000,
+        distribution_size: int = 10_000,
         verbose: bool = True,
-        cleanup_on_del: bool = True,  #
-        bootstrapping_style: DoubleBootstrapStyle = "sample_smaller_log_size",
+        cleanup_on_del: bool = True,
         emd_backend: EMDBackend = "wasserstein",
-        weighted_time_cost: bool = False,
         seed: int | None = None,
+        weighted_time_cost: bool = False,
         binner_factory: BinnerFactory | None = None,
         binner_args: dict[str, Any] | None = None,
     ):
         super().__init__(
             log_1,
             log_2,
-            bootstrapping_dist_size,
+            distribution_size,
             verbose,
             cleanup_on_del,
-            bootstrapping_style,
             emd_backend,
+            seed,
         )
-        self.seed = seed
         self.weighted_time_cost = weighted_time_cost
 
-        # Default to KMeans_Binner
+        # Default to KMeans_Binner with 3 bins
         self.binner_factory = binner_factory or KMeans_Binner
         self.binner_args = binner_args or (
             {
@@ -67,6 +57,7 @@ class LevenshteinDoubleBootstrapComparator(
     def extract_representations(
         self, log_1: pd.DataFrame, log_2: pd.DataFrame
     ) -> tuple[list[BinnedServiceTimeTrace], list[BinnedServiceTimeTrace]]:
+        """Extract the service time traces from the event logs and bin their activity service times."""
         traces_1 = extract_service_time_traces(log_1)
 
         self.binner_manager = BinnerManager(
@@ -74,7 +65,7 @@ class LevenshteinDoubleBootstrapComparator(
             self.binner_factory,
             seed=self.seed,
             show_training_progress_bar=self.verbose,
-            **self.binner_args
+            **self.binner_args,
         )
 
         return (
@@ -99,7 +90,7 @@ class LevenshteinDoubleBootstrapComparator(
                 / max(self.binner_manager.num_bins - 1, 1),
                 cost_time_insert_delete=lambda x: x
                 / max(self.binner_manager.num_bins - 1, 1),
-            )
+            ) / (2 if self.binner_manager.num_bins > 0 else 1)
         else:
             return custom_postnormalized_levenshtein_distance(item1, item2)
 

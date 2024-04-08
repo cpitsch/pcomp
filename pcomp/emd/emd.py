@@ -33,6 +33,7 @@ def extract_service_time_traces(
     activity_key: str = constants.DEFAULT_NAME_KEY,
     start_time_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
     end_time_key: str = constants.DEFAULT_TIMESTAMP_KEY,
+    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
 ) -> list[ServiceTimeTrace]:
     """Extract a list of ServiceTimeTrace from the Event Log. This is an abstraction from the event log, where a case is considered a sequence (tuple)
     of tuples of 1) Activity and 2) Duration.
@@ -44,13 +45,15 @@ def extract_service_time_traces(
         activity_key (str, optional): The key for the activity label in the event log. Defaults to constants.DEFAULT_NAME_KEY.
         start_time_key (str, optional): The key for the start timestamp in the event log. Defaults to constants.DEFAULT_START_TIMESTAMP_KEY.
         end_time_key (str, optional): The key for the end timestamp in the event log. Defaults to constants.DEFAULT_TIMESTAMP_KEY.
+        traceid_key (str, optional): The key for the trace id in the event log. Defaults to constants.DEFAULT_TRACEID_KEY.
 
     Returns:
         list[ServiceTimeTrace]: The list of ServiceTimeTraces extracted from the event log.
     """
     # For each case a tuple containing for each event a tuple of 1) Activity and 2) Duration
     return (
-        log.groupby("case:concept:name")
+        log.sort_values(by=end_time_key)
+        .groupby(traceid_key, sort=False)  # sort=False to retain trace order
         .apply(
             lambda group_df: tuple(  # type: ignore [arg-type, return-value]
                 (
@@ -468,7 +471,6 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
         self.binner_args = binner_args or (
             {
                 "k": 3,
-                "seed": self.seed,
             }
             if self.binner_factory == KMeans_Binner
             else {}
@@ -483,6 +485,8 @@ class Timed_Levenshtein_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTr
         self.binner_manager = BinnerManager(
             [evt for trace in traces_1 for evt in trace],
             self.binner_factory,
+            seed=self.seed,
+            show_training_progress_bar=self.verbose,
             **self.binner_args,
         )
 

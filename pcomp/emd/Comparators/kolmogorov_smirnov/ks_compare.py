@@ -76,8 +76,6 @@ class EMD_KS_ProcessComparator(ABC, Generic[T]):
         self.emd_backend = emd_backend
 
         self.seed = seed
-        if self.seed is not None:
-            np.random.seed(self.seed)
 
     def __del__(self):
         if self.cleanup_on_del:
@@ -167,6 +165,7 @@ class EMD_KS_ProcessComparator(ABC, Generic[T]):
                     self.behavior_1,
                     self.cost_fn,
                     bootstrapping_dist_size=self.bootstrapping_dist_size,
+                    seed=self.seed,
                     emd_backend=self.emd_backend,
                     show_progress_bar=self.verbose,
                 )
@@ -176,6 +175,7 @@ class EMD_KS_ProcessComparator(ABC, Generic[T]):
                 self.behavior_1,
                 self.cost_fn,
                 bootstrapping_dist_size=self.bootstrapping_dist_size,
+                seed=self.seed,
                 emd_backend=self.emd_backend,
                 show_progress_bar=self.verbose,
             )
@@ -189,6 +189,7 @@ class EMD_KS_ProcessComparator(ABC, Generic[T]):
             self.behavior_2,
             self.cost_fn,
             bootstrapping_dist_size=self.bootstrapping_dist_size,
+            seed=self.seed,
             emd_backend=self.emd_backend,
             show_progress_bar=self.verbose,
         )
@@ -235,6 +236,7 @@ def bootstrap_emd_population_between_logs(
     population_2: list[T],
     cost_fn: Callable[[T, T], float],
     bootstrapping_dist_size: int = 10_000,
+    seed: int | None = None,
     emd_backend: EMDBackend = "wasserstein",
     show_progress_bar: bool = True,
 ) -> list[float]:
@@ -247,25 +249,28 @@ def bootstrap_emd_population_between_logs(
         population_2 (list[T]): The second population. A list of items.
         cost_fn (Callable[[T, T], float]): A function to compute the cost between two items.
         bootstrapping_dist_size (int, optional): The number of EMDs to compute. Defaults to 10_000.
+        seed (int | None, optional): The seed to use for sampling. Defaults to None.
         emd_backend (EMDBackend, optional): The backend to use for EMD computation. Defaults to "wasserstein" (use the `wasserstein` package).
         show_progress_bar (bool, optional): Whether to show a progress bar for the sampling progress. Defaults to True.
 
     Returns:
         list[float]: The list of computed EMDs
     """
+    gen = np.random.default_rng(seed)
+
     emds: list[float] = []
 
-    stochastic_lang_1 = population_to_stochastic_language(population_1)
-    behavior_1 = [item for item, _ in stochastic_lang_1]
-    freqs_1 = [freq for _, freq in stochastic_lang_1]
-
-    stochastic_lang_2 = population_to_stochastic_language(population_2)
-    behavior_2 = [item for item, _ in stochastic_lang_2]
-    freqs_2 = [freq for _, freq in stochastic_lang_2]
+    stochastic_lang_1 = population_to_stochastic_language_split(population_1)
+    stochastic_lang_2 = population_to_stochastic_language_split(population_2)
 
     # Precompute all distances since statistically, every pair of traces will be needed at least once
     dists_start = default_timer()
-    dists = compute_distance_matrix(behavior_1, behavior_2, cost_fn, show_progress_bar)
+    dists = compute_distance_matrix(
+        stochastic_lang_1.variants,
+        stochastic_lang_2.variants,
+        cost_fn,
+        show_progress_bar,
+    )
     dists_end = default_timer()
 
     progress_bar = create_progress_bar(
@@ -276,13 +281,13 @@ def bootstrap_emd_population_between_logs(
 
     SAMPLE_SIZE_1 = len(population_1) // 2
     SAMPLE_SIZE_2 = len(population_2) // 2
-    samples_1 = np.random.choice(
+    samples_1 = gen.choice(
         dists.shape[0],
         (bootstrapping_dist_size, SAMPLE_SIZE_1),
         replace=True,
         p=freqs_1,
     )
-    samples_2 = np.random.choice(
+    samples_2 = gen.choice(
         dists.shape[1],
         (bootstrapping_dist_size, SAMPLE_SIZE_2),
         replace=True,

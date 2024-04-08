@@ -57,7 +57,6 @@ class LevenshteinKSComparator(EMD_KS_ProcessComparator[BinnedServiceTimeTrace]):
         self.binner_args = binner_args or (
             {
                 "k": 3,
-                "seed": self.seed,
             }
             if self.binner_factory == KMeans_Binner
             else {}
@@ -71,6 +70,8 @@ class LevenshteinKSComparator(EMD_KS_ProcessComparator[BinnedServiceTimeTrace]):
         self.binner_manager = BinnerManager(
             [evt for trace in traces_1 for evt in trace],
             self.binner_factory,
+            seed=self.seed,
+            show_training_progress_bar=self.verbose,
             **self.binner_args
         )
 
