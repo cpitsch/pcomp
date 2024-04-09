@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
-from tqdm.auto import tqdm
 
 from pcomp.emd.Comparators.permutation_test.permutation_test_comparator import (
     compute_symmetric_distance_matrix,
@@ -15,8 +14,7 @@ from pcomp.emd.Comparators.permutation_test.permutation_test_comparator import (
 )
 from pcomp.emd.core import (
     EMDBackend,
-    _log_bootstrapping_performance,
-    compute_distance_matrix,
+    StochasticLanguage,
     emd,
     population_to_stochastic_language,
 )
@@ -171,11 +169,10 @@ class ClassicBootstrap_Comparator(ABC, Generic[T]):
         combined_stoch_lang = population_to_stochastic_language(
             self.behavior_1 + self.behavior_2
         )
-        combined_behavior = [item for item, _ in combined_stoch_lang]
 
         dists_start = default_timer()
         large_distance_matrix = compute_symmetric_distance_matrix(
-            combined_behavior, self.cost_fn, self.verbose
+            combined_stoch_lang.variants, self.cost_fn, self.verbose
         )
         dists_end = default_timer()
         logging.getLogger("@pcomp").info(
@@ -184,13 +181,13 @@ class ClassicBootstrap_Comparator(ABC, Generic[T]):
         )
 
         self._logs_emd = emd(
-            np.array([freq for _, freq in stoch_lang_1]),
-            np.array([freq for _, freq in stoch_lang_2]),
+            stoch_lang_1.frequencies,
+            stoch_lang_2.frequencies,
             project_large_distance_matrix(
                 large_distance_matrix,
-                combined_behavior,
-                [item for item, _ in stoch_lang_1],
-                [item for item, _ in stoch_lang_2],
+                combined_stoch_lang.variants,
+                stoch_lang_1.variants,
+                stoch_lang_2.variants,
             ),
             self.emd_backend,
         )
@@ -251,68 +248,61 @@ class ClassicBootstrap_Comparator(ABC, Generic[T]):
 
 
 def bootstrap_emd_population_classic(
-    population_1: list[T],
-    population_2: list[T],
+    behavior_1: list[T],
+    behavior_2: list[T],
     cost_fn: Callable[[T, T], float],
     bootstrapping_dist_size: int = 10_000,
     seed: int | None = None,
     emd_backend: EMDBackend = "wasserstein",
     show_progress_bar: bool = True,
 ) -> Numpy1DArray[np.float_]:
-    gen = np.random.default_rng(seed)
+    """Compute a bootstrapping distribution using standard bootstrapping. Computes the
+    distances between all behavior and then computes the bootstrapping distribution. If
+    some distances between or within `behavior_1` or `behavior_2` are already computed,
+    it is likely beneficial to compute all distances at once (for instance, using
+    `compute_symmetric_distance_matrix`) and then calling
+    `bootstrap_classic_emd_population_precomputed_distances`.
 
-    stoch_lang_all = population_to_stochastic_language(population_1 + population_2)
-    variants_all = [item for item, _ in stoch_lang_all]
-    freqs_all = [freq for _, freq in stoch_lang_all]
+    Args:
+        behavior_1 (list[T]): The behavior extracted from the first event log.
+            (|Log_1| items).
+        behavior_2 (list[T]): The behavior extracted from the second event log.
+            (|Log_2| items).
+        cost_fn (Callable[[T, T], float]): The cost function to compute the distance
+            between two items from `behavior_1` and/or `behavior_2`.
+        bootstrapping_dist_size (int, optional): The number of bootstrap samples to
+            compute. Defaults to 10_000.
+        seed (int | None, optional): The seed to use for sampling. Defaults to None.
+        emd_backend (EMDBackend, optional): The backend to use for EMD computation.
+            Defaults to "wasserstein" (use the wasserstein package). Alternatively, "pot"
+            uses the "Python Optimal Transport" package.
+        show_progress_bar (bool, optional): Show a progress bar for the distance and
+            bootstrap distribution computation? Defaults to True.
 
-    dists_start = default_timer()
-    dists = compute_distance_matrix(
-        variants_all,
-        variants_all,
-        cost_fn,
+    Returns:
+        Numpy1DArray[np.float_]: The computed EMDs.
+    """
+    stoch_lang_all = population_to_stochastic_language(behavior_1 + behavior_2)
+    dists = compute_symmetric_distance_matrix(
+        stoch_lang_all.variants, cost_fn, show_progress_bar=show_progress_bar
+    )
+
+    return bootstrap_classic_emd_population_precomputed_distances(
+        behavior_1,
+        behavior_2,
+        stoch_lang_all,
+        dists,
+        bootstrapping_dist_size,
+        seed,
+        emd_backend,
         show_progress_bar=show_progress_bar,
     )
-    dists_end = default_timer()
-
-    samples_1 = gen.choice(
-        len(variants_all),
-        (bootstrapping_dist_size, len(population_1)),
-        replace=True,
-        p=freqs_all,
-    )
-
-    samples_2 = gen.choice(
-        len(variants_all),
-        (bootstrapping_dist_size, len(population_2)),
-        replace=True,
-        p=freqs_all,
-    )
-
-    emds = np.empty(bootstrapping_dist_size, dtype=np.float_)
-    for idx in tqdm(range(bootstrapping_dist_size)):
-        sample_1 = samples_1[idx]
-        sample_2 = samples_2[idx]
-
-        deduplicated_indices_1, counts_1 = np.unique(sample_1, return_counts=True)
-        deduplicated_indices_2, counts_2 = np.unique(sample_2, return_counts=True)
-
-        emds[idx] = emd(
-            counts_1 / len(population_1),
-            counts_2 / len(population_2),
-            dists[deduplicated_indices_1][:, deduplicated_indices_2],
-            backend=emd_backend,
-        )
-
-    emds_end = default_timer()
-    _log_bootstrapping_performance(dists_start, dists_end, emds_end)
-
-    return emds
 
 
 def bootstrap_classic_emd_population_precomputed_distances(
     behavior_1: list[T],
     behavior_2: list[T],
-    distance_matrix_source_stoch_lang: list[tuple[T, float]],
+    distance_matrix_source_stoch_lang: StochasticLanguage,
     distance_matrix: NumpyMatrix[np.float_],
     bootstrapping_dist_size: int = 10_000,
     seed: int | None = None,
@@ -328,7 +318,7 @@ def bootstrap_classic_emd_population_precomputed_distances(
 
         behavior_2 (list[T]): The behavior extracted from the second event log.
             (|Log_2| items).
-        distance_matrix_source_stoch_lang (list[tuple[T, float]]): The stochastic
+        distance_matrix_source_stoch_lang (StochasticLanguage): The stochastic
             language that was used to compute the distance matrix. Used for the
             frequencies and sampling range.
         distance_matrix (NumpyMatrix[np.float_]): The distance matrix.
@@ -349,10 +339,10 @@ def bootstrap_classic_emd_population_precomputed_distances(
     emds_start = default_timer()
 
     samples = gen.choice(
-        len(distance_matrix_source_stoch_lang),
+        len(distance_matrix_source_stoch_lang.variants),
         (bootstrapping_dist_size, len(behavior_1) + len(behavior_2)),
         replace=True,
-        p=[freq for _, freq in distance_matrix_source_stoch_lang],
+        p=distance_matrix_source_stoch_lang.frequencies,
     )
 
     emds = np.empty(bootstrapping_dist_size, dtype=np.float_)

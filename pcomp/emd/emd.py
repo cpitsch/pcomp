@@ -15,6 +15,7 @@ from pcomp.emd.core import (
     BootstrappingStyle,
     EMD_ProcessComparator,
     EMDBackend,
+    StochasticLanguage,
     bootstrap_emd_population,
     compute_emd,
     population_to_stochastic_language,
@@ -254,14 +255,14 @@ def post_normalized_weighted_levenshtein_distance(
 
 
 def calc_timing_emd(
-    distribution_1: list[tuple[BinnedServiceTimeTrace, float]],
-    distribution_2: list[tuple[BinnedServiceTimeTrace, float]],
+    distribution_1: StochasticLanguage[BinnedServiceTimeTrace],
+    distribution_2: StochasticLanguage[BinnedServiceTimeTrace],
 ) -> float:
     """Calculate the Earth Mover's Distance between two populations of BinnedServiceTimeTraces.
 
     Args:
-        distribution_1 (list[tuple[BinnedServiceTimeTrace, float]]): The population for the first event log.
-        distribution_2 (list[tuple[BinnedServiceTimeTrace, float]]): The population for the second event log.
+        distribution_1 (StochasticLanguage[BinnedServiceTimeTrace]): The population for the first event log.
+        distribution_2 (StochasticLanguage[BinnedServiceTimeTrace]): The population for the second event log.
 
     Returns:
         float: The computed (Time-Aware) Earth Mover's Distance.
@@ -279,20 +280,25 @@ def log_to_stochastic_language(
     activity_key: str = constants.DEFAULT_NAME_KEY,
     start_time_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
     end_time_key: str = constants.DEFAULT_TIMESTAMP_KEY,
-) -> list[tuple[BinnedServiceTimeTrace, float]]:
+) -> StochasticLanguage[BinnedServiceTimeTrace]:
     """Extract the stochastic language of BinnedServiceTimeTraces from an event log.
 
     This is done by extracting ServiceTimeTraces, then binning the durations and finally computing the relative frequencies.
 
     Args:
         log (pd.DataFrame): The event log.
-        binner_manager (BinnerManager): The binner manager to use to bin the activity service times.
-        activity_key (str, optional): The key for the activity label in the event log. Defaults to constants.DEFAULT_NAME_KEY.
-        start_time_key (str, optional): The key for the start timestamp in the event log. Defaults to constants.DEFAULT_START_TIMESTAMP_KEY.
-        end_time_key (str, optional): The key for the end timestamp. Defaults to constants.DEFAULT_TIMESTAMP_KEY.
+        binner_manager (BinnerManager): The binner manager to use to bin the activity
+            service times.
+        activity_key (str, optional): The key for the activity label in the event log.
+            Defaults to constants.DEFAULT_NAME_KEY.
+        start_time_key (str, optional): The key for the start timestamp in the event
+            log. Defaults to constants.DEFAULT_START_TIMESTAMP_KEY.
+        end_time_key (str, optional): The key for the end timestamp. Defaults to
+            constants.DEFAULT_TIMESTAMP_KEY.
 
     Returns:
-        list[tuple[BinnedServiceTimeTrace, float]]: The extracted stochastic language.
+        StochasticLanguage[BinnedServiceTimeTrace]: The extracted stochastic language
+            over binned service-time traces.
     """
     population: list[BinnedServiceTimeTrace] = extract_traces_activity_service_times(
         log, binner_manager, activity_key, start_time_key, end_time_key
@@ -343,11 +349,11 @@ def compare_logs_emd(
             seed=seed,
         )
 
-    dist1: list[tuple[BinnedServiceTimeTrace, float]] = log_to_stochastic_language(
+    dist1 = log_to_stochastic_language(
         log_1, binner_manager, activity_key, start_time_key, end_time_key
     )
 
-    dist2: list[tuple[BinnedServiceTimeTrace, float]] = log_to_stochastic_language(
+    dist2 = log_to_stochastic_language(
         log_2, binner_manager, activity_key, start_time_key, end_time_key
     )
 

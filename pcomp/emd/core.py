@@ -10,6 +10,7 @@ import logging
 import math
 from abc import ABC, abstractmethod
 from collections import Counter
+from dataclasses import dataclass
 from itertools import zip_longest
 from timeit import default_timer
 from typing import Callable, Generic, Literal, TypeVar
@@ -30,6 +31,12 @@ T = TypeVar("T")
 # Literal Types
 BootstrappingStyle = Literal["replacement sublogs", "split sampling", "resample split"]
 EMDBackend = Literal["wasserstein", "ot", "pot"]
+
+
+@dataclass
+class StochasticLanguage(Generic[T]):
+    variants: list[T]
+    frequencies: Numpy1DArray[np.float_]
 
 
 class EMD_ProcessComparator(ABC, Generic[T]):
@@ -266,8 +273,8 @@ class EMD_ProcessComparator(ABC, Generic[T]):
 
 
 def compute_emd(
-    distribution1: list[tuple[T, float]],
-    distribution2: list[tuple[T, float]],
+    distribution_1: StochasticLanguage[T],
+    distribution_2: StochasticLanguage[T],
     cost_fn: Callable[[T, T], float],
     backend: EMDBackend = "wasserstein",
     show_progress_bar: bool = True,
@@ -275,8 +282,8 @@ def compute_emd(
     """Compute the Earth Mover's Distance between two distributions.
 
     Args:
-        distribution1 (list[tuple[T, float]]): The first distribution. All distinct behavior with their relative frequencies.
-        distribution2 (list[tuple[T, float]]): The second distribution.
+        distribution_1 (StochasticLanguage[T]): The first distribution. All distinct behavior with their relative frequencies.
+        distribution_2 (StochasticLanguage[T]): The second distribution.
         cost_fn (Callable[[T, T], float]): A function to compute the transport cost between two items.
         backend (EMDBackend, optional): The backend to use for EMD computation. Defaults to "wasserstein" (use the "wasserstein" module). Alternatively, "ot" or "pot" will
             use the "Python Optimal Transport" package.
@@ -290,8 +297,8 @@ def compute_emd(
     dists_start = default_timer()
 
     dists = compute_distance_matrix(
-        [trace for trace, _ in distribution1],
-        [trace for trace, _ in distribution2],
+        distribution_1.variants,
+        distribution_2.variants,
         cost_fn,
         show_progress_bar=show_progress_bar,
     )
@@ -299,8 +306,8 @@ def compute_emd(
     dists_end = default_timer()
 
     logs_emd = emd(
-        np.array([freq for _, freq in distribution1]),
-        np.array([freq for _, freq in distribution2]),
+        distribution_1.frequencies,
+        distribution_2.frequencies,
         dists,
         backend=backend,
     )
@@ -367,17 +374,30 @@ def emd(
 
 def population_to_stochastic_language(
     population: list[T],
-) -> list[tuple[T, float]]:
-    """Convert a population to a stochastic language (list of items with relative frequencies).
+) -> StochasticLanguage[T]:
+    """Convert a population to a stochastic language object.
 
     Args:
         population (list[T]): The population to convert.
 
     Returns:
-        list[tuple[T, float]]: The stochastic language.
+        StochasticLanguage[T]: The stochastic language.
     """
     pop_len = len(population)
-    return [(item, freq / pop_len) for item, freq in Counter(population).items()]
+    stochastic_language = [
+        (item, freq / pop_len) for item, freq in Counter(population).items()
+    ]
+
+    # Potentially faster, but not sure it has the same order
+    # values, freqs = np.unique(np.array(population, return_counts = True))
+    # freqs = freqs / len(population)
+    # variants = values.tolist()
+    return StochasticLanguage(
+        variants=[item for item, _ in stochastic_language],
+        frequencies=np.array(
+            [freq for _, freq in stochastic_language], dtype=np.float_
+        ),
+    )
 
 
 def compute_emd_for_sample(
@@ -529,15 +549,15 @@ def bootstrap_emd_population(
 
     resample_size = resample_size or len(population)
 
-    reference_stochastic_language = population_to_stochastic_language(population)
-    reference_freqs = np.array([freq for _, freq in reference_stochastic_language])
-    # Essentially "de-duplicated" reference population
-    reference_behavior = [item for item, _ in reference_stochastic_language]
+    reference_stoch_lang = population_to_stochastic_language(population)
 
     dists_start = default_timer()
     # Precompute all distances since statistically, every pair of traces will be needed at least once
     dists = compute_distance_matrix(
-        reference_behavior, reference_behavior, cost_fn, show_progress_bar
+        reference_stoch_lang.variants,
+        reference_stoch_lang.variants,
+        cost_fn,
+        show_progress_bar,
     )
     dists_end = default_timer()
 
@@ -548,7 +568,9 @@ def bootstrap_emd_population(
     ) as bootstrapping_progress:
 
         def _compute_emd_with_pbar(row: Numpy1DArray[np.int_]) -> float:
-            res = compute_emd_for_index_sample(row, dists, reference_freqs, emd_backend)
+            res = compute_emd_for_index_sample(
+                row, dists, reference_stoch_lang.frequencies, emd_backend
+            )
             bootstrapping_progress.update()
             return res
 
@@ -557,7 +579,7 @@ def bootstrap_emd_population(
             dists.shape[0],
             (bootstrapping_dist_size, resample_size),
             replace=True,
-            p=reference_freqs,
+            p=reference_stoch_lang.frequencies,
         )
         emds: Numpy1DArray[np.float_] = np.apply_along_axis(
             _compute_emd_with_pbar,
@@ -600,11 +622,12 @@ def bootstrap_emd_population_split_sampling(
     emds: list[float] = []
 
     stochastic_lang = population_to_stochastic_language(population)
-    behavior = [item for item, _ in stochastic_lang]
 
     dists_start = default_timer()
     # Precompute all distances since statistically, every pair of traces will be needed at least once
-    dists = compute_distance_matrix(behavior, behavior, cost_fn, show_progress_bar)
+    dists = compute_distance_matrix(
+        stochastic_lang.variants, stochastic_lang.variants, cost_fn, show_progress_bar
+    )
     dists_end = default_timer()
 
     progress_bar = create_progress_bar(
@@ -614,7 +637,7 @@ def bootstrap_emd_population_split_sampling(
     )
 
     population_indices_to_variant_indices = np.array(
-        [behavior.index(item) for item in population]
+        [stochastic_lang.variants.index(item) for item in population]
     )
 
     for _ in range(bootstrapping_dist_size):
@@ -691,12 +714,12 @@ def bootstrap_emd_population_resample_split_sampling(
     emds: list[float] = []
 
     stochastic_lang = population_to_stochastic_language(population)
-    behavior = [item for item, _ in stochastic_lang]
-    freqs = [freq for _, freq in stochastic_lang]
 
     dists_start = default_timer()
     # Precompute all distances since statistically, every pair of traces will be needed at least once
-    dists = compute_distance_matrix(behavior, behavior, cost_fn, show_progress_bar)
+    dists = compute_distance_matrix(
+        stochastic_lang.variants, stochastic_lang.variants, cost_fn, show_progress_bar
+    )
     dists_end = default_timer()
 
     progress_bar = create_progress_bar(
@@ -710,7 +733,7 @@ def bootstrap_emd_population_resample_split_sampling(
         # Every iteration we need two samples of `resample_size` size
         (2, bootstrapping_dist_size, resample_size),
         replace=True,
-        p=freqs,
+        p=stochastic_lang.frequencies,
     )
     for idx in range(bootstrapping_dist_size):
         sample_1 = samples_1[idx]

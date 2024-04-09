@@ -260,8 +260,8 @@ def bootstrap_emd_population_between_logs(
 
     emds: list[float] = []
 
-    stochastic_lang_1 = population_to_stochastic_language_split(population_1)
-    stochastic_lang_2 = population_to_stochastic_language_split(population_2)
+    stochastic_lang_1 = population_to_stochastic_language(population_1)
+    stochastic_lang_2 = population_to_stochastic_language(population_2)
 
     # Precompute all distances since statistically, every pair of traces will be needed at least once
     dists_start = default_timer()
@@ -285,13 +285,13 @@ def bootstrap_emd_population_between_logs(
         dists.shape[0],
         (bootstrapping_dist_size, SAMPLE_SIZE_1),
         replace=True,
-        p=freqs_1,
+        p=stochastic_lang_1.frequencies,
     )
     samples_2 = gen.choice(
         dists.shape[1],
         (bootstrapping_dist_size, SAMPLE_SIZE_2),
         replace=True,
-        p=freqs_2,
+        p=stochastic_lang_2.frequencies,
     )
     for idx in range(bootstrapping_dist_size):
         sample_1 = samples_1[idx]
