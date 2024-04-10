@@ -1,7 +1,9 @@
 from datetime import timedelta
 from typing import get_args
 
-from pcomp.emd.core import EMDBackend, compute_emd
+import numpy as np
+
+from pcomp.emd.core import EMDBackend, StochasticLanguage, compute_emd
 from pcomp.emd.emd import (
     custom_postnormalized_levenshtein_distance,
     extract_service_time_traces,
@@ -95,31 +97,40 @@ def test_postnormalized_weighted_lev_distance():
 def test_emd_normal_example():
     """Test that the EMD without time (all times are 0) is the same as what the paper has as example for non-time EMD.
     The paper did not have any examples of EMD's *with* times, so we don't have a reference for this.
-
     """
-    distribution1 = [
-        ((("a", 0), ("b", 0), ("d", 0), ("f", 0)), 50 / 100),
-        ((("a", 0), ("c", 0), ("f", 0)), 40 / 100),
-        ((("a", 0), ("b", 0), ("e", 0), ("f", 0)), 10 / 100),
-    ]
-    distribution2 = [
-        ((("a", 0), ("b", 0), ("d", 0), ("f", 0)), 50 / 100),
-        ((("a", 0), ("c", 0), ("f", 0)), 35 / 100),
-        ((("a", 0), ("b", 0), ("d", 0), ("e", 0), ("f", 0)), 15 / 100),
-    ]
-    distribution3 = [
-        ((("a", 0), ("b", 0), ("d", 0), ("f", 0)), 20 / 100),
-        ((("a", 0), ("c", 0), ("f", 0)), 70 / 100),
-        ((("a", 0), ("b", 0), ("e", 0), ("f", 0)), 10 / 100),
-    ]
+    stoch_lang_1 = StochasticLanguage(
+        variants=[
+            (("a", 0), ("b", 0), ("d", 0), ("f", 0)),
+            (("a", 0), ("c", 0), ("f", 0)),
+            (("a", 0), ("b", 0), ("e", 0), ("f", 0)),
+        ],
+        frequencies=np.array([0.5, 0.4, 0.1]),
+    )
+    stoch_lang_2 = StochasticLanguage(
+        variants=[
+            (("a", 0), ("b", 0), ("d", 0), ("f", 0)),
+            (("a", 0), ("c", 0), ("f", 0)),
+            (("a", 0), ("b", 0), ("d", 0), ("e", 0), ("f", 0)),
+        ],
+        frequencies=np.array([0.5, 0.35, 0.15]),
+    )
+
+    stoch_lang_3 = StochasticLanguage(
+        variants=[
+            (("a", 0), ("b", 0), ("d", 0), ("f", 0)),
+            (("a", 0), ("c", 0), ("f", 0)),
+            (("a", 0), ("b", 0), ("e", 0), ("f", 0)),
+        ],
+        frequencies=np.array([0.2, 0.7, 0.1]),
+    )
 
     # Check that all available EMD backends return the correct result
     for backend in get_args(EMDBackend):
         # Assert almost equal due to floating point arithmetic. 10^-9 is a very reasonable delta.
         assert_almost_equal(
             compute_emd(
-                distribution1,
-                distribution2,
+                stoch_lang_1,
+                stoch_lang_2,
                 custom_postnormalized_levenshtein_distance,
                 backend=backend,
             ),
@@ -128,8 +139,8 @@ def test_emd_normal_example():
         )
         assert_almost_equal(
             compute_emd(
-                distribution1,
-                distribution3,
+                stoch_lang_1,
+                stoch_lang_3,
                 custom_postnormalized_levenshtein_distance,
                 backend=backend,
             ),

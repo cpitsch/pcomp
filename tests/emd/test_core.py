@@ -1,6 +1,11 @@
+from typing import get_args
+
 import numpy as np
+import pytest
 
 from pcomp.emd.core import (
+    EMDBackend,
+    StochasticLanguage,
     compute_emd_for_index_sample,
     compute_emd_for_sample,
     compute_time_distance_component,
@@ -9,14 +14,19 @@ from pcomp.emd.core import (
 )
 
 
-def test_emd_wrapper():
-    hist_1 = np.array([0.5, 0.5])
-    hist_2 = np.array([0.5, 0.5])
-
+def test_emd_wrapper() -> None:
     costs = np.array([[0, 1], [1, 0]])
 
-    assert emd(np.array([0.5, 0.5]), np.array([0.5, 0.5]), costs) == 0.0
-    assert emd(np.array([0, 1]), np.array([0.5, 0.5]), costs) == 0.5
+    available_backends: tuple[EMDBackend, ...] = get_args(EMDBackend)
+    for backend in available_backends:
+        assert (
+            emd(np.array([0.5, 0.5]), np.array([0.5, 0.5]), costs, backend=backend)
+            == 0.0
+        )
+        assert (
+            emd(np.array([0.0, 1.0]), np.array([0.5, 0.5]), costs, backend=backend)
+            == 0.5
+        )
 
 
 def test_population_to_stochastic_language():
@@ -24,12 +34,13 @@ def test_population_to_stochastic_language():
 
     result = population_to_stochastic_language(population)
 
-    assert sorted(result, key=lambda x: x[0]) == [
-        ("a", 0.4),
-        ("b", 0.3),
-        ("c", 0.1),
-        ("d", 0.2),
-    ]
+    # Different order would also be considered correct..
+    expected = StochasticLanguage(
+        variants=["a", "b", "c", "d"], frequencies=np.array([0.4, 0.3, 0.1, 0.2])
+    )
+
+    assert result.variants == expected.variants
+    assert result.frequencies == pytest.approx(expected.frequencies)
 
 
 def test_compute_emd_for_sample():

@@ -295,8 +295,8 @@ def bootstrap_emd_distribution_with_smaller_log(
 
     emds: list[float] = []
 
-    stoch_lang_1 = population_to_stochastic_language_split(population_1)
-    stoch_lang_2 = population_to_stochastic_language_split(population_2)
+    stoch_lang_1 = population_to_stochastic_language(population_1)
+    stoch_lang_2 = population_to_stochastic_language(population_2)
 
     # Precompute all distances
     dists_start = default_timer()
@@ -318,7 +318,7 @@ def bootstrap_emd_distribution_with_smaller_log(
             resample_size,
         ),  # Sample of size len(behavior_2) for each sample
         replace=True,
-        p=freqs_1,
+        p=stoch_lang_1.frequencies,
     )
 
     for idx in range(bootstrapping_dist_size):
@@ -329,7 +329,7 @@ def bootstrap_emd_distribution_with_smaller_log(
         emds.append(
             emd(
                 counts_1 / resample_size,
-                np.array(freqs_2),
+                stoch_lang_2.frequencies,
                 dists[deduplicated_indices_1],
                 backend=emd_backend,
             )
@@ -385,11 +385,12 @@ def bootstrap_emd_distribution_splitted_resampling(
     emds: list[float] = []
 
     stochastic_lang = population_to_stochastic_language(population)
-    behavior = [item for item, _ in stochastic_lang]
 
     # Precompute all distances
     dists_start = default_timer()
-    dists = compute_distance_matrix(behavior, behavior, cost_fn, show_progress_bar)
+    dists = compute_distance_matrix(
+        stochastic_lang.variants, stochastic_lang.variants, cost_fn, show_progress_bar
+    )
     dists_end = default_timer()
 
     progress_bar = create_progress_bar(
@@ -399,7 +400,7 @@ def bootstrap_emd_distribution_splitted_resampling(
     )
 
     for _ in range(bootstrapping_dist_size):
-        half_1, half_2 = _split_range(len(behavior), gen)
+        half_1, half_2 = _split_range(len(stochastic_lang.variants), gen)
 
         sample_1 = gen.choice(half_1, resample_size, replace=True)
         sample_2 = gen.choice(half_2, resample_size, replace=True)

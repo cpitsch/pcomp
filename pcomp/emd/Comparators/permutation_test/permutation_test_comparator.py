@@ -157,25 +157,24 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
 
         stoch_lang_1 = population_to_stochastic_language(self.behavior_1)
         stoch_lang_2 = population_to_stochastic_language(self.behavior_2)
-        combined_stoch_lang = population_to_stochastic_language(
+        combined_variants = population_to_stochastic_language(
             self.behavior_1 + self.behavior_2
-        )
-        combined_behavior = [item for item, _ in combined_stoch_lang]
+        ).variants
 
         large_distance_matrix = compute_symmetric_distance_matrix(
-            combined_behavior, self.cost_fn, self.verbose
+            combined_variants, self.cost_fn, self.verbose
         )
 
         log_1_log_2_distances = project_large_distance_matrix(
             large_distance_matrix,
-            combined_behavior,
-            [item for item, _ in stoch_lang_1],
-            [item for item, _ in stoch_lang_2],
+            combined_variants,
+            stoch_lang_1.variants,
+            stoch_lang_2.variants,
         )
 
         self._logs_emd = emd(
-            np.array([freq for _, freq in stoch_lang_1]),
-            np.array([freq for _, freq in stoch_lang_2]),
+            stoch_lang_1.frequencies,
+            stoch_lang_2.frequencies,
             log_1_log_2_distances,
             self.emd_backend,
         )
@@ -184,7 +183,7 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
             compute_permutation_test_distribution_precomputed_distances(
                 self.behavior_1,
                 self.behavior_2,
-                combined_behavior,
+                combined_variants,
                 large_distance_matrix,
                 self.distribution_size,
                 self.seed,
@@ -260,19 +259,18 @@ def compute_permutation_test_distribution(
     Returns:
         Numpy1DArray[np.float_]: The distribution of permutation test EMDs
     """
-    stochastic_language_all = population_to_stochastic_language(
+    combined_variants = population_to_stochastic_language(
         population_1 + population_2
-    )
-    all_variants = [item for item, _ in stochastic_language_all]
+    ).variants
 
     dists = compute_symmetric_distance_matrix(
-        all_variants, cost_fn, show_progress_bar=show_progress_bar
+        combined_variants, cost_fn, show_progress_bar=show_progress_bar
     )
 
     return compute_permutation_test_distribution_precomputed_distances(
         population_1,
         population_2,
-        all_variants,
+        combined_variants,
         dists,
         distribution_size,
         seed,
