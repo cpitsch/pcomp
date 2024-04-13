@@ -355,7 +355,7 @@ def project_large_distance_matrix(
 def get_permutation_sample(
     sample_range: int,
     number_of_samples: int,
-    seed: int | None | np.random.Generator,
+    seed: int | None | np.random.Generator = None,
 ) -> NumpyMatrix[np.float_]:
     """Get a number of permutations of numbers from 0..sample_range.
 
@@ -364,7 +364,7 @@ def get_permutation_sample(
             numbers from 0 to sample_range - 1
         number_of_samples (int): The number of samples to create. The number of rows in
             the result matrix.
-        seed (int | None | np.random.Generator): The seed to use for sampling.
+        seed (int | None | np.random.Generator, optional): The seed to use for sampling.
 
     Returns:
         NumpyMatrix[np.float_]: The permutation samples. Has the diimensions
