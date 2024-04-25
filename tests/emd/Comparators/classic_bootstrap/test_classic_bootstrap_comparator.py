@@ -12,11 +12,11 @@ def test_bootstrap_dist_computation():
 
     cost_fn = lambda x, y: abs(x - y)  # 0 if same, 1 if different
 
-    DIST_SIZE = 1  # 1 Permutation sample
+    DIST_SIZE = 2
     SEED = 42
 
     result = bootstrap_emd_population_classic(
-        population_0, population_1, cost_fn, 2, SEED, show_progress_bar=False
+        population_0, population_1, cost_fn, DIST_SIZE, SEED, show_progress_bar=False
     )
 
     # Bootstrap sampling should boil down to:
