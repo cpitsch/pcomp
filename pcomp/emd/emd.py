@@ -53,8 +53,8 @@ def extract_service_time_traces(
     """
     # For each case a tuple containing for each event a tuple of 1) Activity and 2) Duration
     return (
-        log.sort_values(by=end_time_key)
-        .groupby(traceid_key, sort=False)  # sort=False to retain trace order
+        # log.sort_values(by=end_time_key)
+        log.groupby(traceid_key, sort=False)  # sort=False to retain trace order
         .apply(
             lambda group_df: tuple(  # type: ignore [arg-type, return-value]
                 (

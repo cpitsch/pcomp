@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
-from tqdm.auto import tqdm
 
 from pcomp.emd.core import EMDBackend, emd, population_to_stochastic_language
 from pcomp.utils.typing import Numpy1DArray, NumpyMatrix
@@ -186,8 +185,9 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
                 combined_variants,
                 large_distance_matrix,
                 self.distribution_size,
-                self.seed,
-                self.emd_backend,
+                seed=self.seed,
+                emd_backend=self.emd_backend,
+                show_progress_bar=self.verbose,
             )
         )
 
@@ -355,7 +355,7 @@ def project_large_distance_matrix(
 def get_permutation_sample(
     sample_range: int,
     number_of_samples: int,
-    seed: int | None | np.random.Generator,
+    seed: int | None | np.random.Generator = None,
 ) -> NumpyMatrix[np.float_]:
     """Get a number of permutations of numbers from 0..sample_range.
 
@@ -364,7 +364,7 @@ def get_permutation_sample(
             numbers from 0 to sample_range - 1
         number_of_samples (int): The number of samples to create. The number of rows in
             the result matrix.
-        seed (int | None | np.random.Generator): The seed to use for sampling.
+        seed (int | None | np.random.Generator, optional): The seed to use for sampling.
 
     Returns:
         NumpyMatrix[np.float_]: The permutation samples. Has the diimensions
@@ -387,6 +387,7 @@ def compute_permutation_test_distribution_precomputed_distances(
     distribution_size: int = 10_000,
     seed: int | None = None,
     emd_backend: EMDBackend = "wasserstein",
+    show_progress_bar: bool = True,
 ) -> Numpy1DArray[np.float_]:
     """Compute the distribution for a permutation test.
 
@@ -406,6 +407,7 @@ def compute_permutation_test_distribution_precomputed_distances(
         emd_backend (EMDBackend, optional): The backend to use for EMD computation.
             Defaults to "wasserstein" (use the wasserstein package). Alternatively,
             "pot" uses "Python Optimal Transport" to compute the EMD.
+        show_progress_bar (bool, optional): Show a progress bar? Defaults to True.
 
     Returns:
         Numpy1DArray[np.float_]: The computed EMDs.
@@ -424,9 +426,15 @@ def compute_permutation_test_distribution_precomputed_distances(
         ]
     )
 
+    progress_bar = create_progress_bar(
+        show_progress_bar,
+        total=distribution_size,
+        desc="Computing EMDs for Permutation Test",
+    )
+
     emds_start = default_timer()
     emds = np.empty(distribution_size, dtype=np.float_)
-    for idx in tqdm(range(distribution_size), "Computing EMDs for Permutation Test"):
+    for idx in range(distribution_size):
         sample_1 = samples[idx][: len(behavior_1)]
         sample_2 = samples[idx][len(behavior_1) :]
 
@@ -447,6 +455,8 @@ def compute_permutation_test_distribution_precomputed_distances(
             distance_matrix[deduplicated_sample_1][:, deduplicated_sample_2],
             backend=emd_backend,
         )
+        progress_bar.update()
+    progress_bar.close()
 
     emds_end = default_timer()
 
