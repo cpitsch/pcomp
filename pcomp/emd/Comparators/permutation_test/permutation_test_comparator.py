@@ -213,7 +213,7 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
             bins=50,
             edgecolor="black",
             alpha=0.7,
-            label=r"$D_{l_1l_1}$",
+            label=r"$P$",
         )
         ax.set_xlabel("Earth Mover's Distance")
         ax.set_ylabel("Frequency")
