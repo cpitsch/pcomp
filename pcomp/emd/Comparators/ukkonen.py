@@ -13,7 +13,6 @@ from pcomp.emd.core import (
 )
 from pcomp.emd.emd import (
     BinnedServiceTimeTrace,
-    ServiceTimeTrace,
     extract_service_time_traces,
     extract_traces_activity_service_times,
 )
@@ -71,10 +70,15 @@ class Ukkonen_Distance_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTra
     def extract_representations(
         self, log_1: pd.DataFrame, log_2: pd.DataFrame
     ) -> tuple[list[BinnedServiceTimeTrace], list[BinnedServiceTimeTrace]]:
-        unbinned_traces_1: list[ServiceTimeTrace] = extract_service_time_traces(log_1)
-
         self.binner_manager = BinnerManager(
-            [evt for trace in unbinned_traces_1 for evt in trace],
+            [
+                evt
+                for trace in (
+                    extract_service_time_traces(log_1)
+                    + extract_service_time_traces(log_2)
+                )
+                for evt in trace
+            ],
             self.binner_factory,
             seed=self.seed,
             show_training_progress_bar=self.verbose,
