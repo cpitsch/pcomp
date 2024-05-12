@@ -29,6 +29,7 @@ class Timed_Levenshtein_PermutationComparator(
         cleanup_on_del: bool = True,
         emd_backend: EMDBackend = "wasserstein",
         seed: int | None = None,
+        multiprocess_cores: int = 0,
         weighted_time_cost: bool = False,
         binner_factory: BinnerFactory | None = None,
         binner_args: dict[str, Any] | None = None,
@@ -41,6 +42,7 @@ class Timed_Levenshtein_PermutationComparator(
             cleanup_on_del,
             emd_backend,
             seed,
+            multiprocess_cores,
         )
         self.weighted_time_cost = weighted_time_cost
 

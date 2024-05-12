@@ -1,7 +1,10 @@
 import numpy as np
+import pytest
 
 from pcomp.emd.Comparators.permutation_test.permutation_test_comparator import (
     compute_permutation_test_distribution,
+    compute_symmetric_distance_matrix,
+    compute_symmetric_distance_matrix_mp,
     get_permutation_sample,
 )
 
@@ -96,3 +99,37 @@ def test_permutation_test_distribution_computation():
     # sink of 1 unit, with a cost of DIFF_COST per unit transferred, so trivially, the
     # EMD is DIFF_COST (or more generally, the value of cost_fn(0, 1)).
     assert result_2 == np.array([cost_fn_2(0, 1)], dtype=np.float_)
+
+
+def test_symmetric_distance_matrix_computation():
+    def cost_fn(x: int, y: int):
+        return abs(x - y)
+
+    population = np.arange(1, 11)  # 1..10
+
+    # expected = np.array([np.roll(population - 1, i) for i in range(10)])
+    # Diagonal: 0, outwards from the 0 we count up in both directions, e.g., 2 1 0 1 2 3
+    expected = np.abs(np.arange(10) - np.arange(10)[:, np.newaxis])
+
+    actual = compute_symmetric_distance_matrix(population.tolist(), cost_fn, False)
+    assert (expected == actual).all()
+
+
+def test_symmetric_distance_matrix_computation_mp():
+    def cost_fn(x: int, y: int):
+        return abs(x - y)
+
+    population = np.arange(1, 11)  # 1..10
+
+    # expected = np.array([np.roll(population - 1, i) for i in range(10)])
+    # Diagonal: 0, outwards from the 0 we count up in both directions, e.g., 2 1 0 1 2 3
+    expected = np.abs(np.arange(10) - np.arange(10)[:, np.newaxis]).astype(np.float_)
+
+    actual = compute_symmetric_distance_matrix_mp(
+        population.tolist(), cost_fn, False, 6
+    )
+
+    print(expected)
+    print(actual)
+    print(expected == actual)
+    assert (expected == actual).all()
