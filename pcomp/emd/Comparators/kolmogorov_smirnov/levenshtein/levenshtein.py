@@ -65,14 +65,19 @@ class LevenshteinKSComparator(EMD_KS_ProcessComparator[BinnedServiceTimeTrace]):
     def extract_representations(
         self, log_1: pd.DataFrame, log_2: pd.DataFrame
     ) -> tuple[list[BinnedServiceTimeTrace], list[BinnedServiceTimeTrace]]:
-        traces_1 = extract_service_time_traces(log_1)
-
         self.binner_manager = BinnerManager(
-            [evt for trace in traces_1 for evt in trace],
+            [
+                evt
+                for trace in (
+                    extract_service_time_traces(log_1)
+                    + extract_service_time_traces(log_2)
+                )
+                for evt in trace
+            ],
             self.binner_factory,
             seed=self.seed,
             show_training_progress_bar=self.verbose,
-            **self.binner_args
+            **self.binner_args,
         )
 
         return (

@@ -3,7 +3,7 @@ Core functionality pertaining to the standard EMD Bootstrapping comparison.
 
 This includes the EMD_ProcessComparator abstract class which can be implemented
 for any data extraction and distance functions.
-Apart from that, other important helper functions are also defined. 
+Apart from that, other important helper functions are also defined.
 """
 
 import logging

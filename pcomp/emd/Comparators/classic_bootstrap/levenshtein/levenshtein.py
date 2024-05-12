@@ -66,10 +66,15 @@ class Timed_Levenshtein_BootstrapComparator(
         Extract the service time traces from the event logs and bin their activity
         service times.
         """
-        traces_1 = extract_service_time_traces(log_1)
-
         self.binner_manager = BinnerManager(
-            [evt for trace in traces_1 for evt in trace],
+            [
+                evt
+                for trace in (
+                    extract_service_time_traces(log_1)
+                    + extract_service_time_traces(log_2)
+                )
+                for evt in trace
+            ],
             self.binner_factory,
             seed=self.seed,
             show_training_progress_bar=self.verbose,

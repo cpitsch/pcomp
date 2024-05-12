@@ -29,6 +29,7 @@ class Timed_Levenshtein_PermutationComparator(
         cleanup_on_del: bool = True,
         emd_backend: EMDBackend = "wasserstein",
         seed: int | None = None,
+        multiprocess_cores: int = 0,
         weighted_time_cost: bool = False,
         binner_factory: BinnerFactory | None = None,
         binner_args: dict[str, Any] | None = None,
@@ -41,6 +42,7 @@ class Timed_Levenshtein_PermutationComparator(
             cleanup_on_del,
             emd_backend,
             seed,
+            multiprocess_cores,
         )
         self.weighted_time_cost = weighted_time_cost
 
@@ -58,10 +60,15 @@ class Timed_Levenshtein_PermutationComparator(
         self, log_1: pd.DataFrame, log_2: pd.DataFrame
     ) -> tuple[list[BinnedServiceTimeTrace], list[BinnedServiceTimeTrace]]:
         """Extract the service time traces from the event logs and bin their activity service times."""
-        traces_1 = extract_service_time_traces(log_1)
-
         self.binner_manager = BinnerManager(
-            [evt for trace in traces_1 for evt in trace],
+            [
+                evt
+                for trace in (
+                    extract_service_time_traces(log_1)
+                    + extract_service_time_traces(log_2)
+                )
+                for evt in trace
+            ],
             self.binner_factory,
             seed=self.seed,
             show_training_progress_bar=self.verbose,
