@@ -144,6 +144,18 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
             raise ValueError("Must call `compare` before accessing `pval`.")
         return self._pval
 
+    @property
+    def comparison_runtime(self) -> float:
+        """
+        The duration of the the `compare` call.
+        If accessed before calling `compare`, a ValueError will be raised.
+        """
+        if not hasattr(self, "_comparison_runtime"):
+            raise ValueError(
+                "Must call `compare` before accessing `comparison_runtime`."
+            )
+        return self._comparison_runtime
+
     def compare(self) -> float:
         """Apply the full pipeline to compare the event logs.
 
@@ -156,6 +168,9 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
         Returns:
             float: The computed p-value.
         """
+
+        start_time = default_timer()
+
         self.behavior_1, self.behavior_2 = self.extract_representations(
             self.log_1, self.log_2
         )
@@ -226,6 +241,8 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
 
         self._permutation_distribution = permutation_test_distribution
         self._pval = num_larger_dists / self.distribution_size
+
+        self._comparison_runtime = default_timer() - start_time
 
         return self._pval
 
@@ -341,10 +358,11 @@ def compute_symmetric_distance_matrix_mp(
 
         return row
 
-    print(f"Computing Complete Distance Matrix ({dists.shape[0]}x{dists.shape[1]})")
+    logging.getLogger("@pcomp").info(
+        f"Computing Complete Distance Matrix ({dists.shape[0]}x{dists.shape[1]})"
+    )
 
     num_cores = num_cores or cpu_count() - 4
-    num_cores = 8
     with ProcessingPool(num_cores) as p:
         # args = [(i, population, cost_fn) for i in range(len(population))]
         args = [(i, population, cost_fn) for i in range(len(population))]
