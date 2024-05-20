@@ -75,18 +75,27 @@ def convert_lifecycle_eventlog_to_start_timestamp_eventlog(
     lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
     instance_key: str = constants.DEFAULT_INSTANCE_KEY,
 ) -> DataFrame:
-    """Convert an event log consisting of events with lifecycle information and timestamp to an event log with start_timestamp and complete_timestamp.
+    """Convert an event log consisting of events with lifecycle information and timestamp
+    to an event log with start_timestamp and complete_timestamp.
 
-    So if before there was a "start" event and a "complete" event with timestamps, this is combined into one event with "start_timestamp" as the timestamp of the "start" event and "time:timestamp" as the timestamp of the "complete" event.
+    So if before there was a "start" event and a "complete" event with timestamps, this
+    is combined into one event with "start_timestamp" as the timestamp of the "start"
+    event and "time:timestamp" as the timestamp of the "complete" event.
 
     Args:
         log (DataFrame): The event log.
-        traceid_key (str, optional): The column name for the trace id. Defaults to "case:concept:name".
-        activity_key (str, optional): The column name for the activity label. Defaults to "concept:name".
-        timestamp_key (str, optional): The column name for the timestamp. Defaults to "time:timestamp".
-        lifecycle_key (str, optional): The column name for the lifecycle information. Defaults to "lifecycle:transition".
-        instance_key (str, optional): The key for the id to tell different executions of activities apart. Defaults to "concept:instance". If this column is not present, \
-                                        a complete event is always matched to the first found start event in the order of the case.
+        traceid_key (str, optional): The column name for the trace id. Defaults to
+            "case:concept:name".
+        activity_key (str, optional): The column name for the activity label. Defaults
+            to "concept:name".
+        timestamp_key (str, optional): The column name for the timestamp. Defaults to
+            "time:timestamp".
+        lifecycle_key (str, optional): The column name for the lifecycle information.
+            Defaults to "lifecycle:transition".
+        instance_key (str, optional): The key for the id to tell different executions of
+            activities apart. Defaults to "concept:instance". If this column is not
+            present, a complete event is always matched to the first found start event
+            in the order of the case.
     Returns:
         DataFrame: The converted event log
     """
