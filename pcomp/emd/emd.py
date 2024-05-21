@@ -4,7 +4,7 @@
 
 from collections.abc import Callable
 from functools import cache
-from typing import Any, Optional, cast
+from typing import Any, Optional
 
 import pandas as pd
 from pandas import DataFrame
@@ -20,7 +20,11 @@ from pcomp.emd.core import (
     compute_emd,
     population_to_stochastic_language,
 )
-from pcomp.utils import constants, ensure_start_timestamp_column
+from pcomp.utils import (
+    add_duration_column_to_log,
+    constants,
+    ensure_start_timestamp_column,
+)
 
 ServiceTimeEvent = tuple[str, float]
 ServiceTimeTrace = tuple[ServiceTimeEvent, ...]
@@ -65,21 +69,22 @@ def extract_service_time_traces(
     sort_by = [end_time_key]
     if tiebreaker_key is not None:
         sort_by.append(tiebreaker_key)
-        # For each case a tuple containing for each event a tuple of 1) Activity and 2) Duration
+
+    if "@pcomp:duration" not in log.columns:
+        log = add_duration_column_to_log(
+            log,
+            start_time_key=start_time_key,
+            end_time_key=end_time_key,
+            duration_key="@pcomp:duration",
+        )
+
+    # For each case a tuple containing for each event a tuple of 1) Activity and 2) Duration
     return (
         log.sort_values(by=sort_by)
-        .groupby(traceid_key, sort=False)  # sort=False to retain trace order
+        .groupby(by=traceid_key, sort=False)[[activity_key, "@pcomp:duration"]]
         .apply(
-            lambda group_df: tuple(  # type: ignore [arg-type, return-value]
-                (
-                    evt[activity_key],
-                    (evt[end_time_key] - evt[start_time_key]).total_seconds(),
-                )
-                for (_, evt) in cast(
-                    pd.DataFrame, group_df
-                )  # Tell typing that group_df is a Dataframe since pandas typing is weird
-                .sort_values(by=end_time_key)
-                .iterrows()
+            lambda group: tuple(  # type: ignore [arg-type]
+                group.itertuples(index=False, name=None)  # type: ignore
             )
         )
         .tolist()
