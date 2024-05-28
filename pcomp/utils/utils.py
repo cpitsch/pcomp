@@ -218,9 +218,12 @@ def add_duration_column_to_log(
 
     Args:
         log (pd.DataFrame): The event log.
-        start_time_key (str, optional): The column name for the start timestamp. Defaults to constants.DEFAULT_START_TIMESTAMP_KEY.
-        end_time_key (str, optional): The column name for the completion timestamp. Defaults to constants.DEFAULT_TIMESTAMP_KEY.
-        duration_key (str, optional): The column name to write the durations in. Defaults to "@pcomp:duration".
+        start_time_key (str, optional): The column name for the start timestamp.
+            Defaults to constants.DEFAULT_START_TIMESTAMP_KEY.
+        end_time_key (str, optional): The column name for the completion timestamp.
+            Defaults to constants.DEFAULT_TIMESTAMP_KEY.
+        duration_key (str, optional): The column name to write the durations in. Defaults
+            to "@pcomp:duration".
 
     Returns:
         pd.DataFrame: The changed event log
@@ -247,13 +250,16 @@ def ensure_start_timestamp_column(
 ) -> pd.DataFrame:
     """Ensure that the event log has a start timestamp column.#
     If it doesn't, try creating one using lifecycle information.
-    If no lifecycle information is present, try interpret the event log as an atomic event log and create a start timestamp
-    using the end timestamps (same start timestamp and end timestamp for each event).
+    If no lifecycle information is present, try interpret the event log as an atomic
+    event log and create a start timestamp using the end timestamps (same start timestamp
+    and end timestamp for each event).
 
     Args:
         df (pd.DataFrame): The event log.
-        start_timestamp_key (str, optional): The column for the start timestamps of events. Defaults to "start_timestamp".
-        lifecycle_key (str, optional): The column for lifecycle information. Defaults to "lifecycle:transition".
+        start_timestamp_key (str, optional): The column for the start timestamps of events.
+            Defaults to "start_timestamp".
+        lifecycle_key (str, optional): The column for lifecycle information. Defaults to
+            "lifecycle:transition".
 
     Returns:
         pd.DataFrame: The (altered) event log with a start timestamp column.
