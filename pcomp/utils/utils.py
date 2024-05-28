@@ -214,7 +214,7 @@ def add_duration_column_to_log(
     end_time_key: str = constants.DEFAULT_TIMESTAMP_KEY,
     duration_key: str = "@pcomp:duration",
 ) -> pd.DataFrame:
-    """Compute the duration (in seconds)of each event based on its start- and end
+    """Compute the duration (in seconds) of each event based on its start- and end
     timestamp.
 
     Args:
