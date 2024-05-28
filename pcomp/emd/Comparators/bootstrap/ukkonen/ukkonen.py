@@ -5,12 +5,8 @@ import pandas as pd
 
 from pcomp.binning import BinnerFactory, BinnerManager, KMeans_Binner
 from pcomp.emd.approximations.string_edit_distance import ukkonen_distance
-from pcomp.emd.core import (
-    BootstrappingStyle,
-    EMD_ProcessComparator,
-    EMDBackend,
-    compute_time_distance_component,
-)
+from pcomp.emd.Comparators.bootstrap import BootstrapComparator, BootstrappingStyle
+from pcomp.emd.core import EMDBackend, compute_time_distance_component
 from pcomp.emd.emd import (
     BinnedServiceTimeTrace,
     extract_service_time_traces,
@@ -30,7 +26,7 @@ def _cached_time_distance(
     return compute_time_distance_component(a, b)
 
 
-class Ukkonen_Distance_EMD_Comparator(EMD_ProcessComparator[BinnedServiceTimeTrace]):
+class Timed_Ukkonen_BootstrapComparator(BootstrapComparator[BinnedServiceTimeTrace]):
     def __init__(
         self,
         log_1: pd.DataFrame,

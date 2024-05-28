@@ -56,8 +56,9 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
             cleanup_on_del (bool, optional): If True, call `cleanup` upon destruction,
                 e.g., when the object goes out of scope. Defaults to True.
             emd_backend (EMDBackend, optional): The backend to use for EMD computation.
-                Defaults to "wasserstein" (use the "wasserstein" module). Alternatively, "ot" or "pot" will
-            use the "Python Optimal Transport" package.
+                Defaults to "wasserstein" (use the "wasserstein" module).
+                    Alternatively, "ot" or "pot" will use the "Python Optimal Transport"
+                    package.
             seed (int, optional): The seed to use for sampling in the permutation test
                 phase.
             multiprocess_cores (int, optional): Use multiprocessing for distance computation?
@@ -90,7 +91,8 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
             log_2 (pd.DataFrame): The second event log.
 
         Returns:
-            tuple[list[T], list[T]]: The behavior extracted from the first and second event log, respectively.
+            tuple[list[T], list[T]]: The behavior extracted from the first and second
+                event log, respectively.
         """
         pass
 
@@ -109,7 +111,10 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
 
     @abstractmethod
     def cleanup(self) -> None:
-        """Cleanup function to call after the comparison is done. For instance, clearing caches, etc."""
+        """
+        Cleanup function to call after the comparison is done. For instance, clearing
+        caches, etc.
+        """
         pass
 
     @property

@@ -2,20 +2,20 @@ from typing import Any, Literal
 
 import pandas as pd
 
-from pcomp.binning import BinnerFactory, BinnerManager
-from pcomp.binning.KMeans_Binner import KMeans_Binner
+from pcomp.binning import BinnerFactory, BinnerManager, KMeans_Binner
 from pcomp.emd.approximations.comparing_stars import DiGraph, GraphNode
 from pcomp.emd.approximations.comparing_stars.comparing_stars import (
     timed_star_graph_edit_distance,
 )
-from pcomp.emd.core import BootstrappingStyle, EMD_ProcessComparator, EMDBackend
+from pcomp.emd.Comparators.bootstrap import BootstrapComparator, BootstrappingStyle
+from pcomp.emd.core import EMDBackend
 from pcomp.emd.emd import (
     extract_service_time_traces,
     extract_traces_activity_service_times,
 )
 
 
-class Timed_ApproxTraceGED_EMD_Comparator(EMD_ProcessComparator[DiGraph]):
+class Timed_ApproxTraceGED_BootstrapComparator(BootstrapComparator[DiGraph]):
     """An implementation of the EMD_ProcessComparator for comparing event logs
     w.r.t. the timed-control-flow, converting BinnedServiceTimeTraces to graphs
     and applying the GED approximation from the paper "Comparing Stars: On

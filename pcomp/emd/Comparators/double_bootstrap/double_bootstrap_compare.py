@@ -9,10 +9,12 @@ import pandas as pd
 import seaborn as sns
 from matplotlib.figure import Figure
 
-from pcomp.emd.core import (
-    EMDBackend,
+from pcomp.emd.Comparators.bootstrap.bootstrap_comparator import (
     _log_bootstrapping_performance,
     bootstrap_emd_population_resample_split_sampling,
+)
+from pcomp.emd.core import (
+    EMDBackend,
     compute_distance_matrix,
     emd,
     population_to_stochastic_language,
@@ -59,19 +61,23 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
         Args:
             log_1 (pd.DataFrame): The first event log in the comparison.
             log_2 (pd.DataFrame): The second event log in the comparison.
-            bootstrapping_dist_size (int, optional): The number of samples for bootstrapping distributions. Defaults to 10_000.
+            bootstrapping_dist_size (int, optional): The number of samples for
+                bootstrapping distributions. Defaults to 10_000.
             verbose (bool, optional): If True, show progress bars. Defaults to True.
-            cleanup_on_del (bool, optional): If True, call `cleanup` upon destruction, e.g., when the object goes out of scope. Defaults to True.
-            bootstrapping_style (DoubleBootstrapStyle, optional): The bootstrapping style to use. Defaults to "sample_smaller_log_size". The options are:
+            cleanup_on_del (bool, optional): If True, call `cleanup` upon destruction,
+                e.g., when the object goes out of scope. Defaults to True.
+            bootstrapping_style (DoubleBootstrapStyle, optional): The bootstrapping
+                style to use. Defaults to "sample_smaller_log_size". The options are:
 
-            - "sample_smaller_log_size": Commpare two samples of `log_1` of size `len(log_2)` for self-EMDs bootstrapping. Then,
-                draw samples of size `len(log_2)` from `log_1` and and `log_2` (with replacement) and compare them.
-            - "splitted_resampling": Splitt `log_1` into two disjunct halves. Then, draw samples of size `resample_size` from each half
-                (with replacement) and compare them. Then, draw samples of size `len(log_2)` from `log_1` and and `log_2`
-                (with replacement) and compare them.
+                - "sample_smaller_log_size": Commpare two samples of `log_1` of size `len(log_2)` for self-EMDs bootstrapping. Then,
+                    draw samples of size `len(log_2)` from `log_1` and and `log_2` (with replacement) and compare them.
+                - "splitted_resampling": Splitt `log_1` into two disjunct halves. Then, draw samples of size `resample_size` from each half
+                    (with replacement) and compare them. Then, draw samples of size `len(log_2)` from `log_1` and and `log_2`
+                    (with replacement) and compare them.
 
-            emd_backend (EMDBackend, optional): The backend to use for EMD computation. Defaults to "wasserstein" (use the "wasserstein" module). Alternatively, "ot" or "pot" will
-            use the "Python Optimal Transport" package.
+            emd_backend (EMDBackend, optional): The backend to use for EMD computation.
+                Defaults to "wasserstein" (use the "wasserstein" module). Alternatively,
+                "ot" or "pot" will use the "Python Optimal Transport" package.
             seed (int, optional): The seed to use for sampling in the bootstrapping phase
         """
         self.log_1 = ensure_start_timestamp_column(log_1)
@@ -98,14 +104,16 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
     def extract_representations(
         self, log_1: pd.DataFrame, log_2: pd.DataFrame
     ) -> tuple[list[T], list[T]]:
-        """Extract the behavior from the event log and do all data processing (binning, etc.). This can be a list of traces, or a list of graphs, etc.
+        """Extract the behavior from the event log and do all data processing (binning,
+        etc.). This can be a list of traces, or a list of graphs, etc.
 
         Args:
             log_1 (pd.DataFrame): The first event log.
             log_2 (pd.DataFrame): The second event log.
 
         Returns:
-            tuple[list[T], list[T]]: The behavior extracted from the first and second event log, respectively.
+            tuple[list[T], list[T]]: The behavior extracted from the first and second
+                event log, respectively.
         """
         pass
 
@@ -124,7 +132,10 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
 
     @abstractmethod
     def cleanup(self) -> None:
-        """Cleanup function to call after the comparison is done. For instance, clear caches, etc."""
+        """
+        Cleanup function to call after the comparison is done. For instance, clear
+        caches, etc.
+        """
         pass
 
     @property
@@ -281,11 +292,15 @@ def bootstrap_emd_distribution_with_smaller_log(
         population_1 (list[T]): The first population. A list of items.
         population_2 (list[T]): The second population. A list of items.
         cost_fn (Callable[[T, T], float]): A function to compute the cost between two items.
-        bootstrapping_dist_size (int, optional): The number of EMDs to compute. Defaults to 10_000.
-        resample_size (int, optional): The size of the samples in bootstrapping. If None, defaults to the size of log_2.
+        bootstrapping_dist_size (int, optional): The number of EMDs to compute.
+            Defaults to 10_000.
+        resample_size (int, optional): The size of the samples in bootstrapping. If None,
+            defaults to the size of log_2.
         seed (int, optional): The seed to use for sampling in the bootstrapping phase
-        emd_backend (EMDBackend, optional): The backend to use to compute the EMD. Defaults to "wasserstein" (use the "wasserstein" module).
-        show_progress_bar (bool, optional): Whether to show a progress bar for the sampling progress. Defaults to True.
+        emd_backend (EMDBackend, optional): The backend to use to compute the EMD.
+            Defaults to "wasserstein" (use the "wasserstein" module).
+        show_progress_bar (bool, optional): Whether to show a progress bar for the
+            sampling progress. Defaults to True.
 
     Returns:
         list[float]: The list of computed EMDs.
@@ -364,18 +379,22 @@ def bootstrap_emd_distribution_splitted_resampling(
 ) -> list[float]:
     """Bootstrap a distribution of EMDs of a population to itself.
     This is done by first randomly splitting the population into two disjunct halves.
-    Then, the a sample of size `resample_size` is drawn from each half with replacement, and the EMD is computed.
+    Then, the a sample of size `resample_size` is drawn from each half with replacement,
+        and the EMD is computed.
     This is repeated `bootstrapping_dist_size` times.
 
     Args:
         population (list[T]): The population. A list of items.
         resample_size (int): The size of the samples in bootstrapping
         cost_fn (Callable[[T, T], float]): A function to compute the cost between two items.
-        bootstrapping_dist_size (int, optional): The number of EMDs to compute. Defaults to 10_000.
+        bootstrapping_dist_size (int, optional): The number of EMDs to compute. Defaults
+            to 10_000.
         resample_size (int): The size of the samples in bootstrapping.
         seed (int, optional): The seed to use for sampling in the bootstrapping phase
-        emd_backend (EMDBackend, optional): The backend to use to compute the EMD. Defaults to "wasserstein" (use the "wasserstein" module).
-        show_progress_bar (bool, optional): Whether to show a progress bar for the sampling progress. Defaults to True.
+        emd_backend (EMDBackend, optional): The backend to use to compute the EMD.
+            Defaults to "wasserstein" (use the "wasserstein" module).
+        show_progress_bar (bool, optional): Whether to show a progress bar for the
+            sampling progress. Defaults to True.
 
     Returns:
         list[float]: The list of computed EMDs.

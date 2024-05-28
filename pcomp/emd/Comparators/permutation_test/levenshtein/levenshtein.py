@@ -59,7 +59,10 @@ class Timed_Levenshtein_PermutationComparator(
     def extract_representations(
         self, log_1: pd.DataFrame, log_2: pd.DataFrame
     ) -> tuple[list[BinnedServiceTimeTrace], list[BinnedServiceTimeTrace]]:
-        """Extract the service time traces from the event logs and bin their activity service times."""
+        """
+        Extract the service time traces from the event logs and bin their activity
+        service times.
+        """
         log_1 = add_duration_column_to_log(log_1, duration_key="@pcomp:duration")
         log_2 = add_duration_column_to_log(log_2, duration_key="@pcomp:duration")
         activity_duration_pairs = list(
@@ -84,8 +87,10 @@ class Timed_Levenshtein_PermutationComparator(
         self, item1: BinnedServiceTimeTrace, item2: BinnedServiceTimeTrace
     ) -> float:
         """
-        If `weighted_time_cost` is True, the time costs are all weighted by the maximum possible time difference, `num_bins - 1`.
-        As such, the maximum cost that can be incurred due to time differences in each event is 1.
+        If `weighted_time_cost` is True, the time costs are all weighted by the maximum
+        possible time difference, `num_bins - 1`.
+        As such, the maximum cost that can be incurred due to time differences in each
+        event is 1.
         """
         if self.weighted_time_cost:
             return post_normalized_weighted_levenshtein_distance(

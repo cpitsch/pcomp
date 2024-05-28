@@ -1,1 +1,1 @@
-from .ged_approximate_comparator import Timed_ApproxTraceGED_EMD_Comparator
+from .ged_approximate_comparator import Timed_ApproxTraceGED_BootstrapComparator
