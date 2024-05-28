@@ -9,10 +9,10 @@ from pcomp.emd.core import EMDBackend
 from pcomp.emd.emd import (
     BinnedServiceTimeTrace,
     custom_postnormalized_levenshtein_distance,
-    extract_service_time_traces,
     extract_traces_activity_service_times,
     post_normalized_weighted_levenshtein_distance,
 )
+from pcomp.utils import add_duration_column_to_log, constants
 
 
 class Timed_Levenshtein_PermutationComparator(
@@ -60,15 +60,15 @@ class Timed_Levenshtein_PermutationComparator(
         self, log_1: pd.DataFrame, log_2: pd.DataFrame
     ) -> tuple[list[BinnedServiceTimeTrace], list[BinnedServiceTimeTrace]]:
         """Extract the service time traces from the event logs and bin their activity service times."""
+        log_1 = add_duration_column_to_log(log_1, duration_key="@pcomp:duration")
+        log_2 = add_duration_column_to_log(log_2, duration_key="@pcomp:duration")
+        activity_duration_pairs = list(
+            pd.concat([log_1, log_2])[
+                [constants.DEFAULT_NAME_KEY, "@pcomp:duration"]
+            ].itertuples(index=False, name=None)
+        )
         self.binner_manager = BinnerManager(
-            [
-                evt
-                for trace in (
-                    extract_service_time_traces(log_1)
-                    + extract_service_time_traces(log_2)
-                )
-                for evt in trace
-            ],
+            activity_duration_pairs,
             self.binner_factory,
             seed=self.seed,
             show_training_progress_bar=self.verbose,
