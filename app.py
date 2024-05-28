@@ -10,22 +10,24 @@ from matplotlib.figure import Figure
 from pm4py import write_xes  # type: ignore
 
 from pcomp.binning import BinnerFactory, KMeans_Binner, OuterPercentileBinner
-from pcomp.emd import Timed_Levenshtein_EMD_Comparator
-from pcomp.emd.Comparators.classic_bootstrap import (
+from pcomp.emd.comparators.bootstrap import (
+    BootstrappingStyle,
     Timed_Levenshtein_BootstrapComparator,
 )
-from pcomp.emd.Comparators.double_bootstrap import (
+from pcomp.emd.comparators.classic_bootstrap import (
+    Timed_Levenshtein_ClassicBootstrapComparator,
+)
+from pcomp.emd.comparators.double_bootstrap import (
     DoubleBootstrapStyle,
     LevenshteinDoubleBootstrapComparator,
 )
-from pcomp.emd.Comparators.kolmogorov_smirnov import (
+from pcomp.emd.comparators.kolmogorov_smirnov import (
     LevenshteinKSComparator,
     Self_Bootstrapping_Style,
 )
-from pcomp.emd.Comparators.permutation_test.levenshtein.levenshtein import (
+from pcomp.emd.comparators.permutation_test import (
     Timed_Levenshtein_PermutationComparator,
 )
-from pcomp.emd.core import BootstrappingStyle
 from pcomp.utils import enable_logging, import_log, split_log_cases
 
 
@@ -334,10 +336,10 @@ def binner_setting_to_args(
 
 class ComparableAndPlottable(Protocol):
     def plot_result(self) -> Figure:
-        pass
+        ...
 
     def compare(self) -> float:
-        pass
+        ...
 
 
 T = TypeVar("T", bound=ComparableAndPlottable)
@@ -406,7 +408,7 @@ class Instance(ABC, Generic[T]):
 
 
 @dataclass
-class StandardEmdInstance(Instance[Timed_Levenshtein_EMD_Comparator]):
+class StandardEmdInstance(Instance[Timed_Levenshtein_BootstrapComparator]):
     bootstrapping_style: BootstrappingStyle
     resample_percentage: float | None  # Not needed for "split sampling"
 
@@ -428,10 +430,12 @@ class StandardEmdInstance(Instance[Timed_Levenshtein_EMD_Comparator]):
     def technique_name(self) -> str:
         return "emd_bootstrap"
 
-    def get_comparator(self, verbose: bool = True) -> Timed_Levenshtein_EMD_Comparator:
+    def get_comparator(
+        self, verbose: bool = True
+    ) -> Timed_Levenshtein_BootstrapComparator:
         binner_factory, binner_args = binner_setting_to_args(self.binner_setting)
         log_1, log_2 = self.get_logs()
-        return Timed_Levenshtein_EMD_Comparator(
+        return Timed_Levenshtein_BootstrapComparator(
             log_1,
             log_2,
             resample_size=self.resample_percentage,
@@ -527,7 +531,7 @@ class PermutationTestInstance(Instance[Timed_Levenshtein_PermutationComparator])
 
 
 @dataclass
-class ClassicBootstrapInstance(Instance[Timed_Levenshtein_BootstrapComparator]):
+class ClassicBootstrapInstance(Instance[Timed_Levenshtein_ClassicBootstrapComparator]):
     @property
     def path(self) -> Path:
         return super().path
@@ -538,10 +542,10 @@ class ClassicBootstrapInstance(Instance[Timed_Levenshtein_BootstrapComparator]):
 
     def get_comparator(
         self, verbose: bool = True
-    ) -> Timed_Levenshtein_BootstrapComparator:
+    ) -> Timed_Levenshtein_ClassicBootstrapComparator:
         binner_factory, binner_args = binner_setting_to_args(self.binner_setting)
         log_1, log_2 = self.get_logs()
-        return Timed_Levenshtein_BootstrapComparator(
+        return Timed_Levenshtein_ClassicBootstrapComparator(
             log_1,
             log_2,
             weighted_time_cost=self.weighted_time_cost,
