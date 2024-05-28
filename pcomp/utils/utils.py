@@ -75,18 +75,27 @@ def convert_lifecycle_eventlog_to_start_timestamp_eventlog(
     lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
     instance_key: str = constants.DEFAULT_INSTANCE_KEY,
 ) -> DataFrame:
-    """Convert an event log consisting of events with lifecycle information and timestamp to an event log with start_timestamp and complete_timestamp.
+    """Convert an event log consisting of events with lifecycle information and timestamp
+    to an event log with start_timestamp and complete_timestamp.
 
-    So if before there was a "start" event and a "complete" event with timestamps, this is combined into one event with "start_timestamp" as the timestamp of the "start" event and "time:timestamp" as the timestamp of the "complete" event.
+    So if before there was a "start" event and a "complete" event with timestamps, this
+    is combined into one event with "start_timestamp" as the timestamp of the "start"
+    event and "time:timestamp" as the timestamp of the "complete" event.
 
     Args:
         log (DataFrame): The event log.
-        traceid_key (str, optional): The column name for the trace id. Defaults to "case:concept:name".
-        activity_key (str, optional): The column name for the activity label. Defaults to "concept:name".
-        timestamp_key (str, optional): The column name for the timestamp. Defaults to "time:timestamp".
-        lifecycle_key (str, optional): The column name for the lifecycle information. Defaults to "lifecycle:transition".
-        instance_key (str, optional): The key for the id to tell different executions of activities apart. Defaults to "concept:instance". If this column is not present, \
-                                        a complete event is always matched to the first found start event in the order of the case.
+        traceid_key (str, optional): The column name for the trace id. Defaults to
+            "case:concept:name".
+        activity_key (str, optional): The column name for the activity label. Defaults
+            to "concept:name".
+        timestamp_key (str, optional): The column name for the timestamp. Defaults to
+            "time:timestamp".
+        lifecycle_key (str, optional): The column name for the lifecycle information.
+            Defaults to "lifecycle:transition".
+        instance_key (str, optional): The key for the id to tell different executions of
+            activities apart. Defaults to "concept:instance". If this column is not
+            present, a complete event is always matched to the first found start event
+            in the order of the case.
     Returns:
         DataFrame: The converted event log
     """
@@ -199,6 +208,42 @@ def add_event_instance_id_to_log(
     return new_log
 
 
+def add_duration_column_to_log(
+    log: pd.DataFrame,
+    start_time_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
+    end_time_key: str = constants.DEFAULT_TIMESTAMP_KEY,
+    duration_key: str = "@pcomp:duration",
+) -> pd.DataFrame:
+    """Compute the duration (in seconds) of each event based on its start- and end
+    timestamp.
+
+    Args:
+        log (pd.DataFrame): The event log.
+        start_time_key (str, optional): The column name for the start timestamp.
+            Defaults to constants.DEFAULT_START_TIMESTAMP_KEY.
+        end_time_key (str, optional): The column name for the completion timestamp.
+            Defaults to constants.DEFAULT_TIMESTAMP_KEY.
+        duration_key (str, optional): The column name to write the durations in. Defaults
+            to "@pcomp:duration".
+
+    Returns:
+        pd.DataFrame: The changed event log
+
+    Raises:
+        ValueError: If the given start_time_key or end_time_key are not in the event log
+    """
+    if start_time_key not in log.columns or end_time_key not in log.columns:
+        raise ValueError(
+            "Event Log must contain a start timestamp key and end timestamp key to compute the duration"
+        )
+    new_log = log.copy()
+    new_log[duration_key] = (
+        new_log[end_time_key] - new_log[start_time_key]
+    ).dt.total_seconds()
+
+    return new_log
+
+
 def ensure_start_timestamp_column(
     df: pd.DataFrame,
     start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
@@ -206,13 +251,16 @@ def ensure_start_timestamp_column(
 ) -> pd.DataFrame:
     """Ensure that the event log has a start timestamp column.#
     If it doesn't, try creating one using lifecycle information.
-    If no lifecycle information is present, try interpret the event log as an atomic event log and create a start timestamp
-    using the end timestamps (same start timestamp and end timestamp for each event).
+    If no lifecycle information is present, try interpret the event log as an atomic
+    event log and create a start timestamp using the end timestamps (same start timestamp
+    and end timestamp for each event).
 
     Args:
         df (pd.DataFrame): The event log.
-        start_timestamp_key (str, optional): The column for the start timestamps of events. Defaults to "start_timestamp".
-        lifecycle_key (str, optional): The column for lifecycle information. Defaults to "lifecycle:transition".
+        start_timestamp_key (str, optional): The column for the start timestamps of events.
+            Defaults to "start_timestamp".
+        lifecycle_key (str, optional): The column for lifecycle information. Defaults to
+            "lifecycle:transition".
 
     Returns:
         pd.DataFrame: The (altered) event log with a start timestamp column.

@@ -144,6 +144,18 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
             raise ValueError("Must call `compare` before accessing `pval`.")
         return self._pval
 
+    @property
+    def comparison_runtime(self) -> float:
+        """
+        The duration of the the `compare` call.
+        If accessed before calling `compare`, a ValueError will be raised.
+        """
+        if not hasattr(self, "_comparison_runtime"):
+            raise ValueError(
+                "Must call `compare` before accessing `comparison_runtime`."
+            )
+        return self._comparison_runtime
+
     def compare(self) -> float:
         """Apply the full pipeline to compare the event logs.
 
@@ -156,6 +168,9 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
         Returns:
             float: The computed p-value.
         """
+
+        start_time = default_timer()
+
         self.behavior_1, self.behavior_2 = self.extract_representations(
             self.log_1, self.log_2
         )
@@ -226,6 +241,8 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
 
         self._permutation_distribution = permutation_test_distribution
         self._pval = num_larger_dists / self.distribution_size
+
+        self._comparison_runtime = default_timer() - start_time
 
         return self._pval
 
@@ -341,10 +358,11 @@ def compute_symmetric_distance_matrix_mp(
 
         return row
 
-    print(f"Computing Complete Distance Matrix ({dists.shape[0]}x{dists.shape[1]})")
+    logging.getLogger("@pcomp").info(
+        f"Computing Complete Distance Matrix ({dists.shape[0]}x{dists.shape[1]})"
+    )
 
     num_cores = num_cores or cpu_count() - 4
-    num_cores = 8
     with ProcessingPool(num_cores) as p:
         # args = [(i, population, cost_fn) for i in range(len(population))]
         args = [(i, population, cost_fn) for i in range(len(population))]
@@ -505,10 +523,7 @@ def compute_permutation_test_distribution_precomputed_distances(
         Numpy1DArray[np.float_]: The computed EMDs.
     """
 
-    # Matrix of rows of 1...size_of_logs
-    samples = get_permutation_sample(
-        len(behavior_1) + len(behavior_2), distribution_size, seed
-    )
+    gen = np.random.default_rng(seed)
 
     # Map index in event logs to variant indices
     population_indices_to_variant_indices = np.array(
@@ -525,11 +540,15 @@ def compute_permutation_test_distribution_precomputed_distances(
         desc="Computing EMDs for Permutation Test",
     )
 
+    sample_size = len(behavior_1) + len(behavior_2)
+
     emds_start = default_timer()
     emds = np.empty(distribution_size, dtype=np.float_)
     for idx in range(distribution_size):
-        sample_1 = samples[idx][: len(behavior_1)]
-        sample_2 = samples[idx][len(behavior_1) :]
+        sample = gen.permutation(sample_size)
+
+        sample_1 = sample[: len(behavior_1)]
+        sample_2 = sample[len(behavior_1) :]
 
         # Translate indices in population to variant
         translated_sample_1 = population_indices_to_variant_indices[sample_1]

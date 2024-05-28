@@ -4,7 +4,7 @@
 
 from collections.abc import Callable
 from functools import cache
-from typing import Any, Optional, cast
+from typing import Any, Optional
 
 import pandas as pd
 from pandas import DataFrame
@@ -20,7 +20,11 @@ from pcomp.emd.core import (
     compute_emd,
     population_to_stochastic_language,
 )
-from pcomp.utils import constants, ensure_start_timestamp_column
+from pcomp.utils import (
+    add_duration_column_to_log,
+    constants,
+    ensure_start_timestamp_column,
+)
 
 ServiceTimeEvent = tuple[str, float]
 ServiceTimeTrace = tuple[ServiceTimeEvent, ...]
@@ -35,37 +39,52 @@ def extract_service_time_traces(
     start_time_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
     end_time_key: str = constants.DEFAULT_TIMESTAMP_KEY,
     traceid_key: str = constants.DEFAULT_TRACEID_KEY,
+    tiebreaker_key: str | None = constants.DEFAULT_NAME_KEY,
 ) -> list[ServiceTimeTrace]:
-    """Extract a list of ServiceTimeTrace from the Event Log. This is an abstraction from the event log, where a case is considered a sequence (tuple)
-    of tuples of 1) Activity and 2) Duration.
+    """Extract a list of ServiceTimeTrace from the Event Log. This is an abstraction
+    from the event log, where a case is considered a sequence (tuple) of tuples of 1)
+    Activity and 2) Duration.
 
     The event log must be an interval event log, i.e. each event has a start and end timestamp.
 
     Args:
         log (pd.DataFrame): The event log.
-        activity_key (str, optional): The key for the activity label in the event log. Defaults to constants.DEFAULT_NAME_KEY.
-        start_time_key (str, optional): The key for the start timestamp in the event log. Defaults to constants.DEFAULT_START_TIMESTAMP_KEY.
-        end_time_key (str, optional): The key for the end timestamp in the event log. Defaults to constants.DEFAULT_TIMESTAMP_KEY.
-        traceid_key (str, optional): The key for the trace id in the event log. Defaults to constants.DEFAULT_TRACEID_KEY.
+        activity_key (str, optional): The key for the activity label in the event log.
+            Defaults to constants.DEFAULT_NAME_KEY.
+        start_time_key (str, optional): The key for the start timestamp in the event log.
+            Defaults to constants.DEFAULT_START_TIMESTAMP_KEY.
+        end_time_key (str, optional): The key for the end timestamp in the event log.
+            Defaults to constants.DEFAULT_TIMESTAMP_KEY.
+        traceid_key (str, optional): The key for the trace id in the event log. Defaults
+            to constants.DEFAULT_TRACEID_KEY.
+        tiebreaker_key (str | None, optional): The key to use for sorting two events with
+            identical completion timestamps. Ensures consistent ordering across traces.
+            Defaults to constants.DEFAULT_NAME_KEY.
 
     Returns:
         list[ServiceTimeTrace]: The list of ServiceTimeTraces extracted from the event log.
     """
+    # Also sort by activity key to ensure that events with identical completion timestamp
+    # are ordered consistently across traces
+    sort_by = [end_time_key]
+    if tiebreaker_key is not None:
+        sort_by.append(tiebreaker_key)
+
+    if "@pcomp:duration" not in log.columns:
+        log = add_duration_column_to_log(
+            log,
+            start_time_key=start_time_key,
+            end_time_key=end_time_key,
+            duration_key="@pcomp:duration",
+        )
+
     # For each case a tuple containing for each event a tuple of 1) Activity and 2) Duration
     return (
-        # log.sort_values(by=end_time_key)
-        log.groupby(traceid_key, sort=False)  # sort=False to retain trace order
+        log.sort_values(by=sort_by)
+        .groupby(by=traceid_key, sort=False)[[activity_key, "@pcomp:duration"]]
         .apply(
-            lambda group_df: tuple(  # type: ignore [arg-type, return-value]
-                (
-                    evt[activity_key],
-                    (evt[end_time_key] - evt[start_time_key]).total_seconds(),
-                )
-                for (_, evt) in cast(
-                    pd.DataFrame, group_df
-                )  # Tell typing that group_df is a Dataframe since pandas typing is weird
-                .sort_values(by=end_time_key)
-                .iterrows()
+            lambda group: tuple(  # type: ignore [arg-type]
+                group.itertuples(index=False, name=None)  # type: ignore
             )
         )
         .tolist()
