@@ -523,10 +523,7 @@ def compute_permutation_test_distribution_precomputed_distances(
         Numpy1DArray[np.float_]: The computed EMDs.
     """
 
-    # Matrix of rows of 1...size_of_logs
-    samples = get_permutation_sample(
-        len(behavior_1) + len(behavior_2), distribution_size, seed
-    )
+    gen = np.random.default_rng(seed)
 
     # Map index in event logs to variant indices
     population_indices_to_variant_indices = np.array(
@@ -543,11 +540,15 @@ def compute_permutation_test_distribution_precomputed_distances(
         desc="Computing EMDs for Permutation Test",
     )
 
+    sample_size = len(behavior_1) + len(behavior_2)
+
     emds_start = default_timer()
     emds = np.empty(distribution_size, dtype=np.float_)
     for idx in range(distribution_size):
-        sample_1 = samples[idx][: len(behavior_1)]
-        sample_2 = samples[idx][len(behavior_1) :]
+        sample = gen.permutation(sample_size)
+
+        sample_1 = sample[: len(behavior_1)]
+        sample_2 = sample[len(behavior_1) :]
 
         # Translate indices in population to variant
         translated_sample_1 = population_indices_to_variant_indices[sample_1]
