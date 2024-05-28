@@ -3,7 +3,7 @@ from typing import Any
 import pandas as pd
 
 from pcomp.binning import BinnerFactory, BinnerManager, KMeans_Binner
-from pcomp.emd.Comparators.classic_bootstrap import ClassicBootstrap_Comparator
+from pcomp.emd.comparators.classic_bootstrap import ClassicBootstrap_Comparator
 from pcomp.emd.core import EMDBackend
 from pcomp.emd.emd import (
     BinnedServiceTimeTrace,

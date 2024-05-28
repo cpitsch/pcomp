@@ -9,7 +9,7 @@ import pandas as pd
 import seaborn as sns
 from matplotlib.figure import Figure
 
-from pcomp.emd.Comparators.bootstrap.bootstrap_comparator import (
+from pcomp.emd.comparators.bootstrap.bootstrap_comparator import (
     _log_bootstrapping_performance,
     bootstrap_emd_population_resample_split_sampling,
 )

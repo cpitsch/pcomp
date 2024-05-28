@@ -4,7 +4,7 @@ import pandas as pd
 
 from pcomp.binning.Binner import BinnerFactory, BinnerManager
 from pcomp.binning.KMeans_Binner import KMeans_Binner
-from pcomp.emd.Comparators.permutation_test import Permutation_Test_Comparator
+from pcomp.emd.comparators.permutation_test import Permutation_Test_Comparator
 from pcomp.emd.core import EMDBackend
 from pcomp.emd.emd import (
     BinnedServiceTimeTrace,

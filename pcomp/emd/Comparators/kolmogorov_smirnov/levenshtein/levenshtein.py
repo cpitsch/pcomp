@@ -3,7 +3,7 @@ from typing import Any
 import pandas as pd
 
 from pcomp.binning import BinnerFactory, BinnerManager, KMeans_Binner
-from pcomp.emd.Comparators.kolmogorov_smirnov import (
+from pcomp.emd.comparators.kolmogorov_smirnov import (
     EMD_KS_ProcessComparator,
     Self_Bootstrapping_Style,
 )

@@ -7,7 +7,7 @@ from pcomp.emd.approximations.comparing_stars import DiGraph, GraphNode
 from pcomp.emd.approximations.comparing_stars.comparing_stars import (
     timed_star_graph_edit_distance,
 )
-from pcomp.emd.Comparators.bootstrap import BootstrapComparator, BootstrappingStyle
+from pcomp.emd.comparators.bootstrap import BootstrapComparator, BootstrappingStyle
 from pcomp.emd.core import EMDBackend
 from pcomp.emd.emd import (
     extract_service_time_traces,

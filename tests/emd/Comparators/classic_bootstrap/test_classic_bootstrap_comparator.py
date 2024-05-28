@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from pcomp.emd.Comparators.classic_bootstrap.classic_bootstrap_comparator import (
+from pcomp.emd.comparators.classic_bootstrap.classic_bootstrap_comparator import (
     bootstrap_emd_population_classic,
 )
 
