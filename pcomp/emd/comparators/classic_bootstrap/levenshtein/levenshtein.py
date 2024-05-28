@@ -14,7 +14,7 @@ from pcomp.emd.emd import (
 )
 
 
-class Timed_Levenshtein_BootstrapComparator(
+class Timed_Levenshtein_ClassicBootstrapComparator(
     ClassicBootstrap_Comparator[BinnedServiceTimeTrace]
 ):
     """
