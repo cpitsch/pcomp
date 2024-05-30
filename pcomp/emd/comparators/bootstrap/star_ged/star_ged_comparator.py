@@ -3,8 +3,9 @@ from typing import Any, Literal
 import pandas as pd
 
 from pcomp.binning import BinnerFactory, BinnerManager, KMeans_Binner
-from pcomp.emd.approximations.comparing_stars import DiGraph, GraphNode
-from pcomp.emd.approximations.comparing_stars.comparing_stars import (
+from pcomp.emd.approximations.comparing_stars import (
+    DiGraph,
+    GraphNode,
     timed_star_graph_edit_distance,
 )
 from pcomp.emd.comparators.bootstrap import BootstrapComparator, BootstrappingStyle
