@@ -3,9 +3,9 @@ from typing import Any
 import pandas as pd
 
 from pcomp.binning import BinnerFactory, BinnerManager, KMeans_Binner
-from pcomp.emd.Comparators.kolmogorov_smirnov import (
-    EMD_KS_ProcessComparator,
-    Self_Bootstrapping_Style,
+from pcomp.emd.comparators.double_bootstrap import (
+    DoubleBootstrapEMDComparator,
+    DoubleBootstrapStyle,
 )
 from pcomp.emd.core import EMDBackend
 from pcomp.emd.emd import (
@@ -17,9 +17,11 @@ from pcomp.emd.emd import (
 )
 
 
-class LevenshteinKSComparator(EMD_KS_ProcessComparator[BinnedServiceTimeTrace]):
+class LevenshteinDoubleBootstrapComparator(
+    DoubleBootstrapEMDComparator[BinnedServiceTimeTrace]
+):
     """
-    A class to compare two processes by comparing distributions of calculated EMDs. For more information, see the documentation of the abstract class `EMD_KS_ProcessComparator`.
+    A class to compare two processes by comparing distributions of calculated EMDs. For more information, see the documentation of the abstract class `DoubleBootstrapEMDComparator`.
     Represents the processes through the extracted sequences of (activity, duration) pairs for each case.
     Uses the Levenshtein distance as a cost function between items.
     """
@@ -32,11 +34,11 @@ class LevenshteinKSComparator(EMD_KS_ProcessComparator[BinnedServiceTimeTrace]):
         log_2: pd.DataFrame,
         bootstrapping_dist_size: int = 10000,
         verbose: bool = True,
-        cleanup_on_del: bool = True,
-        self_emds_bootstrapping_style: Self_Bootstrapping_Style = "replacement",
+        cleanup_on_del: bool = True,  #
+        bootstrapping_style: DoubleBootstrapStyle = "sample_smaller_log_size",
         emd_backend: EMDBackend = "wasserstein",
-        seed: int | None = None,
         weighted_time_cost: bool = False,
+        seed: int | None = None,
         binner_factory: BinnerFactory | None = None,
         binner_args: dict[str, Any] | None = None,
     ):
@@ -46,13 +48,13 @@ class LevenshteinKSComparator(EMD_KS_ProcessComparator[BinnedServiceTimeTrace]):
             bootstrapping_dist_size,
             verbose,
             cleanup_on_del,
-            self_emds_bootstrapping_style,
+            bootstrapping_style,
             emd_backend,
-            seed,
         )
+        self.seed = seed
         self.weighted_time_cost = weighted_time_cost
 
-        # Default to KMeans_Binner with 3 bins
+        # Default to KMeans_Binner
         self.binner_factory = binner_factory or KMeans_Binner
         self.binner_args = binner_args or (
             {

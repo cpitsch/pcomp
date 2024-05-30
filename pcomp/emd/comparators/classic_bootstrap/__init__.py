@@ -1,2 +1,2 @@
 from .classic_bootstrap_comparator import ClassicBootstrap_Comparator
-from .levenshtein import Timed_Levenshtein_BootstrapComparator
+from .levenshtein import Timed_Levenshtein_ClassicBootstrapComparator

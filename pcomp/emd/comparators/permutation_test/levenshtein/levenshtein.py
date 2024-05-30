@@ -2,38 +2,34 @@ from typing import Any
 
 import pandas as pd
 
-from pcomp.binning import BinnerFactory, BinnerManager, KMeans_Binner
-from pcomp.emd.Comparators.classic_bootstrap import ClassicBootstrap_Comparator
+from pcomp.binning.Binner import BinnerFactory, BinnerManager
+from pcomp.binning.KMeans_Binner import KMeans_Binner
+from pcomp.emd.comparators.permutation_test import Permutation_Test_Comparator
 from pcomp.emd.core import EMDBackend
 from pcomp.emd.emd import (
     BinnedServiceTimeTrace,
     custom_postnormalized_levenshtein_distance,
-    extract_service_time_traces,
     extract_traces_activity_service_times,
     post_normalized_weighted_levenshtein_distance,
 )
+from pcomp.utils import add_duration_column_to_log, constants
 
 
-class Timed_Levenshtein_BootstrapComparator(
-    ClassicBootstrap_Comparator[BinnedServiceTimeTrace]
+class Timed_Levenshtein_PermutationComparator(
+    Permutation_Test_Comparator[BinnedServiceTimeTrace]
 ):
-    """
-    An implementation of the ClassicBootstrap_Comparator for comparing event logs
-    w.r.t. the timed-control-flow using a weighted post-normalized levenshtein distance
-    as the cost function.
-    """
-
     binner_manager: BinnerManager
 
     def __init__(
         self,
         log_1: pd.DataFrame,
         log_2: pd.DataFrame,
-        bootstrapping_dist_size: int = 10000,
+        distribution_size: int = 10_000,
         verbose: bool = True,
         cleanup_on_del: bool = True,
         emd_backend: EMDBackend = "wasserstein",
         seed: int | None = None,
+        multiprocess_cores: int = 0,
         weighted_time_cost: bool = False,
         binner_factory: BinnerFactory | None = None,
         binner_args: dict[str, Any] | None = None,
@@ -41,11 +37,12 @@ class Timed_Levenshtein_BootstrapComparator(
         super().__init__(
             log_1,
             log_2,
-            bootstrapping_dist_size,
+            distribution_size,
             verbose,
             cleanup_on_del,
             emd_backend,
             seed,
+            multiprocess_cores,
         )
         self.weighted_time_cost = weighted_time_cost
 
@@ -66,15 +63,15 @@ class Timed_Levenshtein_BootstrapComparator(
         Extract the service time traces from the event logs and bin their activity
         service times.
         """
+        log_1 = add_duration_column_to_log(log_1, duration_key="@pcomp:duration")
+        log_2 = add_duration_column_to_log(log_2, duration_key="@pcomp:duration")
+        activity_duration_pairs = list(
+            pd.concat([log_1, log_2])[
+                [constants.DEFAULT_NAME_KEY, "@pcomp:duration"]
+            ].itertuples(index=False, name=None)
+        )
         self.binner_manager = BinnerManager(
-            [
-                evt
-                for trace in (
-                    extract_service_time_traces(log_1)
-                    + extract_service_time_traces(log_2)
-                )
-                for evt in trace
-            ],
+            activity_duration_pairs,
             self.binner_factory,
             seed=self.seed,
             show_training_progress_bar=self.verbose,
@@ -91,8 +88,9 @@ class Timed_Levenshtein_BootstrapComparator(
     ) -> float:
         """
         If `weighted_time_cost` is True, the time costs are all weighted by the maximum
-        possible time difference, `num_bins - 1`. As such, the maximum cost that can be
-        incurred due to time differences in each event is 1.
+        possible time difference, `num_bins - 1`.
+        As such, the maximum cost that can be incurred due to time differences in each
+        event is 1.
         """
         if self.weighted_time_cost:
             return post_normalized_weighted_levenshtein_distance(

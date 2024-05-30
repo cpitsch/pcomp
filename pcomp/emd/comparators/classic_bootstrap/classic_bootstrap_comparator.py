@@ -8,7 +8,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 
-from pcomp.emd.Comparators.permutation_test.permutation_test_comparator import (
+from pcomp.emd.comparators.permutation_test.permutation_test_comparator import (
     compute_symmetric_distance_matrix,
     project_large_distance_matrix,
 )

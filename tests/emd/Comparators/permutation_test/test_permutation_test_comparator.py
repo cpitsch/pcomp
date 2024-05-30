@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from pcomp.emd.Comparators.permutation_test.permutation_test_comparator import (
+from pcomp.emd.comparators.permutation_test.permutation_test_comparator import (
     compute_permutation_test_distribution,
     compute_symmetric_distance_matrix,
     compute_symmetric_distance_matrix_mp,
