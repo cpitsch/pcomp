@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime
 
 import pandas as pd
 from pandas import DataFrame
@@ -283,7 +282,10 @@ def pretty_format_duration(seconds: float) -> str:
     Returns:
         str: The formatted duration.
     """
-    return datetime.strftime(datetime.utcfromtimestamp(seconds), "%H:%M:%S")
+    num_hours = seconds // 3600
+    num_minutes = (seconds % 3600) // 60
+    num_seconds = seconds % 60
+    return f"{num_hours:02}:{num_minutes:02}:{num_seconds:02}"
 
 
 def enable_logging(level: int = logging.INFO):
