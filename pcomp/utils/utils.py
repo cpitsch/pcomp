@@ -9,18 +9,23 @@ from tqdm.auto import tqdm
 from . import constants
 
 
-def import_log(path: str, show_progress_bar: bool = False) -> DataFrame:
+def import_log(
+    path: str, show_progress_bar: bool = False, variant: str | None = None
+) -> DataFrame:
     """Import an event log using pm4py.
     This function is a wrapper around pm4py.read_xes.
 
     Args:
         path (str): The path to the event log file.
-        show_progress_bar (bool, optional): Should a progress bar be shown for the impor? Defaults to False.
+        show_progress_bar (bool, optional): Should a progress bar be shown for the impor?
+            Defaults to False.
+        variant (str, optional): The pm4py import variant to use. See `pm4py.read_xes`.
+            Defaults to None (use the pm4py default).
 
     Returns:
         DataFrame: The imported event log.
     """
-    return read_xes(path, show_progress_bar=show_progress_bar)
+    return read_xes(path, show_progress_bar=show_progress_bar, variant=variant)
 
 
 def log_len(log: DataFrame, traceid_key: str = constants.DEFAULT_TRACEID_KEY) -> int:
