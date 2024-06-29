@@ -3,7 +3,7 @@ import logging
 import pandas as pd
 from pandas import DataFrame
 from pm4py import read_xes  # type: ignore
-from pm4py.utils import sample_cases  # type: ignore
+from pm4py.objects.log.util import dataframe_utils
 from tqdm.auto import tqdm
 
 from . import constants
@@ -65,14 +65,29 @@ def split_log_cases(
     num_cases = log_len(log)
     num_sample_cases = int(num_cases * frac)
 
-    shuffled_log = log.sample(
-        frac=1, random_state=seed
-    )  # Shuffle the event log so pm4py sample_cases is different every time
-
-    sample1 = sample_cases(shuffled_log, num_sample_cases, case_id_key=traceid_key)
+    sample1 = sample_cases(log, num_sample_cases, seed, traceid_key)
     sample2 = log[~log[traceid_key].isin(sample1[traceid_key].unique())]
 
     return sample1, sample2
+
+
+def sample_cases(
+    log: pd.DataFrame,
+    num_cases: int,
+    seed: int | None = None,
+    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
+) -> pd.DataFrame:
+    shuffled_log = log.sample(frac=1, random_state=seed)
+
+    return dataframe_utils.sample_dataframe(
+        shuffled_log,
+        {
+            "max_no_cases": num_cases,
+            "deterministic": True,
+            dataframe_utils.Parameters.CASE_ID_KEY: traceid_key,
+            "pm4py:param:case_id_key": traceid_key,
+        },
+    )
 
 
 def convert_lifecycle_eventlog_to_start_timestamp_eventlog(

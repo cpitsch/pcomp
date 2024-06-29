@@ -1870,13 +1870,13 @@ testing = ["pytest", "pytest-benchmark"]
 
 [[package]]
 name = "pm4py"
-version = "2.7.10.1"
+version = "2.7.11.11"
 description = "Process mining for Python"
 optional = false
 python-versions = "*"
 files = [
-    {file = "pm4py-2.7.10.1-py3-none-any.whl", hash = "sha256:6f146fcd9f8bbcead5f9743da6363358abd21bb8bdd587cc9d3b1defa9ab8b08"},
-    {file = "pm4py-2.7.10.1.tar.gz", hash = "sha256:27bc5ac20f4ce555aa06c0cb69491e944735ac30586d0cc26a10fd48e2beef91"},
+    {file = "pm4py-2.7.11.11-py3-none-any.whl", hash = "sha256:7f0985a5c948719cbb0314a45cf0dc3fb41b571286ad3ea27c3d38543bfbd37a"},
+    {file = "pm4py-2.7.11.11.tar.gz", hash = "sha256:47b0b84b23663d72893f272425ad1165c78945c8997801b524827b81d4df1608"},
 ]
 
 [package.dependencies]
@@ -1892,8 +1892,9 @@ pandas = "*"
 pydotplus = "*"
 pytz = "*"
 scipy = "*"
-stringdist = "*"
+setuptools = "*"
 tqdm = "*"
+wheel = "*"
 
 [[package]]
 name = "polars"
@@ -3072,16 +3073,6 @@ watchdog = {version = ">=2.1.5", markers = "platform_system != \"Darwin\""}
 snowflake = ["snowflake-connector-python (>=2.8.0)", "snowflake-snowpark-python (>=0.9.0)"]
 
 [[package]]
-name = "stringdist"
-version = "1.0.9"
-description = "This package provides the stringdist module, which includes several functions for calculating string distances. Under the hood, a C extension module is preferentially used for optimal performance, with an automatic fallback to a Python implementation."
-optional = false
-python-versions = "*"
-files = [
-    {file = "StringDist-1.0.9.tar.gz", hash = "sha256:91e6d4a348223db094d029e7e3de9ce89c561738047555dfad60ff5ccb7a5b74"},
-]
-
-[[package]]
 name = "strsimpy"
 version = "0.2.1"
 description = "A library implementing different string similarity and distance measures"
@@ -3481,6 +3472,20 @@ files = [
 ]
 
 [[package]]
+name = "wheel"
+version = "0.43.0"
+description = "A built-package format for Python"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "wheel-0.43.0-py3-none-any.whl", hash = "sha256:55c570405f142630c6b9f72fe09d9b67cf1477fcf543ae5b8dcb1f5b7377da81"},
+    {file = "wheel-0.43.0.tar.gz", hash = "sha256:465ef92c69fa5c5da2d1cf8ac40559a8c940886afcef87dcf14b9470862f1d85"},
+]
+
+[package.extras]
+test = ["pytest (>=6.0.0)", "setuptools (>=65)"]
+
+[[package]]
 name = "wurlitzer"
 version = "3.0.3"
 description = "Capture C-level output in context managers"
@@ -3509,4 +3514,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.13"
-content-hash = "a1485a61134285274f557dabb40dd4f13ccedf98ccfd9f887f31bf2d81904534"
+content-hash = "42a0cd00f54ab20cca1fc5013f15c2bda930f4babf9f5d1e29e694fef59c24fb"
