@@ -77,6 +77,20 @@ def sample_cases(
     seed: int | None = None,
     traceid_key: str = constants.DEFAULT_TRACEID_KEY,
 ) -> pd.DataFrame:
+    """Sample a number of cases from the event log.
+
+    Args:
+        log (pd.DataFrame): The event log.
+        num_cases (int): The number of cases to sample. Should not be larger than the
+            event log.
+        seed (int | None, optional): The seed to use for shuffling. Defaults to None
+            (random).
+        traceid_key (str, optional): The column name for the case id. Defaults to
+            "case:concept:name".
+
+    Returns:
+        pd.DataFrame: The sampled event log
+    """
     shuffled_log = log.sample(frac=1, random_state=seed)
 
     return dataframe_utils.sample_dataframe(
