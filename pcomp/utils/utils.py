@@ -335,10 +335,10 @@ def pretty_format_duration(seconds: float) -> str:
     Returns:
         str: The formatted duration.
     """
-    num_hours = seconds // 3600
-    num_minutes = (seconds % 3600) // 60
+    num_hours = int(seconds // 3600)
+    num_minutes = int((seconds % 3600) // 60)
     num_seconds = seconds % 60
-    return f"{num_hours:02}:{num_minutes:02}:{num_seconds:02}"
+    return f"{num_hours:02}:{num_minutes:02}:{'0' if num_seconds < 10 else ''}{num_seconds:02.2f}"
 
 
 def enable_logging(level: int = logging.INFO):
