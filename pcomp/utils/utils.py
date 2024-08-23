@@ -3,7 +3,7 @@ import logging
 import pandas as pd
 from pandas import DataFrame
 from pm4py import read_xes  # type: ignore
-from pm4py.objects.log.util import dataframe_utils
+from pm4py.objects.log.util import dataframe_utils  # type: ignore
 from tqdm.auto import tqdm
 
 from . import constants
@@ -292,6 +292,44 @@ def add_duration_column_to_log(
     new_log[duration_key] = (
         new_log[end_time_key] - new_log[start_time_key]
     ).dt.total_seconds()
+
+    return new_log
+
+
+def add_waiting_time_column_to_log(
+    log: pd.DataFrame,
+    start_time_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
+    end_time_key: str = constants.DEFAULT_TIMESTAMP_KEY,
+    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
+    waiting_time_key: str = "@pcomp:waiting_time",
+) -> pd.DataFrame:
+    """Compute the waiting time for each event and add this as an attribute. The waiting
+    time is computed as the time difference between the start of the current event and the
+    completion of the previous one.
+
+    Args:
+        log (pd.DataFrame): The event log.
+        start_time_key (str, optional): The column name for the start timestamp of an event.
+            Defaults to "start_timestamp"
+        end_time_key (str, optional): The column name for the completion timestamp of an
+            event. Defaults to "time:timestamp".
+        traceid_key (str, optional): The column name for the case id. Defaults to
+            "case:concept:name".
+        waiting_time_key (str, optional): The column name to use for the computed column.
+            Defaults to "@pcomp:waiting_time".
+
+    Returns:
+        pd.DataFrame: The event log with the added column
+    """
+    new_log = log.copy()
+    new_log[waiting_time_key] = (
+        new_log.sort_values(by=[end_time_key, "concept:name"])
+        .groupby(by=traceid_key)
+        .apply(lambda group: group[start_time_key] - group[end_time_key].shift(1))
+        .reset_index(level=0, drop=True)
+        .fillna(pd.Timedelta(0))
+        .dt.total_seconds()
+    )
 
     return new_log
 
