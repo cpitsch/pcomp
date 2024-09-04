@@ -6,7 +6,7 @@ from pm4py import read_xes  # type: ignore
 from pm4py.objects.log.util import dataframe_utils  # type: ignore
 from tqdm.auto import tqdm
 
-from . import constants
+import pcomp.utils.constants as constants
 
 
 def import_log(
