@@ -65,9 +65,28 @@ def extract_service_time_traces(
         )
 
     # For each case a tuple containing for each event a tuple of 1) Activity and 2) Duration
+    return extract_trace_with_numerical_attribute(
+        log, "@pcomp:duration", activity_key, traceid_key, end_time_key, tiebreaker_key
+    )
+
+
+def extract_trace_with_numerical_attribute(
+    log: pd.DataFrame,
+    attribute_column: str,
+    activity_key: str = constants.DEFAULT_NAME_KEY,
+    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
+    end_time_key: str = constants.DEFAULT_TIMESTAMP_KEY,
+    tiebreaker_key: str | None = constants.DEFAULT_NAME_KEY,
+) -> list[ServiceTimeTrace]:
+    sort_by = [end_time_key]
+    if tiebreaker_key is not None:
+        sort_by.append(tiebreaker_key)
+
+    # For each case a tuple containing for each event a tuple of
+    # 1) Activity and 2) The value in the attribute_column
     return (
         log.sort_values(by=sort_by)
-        .groupby(by=traceid_key, sort=False)[[activity_key, "@pcomp:duration"]]
+        .groupby(by=traceid_key, sort=False)[[activity_key, attribute_column]]
         .apply(
             lambda group: tuple(  # type: ignore [arg-type]
                 group.itertuples(index=False, name=None)  # type: ignore
@@ -113,6 +132,29 @@ def extract_traces_activity_service_times(
             for activity, duration in trace
         )
         for trace in service_time_traces
+    ]
+
+
+def extract_binned_trace_with_numerical_attribute(
+    log: pd.DataFrame,
+    binner_manager: BinnerManager,
+    attribute_column: str,
+    activity_key: str = constants.DEFAULT_NAME_KEY,
+    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
+    end_time_key: str = constants.DEFAULT_TIMESTAMP_KEY,
+    tiebreaker_key: str | None = constants.DEFAULT_NAME_KEY,
+):
+    traces = extract_trace_with_numerical_attribute(
+        log, attribute_column, activity_key, traceid_key, end_time_key, tiebreaker_key
+    )
+
+    return [
+        tuple(
+            # Bin the attribute value with the binner associated to the activitiy
+            (activity, binner_manager.bin(activity, value))
+            for activity, value in trace
+        )
+        for trace in traces
     ]
 
 
