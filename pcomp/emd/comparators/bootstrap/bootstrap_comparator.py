@@ -71,18 +71,23 @@ class BootstrapComparator(ABC, Generic[T]):
             verbose (bool, optional): If True, show progress bars. Defaults to True.
             cleanup_on_del (bool, optional): If True, call `cleanup` upon destruction,
                 e.g., when the object goes out of scope. Defaults to True.
-            bootstrapping_style ("split sampling" | "replacement sublogs", optional):
+            bootstrapping_style ("replacement sublogs" | "split sampling" | "resample split", optional):
                 The strategy to use for bootstrapping the null distribution. The
                 strategies work as follows:
-                  - "replacement sublogs": Randomly sample sublogs of `resample_size`
-                    of log_1, and compute their EMD to log_1. This is done
-                    `bootstrapping_dist_size` times.
-                  - "split sampling": Randomly split the log_1 in two, and compute the
-                    EMD between the two halves. This is done `bootstrapping_dist_size`
-                    times.
-                  - "resample split": Randomly sample 2 sublogs of `resample_size` of
-                    log_1 and compute their EMD. This is done `bootstrapping_dist_size`
-                    times.
+
+                - "replacement sublogs": Randomly sample sublogs of `resample_size`
+                of log_1, and compute their EMD to log_1. This is done
+                `bootstrapping_dist_size` times. This is the approach used by Leemans
+                et al. in "Statistical Tests and Association Measures for Business
+                Processes"
+                - "split sampling": Randomly split the log_1 in two halves and compute
+                the EMD between them. This is done `bootstrapping_dist_size` times.
+                - "resample split": Randomly sample 2 sublogs of `resample_size` of
+                log_1 and compute their EMD. This is done `bootstrapping_dist_size`
+                times. This is a kind of mixture of the "replacement sublogs" and
+                "split sampling" approaches, taking the sampling with replacement from
+                the first, and taking the "split" comparison idea from the latter, as
+                opposed to comparing what effectively converges towards a subset.
 
             emd_backend (EMDBackend, optional): The backend to use for EMD computation.
                 Defaults to "wasserstein" (use the "wasserstein" module). Alternatively,
@@ -346,6 +351,7 @@ def bootstrap_emd_population(
     """
     gen = np.random.default_rng(seed)
 
+    # Default resample size to log length
     resample_size = resample_size or len(population)
 
     reference_stoch_lang = population_to_stochastic_language(population)
