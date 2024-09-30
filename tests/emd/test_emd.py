@@ -7,6 +7,7 @@ from pcomp.emd.core import EMDBackend, StochasticLanguage, compute_emd
 from pcomp.emd.emd import (
     custom_postnormalized_levenshtein_distance,
     extract_service_time_traces,
+    extract_traces,
     post_normalized_weighted_levenshtein_distance,
 )
 from pcomp.utils import ensure_start_timestamp_column
@@ -49,6 +50,23 @@ def test_service_time_trace_extraction_event_log(event_log):
     print(service_time_traces)
     print(expected)
     assert service_time_traces == expected
+
+
+def test_control_flow_extraction_simple_event_log(simple_event_log):
+    # Filters to only retain complete events
+    traces = extract_traces(simple_event_log, filter_complete_lifecycle=True)
+    expected = [("a", "b", "c", "d")]
+    assert traces == expected
+
+
+def test_control_flow_extraction_event_log(event_log):
+    # Filters to only retain complete events
+    traces = extract_traces(event_log, filter_complete_lifecycle=True)
+    expected = [
+        ("a", "c", "b", "d"),
+        ("b", "a", "a"),
+    ]
+    assert traces == expected
 
 
 #### Test Edit Distances

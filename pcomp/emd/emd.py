@@ -6,10 +6,13 @@ from collections.abc import Callable
 from functools import cache
 
 import pandas as pd
+from strsimpy.levenshtein import Levenshtein  # type: ignore
 from strsimpy.weighted_levenshtein import WeightedLevenshtein  # type: ignore
 
 from pcomp.binning import BinnerManager
 from pcomp.utils import add_duration_column_to_log, constants
+
+Trace = tuple[str, ...]
 
 ServiceTimeEvent = tuple[str, float]
 ServiceTimeTrace = tuple[ServiceTimeEvent, ...]
@@ -67,6 +70,52 @@ def extract_service_time_traces(
     # For each case a tuple containing for each event a tuple of 1) Activity and 2) Duration
     return extract_trace_with_numerical_attribute(
         log, "@pcomp:duration", activity_key, traceid_key, end_time_key, tiebreaker_key
+    )
+
+
+def extract_traces(
+    log: pd.DataFrame,
+    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
+    activity_key: str = constants.DEFAULT_NAME_KEY,
+    complete_timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
+    tiebreaker_key: str = constants.DEFAULT_NAME_KEY,
+    lifecycle_column: str = constants.DEFAULT_LIFECYCLE_KEY,
+    filter_complete_lifecycle: bool = True,
+) -> list[Trace]:
+    """Extract the traces from the event log. Traces are sequences of executed activities.
+
+    Args:
+        log (pd.DataFrame): The event log.
+        traceid_key (str, optional): The column name for the case id. Defaults to
+            "case:concept:name".
+        activity_key (str, optional): The column name for the activity label. Defaults
+            to "concept:name".
+        complete_timestamp_key (str, optional): The column name for the completion timestamp
+            of an event. Defaults to "time:timestamp".
+        tiebreaker_key (str, optional): The key to use to order events with the same
+            completion timestamp. Defaults to "concept:name" (The activity label).
+        lifecycle_key (str, optional): The column name for the lifecycle information. Used
+            for retaining only complete events if `filter_complete_lifecycle` is True.
+            Defaults to "lifecycle:transition".
+            completion timestamp. Defaults to "concept:name" (The activity label).
+        filter_complete_lifecycle (bool, optional): Filter the event log to only contain
+            complete events. Defaults to true
+
+    Returns:
+        list[Trace]: The extracted traces
+    """
+    sort_by = [complete_timestamp_key]
+    if tiebreaker_key is not None:
+        sort_by.append(tiebreaker_key)
+
+    if filter_complete_lifecycle:
+        log = log[log[lifecycle_column] == "complete"]
+
+    return (
+        log.sort_values(by=sort_by)
+        .groupby(by=traceid_key, sort=False)[activity_key]
+        .apply(tuple)
+        .tolist()
     )
 
 
@@ -156,6 +205,34 @@ def extract_binned_trace_with_numerical_attribute(
         )
         for trace in traces
     ]
+
+
+def levenshtein_distance(trace_1: Trace, trace_2: Trace) -> float:
+    """Compute the levenshtein distance between two traces (lists of strings). A wrapper
+    around the function provided by strsimpy.
+
+    Args:
+        trace_1 (Trace): The first trace.
+        trace_2 (Trace): The second trace.
+
+    Returns:
+        float: The levenshtein edit distance between the traces.
+    """
+    return Levenshtein().distance(trace_1, trace_2)
+
+
+def postnormalized_levenshtein_distance(trace_1: Trace, trace_2: Trace) -> float:
+    """Compute the postnormalized levenshtein distance between two traces by dividing their
+    levenshtein edit distance by the larger length.
+
+    Args:
+        trace_1 (Trace): The first trace.
+        trace_2 (Trace): The second trace.
+
+    Returns:
+        float: The postnormalized levenshtein distance.
+    """
+    return levenshtein_distance(trace_1, trace_2) / max(len(trace_1), len(trace_2))
 
 
 def weighted_levenshtein_distance(
