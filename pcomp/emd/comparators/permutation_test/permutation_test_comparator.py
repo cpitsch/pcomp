@@ -295,7 +295,7 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
         self._permutation_distribution = (
             self._comparison_result.permutation_distribution
         )
-        self._comparison_runtime = comparison_runtime
+        self._comparison_runtime = self._comparison_result.runtime
 
         return self._comparison_result
 
