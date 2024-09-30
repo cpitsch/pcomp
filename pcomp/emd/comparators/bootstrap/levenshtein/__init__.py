@@ -1,1 +1,2 @@
+from .control_flow import ControlFlowBootstrapComparator
 from .levenshtein import Timed_Levenshtein_BootstrapComparator
