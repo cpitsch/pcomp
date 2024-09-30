@@ -139,10 +139,16 @@ def fold_instance_id_log_to_partial_order_log(
         ].values
 
     new_log = new_log[~new_log[lifecycle_key].isin(START_LIFECYLCES)]
-    # Fill in the start timestamp for complete events without a start event
-    new_log[start_timestamp_key] = new_log[start_timestamp_key].fillna(
-        new_log[timestamp_key]
-    )
+
+    if start_timestamp_key not in new_log.columns:
+        # All events are complete events; continued in each loop iteration, so no start
+        # timestamp column was added
+        new_log[start_timestamp_key] = new_log[timestamp_key]
+    else:
+        # Fill in the start timestamp for complete events without a start event
+        new_log[start_timestamp_key] = new_log[start_timestamp_key].fillna(
+            new_log[timestamp_key]
+        )
     return new_log
 
 
