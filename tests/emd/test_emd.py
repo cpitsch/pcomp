@@ -47,8 +47,6 @@ def test_service_time_trace_extraction_event_log(event_log):
         (("a", 2 * day), ("c", 1 * day), ("b", 4 * day), ("d", 0 * day)),
         (("b", 2 * day), ("a", 2 * day), ("a", 5 * day)),
     ]
-    print(service_time_traces)
-    print(expected)
     assert service_time_traces == expected
 
 
