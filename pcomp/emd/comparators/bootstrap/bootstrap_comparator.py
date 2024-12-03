@@ -1,6 +1,7 @@
 import logging
 import math
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from timeit import default_timer
 from typing import Callable, Generic, Literal, TypeVar
 
@@ -29,6 +30,45 @@ T = TypeVar("T")
 
 # Literal Types
 BootstrappingStyle = Literal["replacement sublogs", "split sampling", "resample split"]
+
+
+@dataclass
+class BootstrapTestComparisonResult:
+    pvalue: float
+    logs_emd: float
+    bootstrap_distribution: Numpy1DArray[np.float_]
+    runtime: float
+
+    def plot(self) -> Figure:
+        """Plot the bootstrapping distribution and the EMD between the two logs.
+
+        Returns:
+            plt.figure: The corresponding figure.
+        """
+        fig, ax = plt.subplots()
+
+        bootstrapping_distribution = self.bootstrap_distribution
+        logs_emd = self.logs_emd
+
+        ax.hist(
+            bootstrapping_distribution,
+            bins=50,
+            edgecolor="black",
+            alpha=0.7,
+            label=r"$D_{l_1l_1}$",
+        )
+        ax.set_xlabel("Earth Mover's Distance")
+        ax.set_ylabel("Frequency")
+        ax.axvline(
+            logs_emd,
+            color="red",
+            linestyle="--",
+            linewidth=2,
+            label=r"$d_{l_1l_2}$",
+        )
+        ax.legend(fontsize=12, loc="upper right")
+
+        return fig
 
 
 class BootstrapComparator(ABC, Generic[T]):
@@ -71,18 +111,23 @@ class BootstrapComparator(ABC, Generic[T]):
             verbose (bool, optional): If True, show progress bars. Defaults to True.
             cleanup_on_del (bool, optional): If True, call `cleanup` upon destruction,
                 e.g., when the object goes out of scope. Defaults to True.
-            bootstrapping_style ("split sampling" | "replacement sublogs", optional):
+            bootstrapping_style ("replacement sublogs" | "split sampling" | "resample split", optional):
                 The strategy to use for bootstrapping the null distribution. The
                 strategies work as follows:
-                  - "replacement sublogs": Randomly sample sublogs of `resample_size`
-                    of log_1, and compute their EMD to log_1. This is done
-                    `bootstrapping_dist_size` times.
-                  - "split sampling": Randomly split the log_1 in two, and compute the
-                    EMD between the two halves. This is done `bootstrapping_dist_size`
-                    times.
-                  - "resample split": Randomly sample 2 sublogs of `resample_size` of
-                    log_1 and compute their EMD. This is done `bootstrapping_dist_size`
-                    times.
+
+                - "replacement sublogs": Randomly sample sublogs of `resample_size`
+                of log_1, and compute their EMD to log_1. This is done
+                `bootstrapping_dist_size` times. This is the approach used by Leemans
+                et al. in "Statistical Tests and Association Measures for Business
+                Processes"
+                - "split sampling": Randomly split the log_1 in two halves and compute
+                the EMD between them. This is done `bootstrapping_dist_size` times.
+                - "resample split": Randomly sample 2 sublogs of `resample_size` of
+                log_1 and compute their EMD. This is done `bootstrapping_dist_size`
+                times. This is a kind of mixture of the "replacement sublogs" and
+                "split sampling" approaches, taking the sampling with replacement from
+                the first, and taking the "split" comparison idea from the latter, as
+                opposed to comparing what effectively converges towards a subset.
 
             emd_backend (EMDBackend, optional): The backend to use for EMD computation.
                 Defaults to "wasserstein" (use the "wasserstein" module). Alternatively,
@@ -150,27 +195,31 @@ class BootstrapComparator(ABC, Generic[T]):
         pass
 
     @property
+    def comparison_result(self) -> BootstrapTestComparisonResult:
+        """
+        The object representing the result of the comparison. Computed in `compare`.
+        If `compare` has not been called, accessing this will raise a ValueError.
+        """
+        if not hasattr(self, "_comparison_result"):
+            raise ValueError("Must call `compare` before accessing comparison result.")
+        return self._comparison_result
+
+    @property
     def logs_emd(self) -> float:
         """
         The Earth Mover's Distance between the two logs. Computed in `compare`.
         If `compare` has not been called, accessing this will raise a ValueError.
         """
-        if not hasattr(self, "_logs_emd"):
-            raise ValueError("Must call `compare` before accessing `logs_emd`.")
-        return self._logs_emd
+        return self.comparison_result.logs_emd
 
     @property
-    def bootstrapping_distribution(self) -> list[float]:
+    def bootstrapping_distribution(self) -> Numpy1DArray[np.float_]:
         """
         The bootstrapping distribution of EMDs of the log to itself. Computed in
         `compare`.
         If `compare` has not been called, accessing this will raise a ValueError.
         """
-        if not hasattr(self, "_bootstrapping_distribution"):
-            raise ValueError(
-                "Must call `compare` before accessing `bootstrapping_distribution`."
-            )
-        return self._bootstrapping_distribution
+        return self.comparison_result.bootstrap_distribution
 
     @property
     def pval(self) -> float:
@@ -178,11 +227,9 @@ class BootstrapComparator(ABC, Generic[T]):
         The p-value from the comparison. Computed in `compare`.
         If `compare` has not been called, accessing this will raise a ValueError.
         """
-        if not hasattr(self, "_pval"):
-            raise ValueError("Must call `compare` before accessing `pval`.")
-        return self._pval
+        return self.comparison_result.pvalue
 
-    def compare(self) -> float:
+    def compare(self) -> BootstrapTestComparisonResult:
         """Apply the full pipeline to compare the event logs.
 
         1. Extract the representations from the event logs using
@@ -191,8 +238,10 @@ class BootstrapComparator(ABC, Generic[T]):
         3. Bootstrap a Null distribution of EMDs (EMDs of samples of log_1 to log_1).
         4. Compute the p-value.
         Returns:
-            float: The computed p-value.
+            BootstrapTestComparisonResult: The the result of the comparison: The pvalue
+                and the measures used to compute it.
         """
+        start_time = default_timer()
         self.behavior_1, self.behavior_2 = self.extract_representations(
             self.log_1, self.log_2
         )
@@ -243,44 +292,23 @@ class BootstrapComparator(ABC, Generic[T]):
         self._logs_emd = emd
         self._bootstrapping_distribution = self_emds
         self._pval = num_larger_or_equal_bootstrap_dists / self.bootstrapping_dist_size
+        self._comparison_runtime = default_timer() - start_time
 
-        return self._pval
+        self._comparison_result = BootstrapTestComparisonResult(
+            self._pval,
+            self._logs_emd,
+            np.array(self._bootstrapping_distribution),
+            self._comparison_runtime,
+        )
+        return self._comparison_result
 
     def plot_result(self) -> Figure:
         """Plot the bootstrapping distribution and the EMD between the two logs.
 
-        Args:
-            bootstrapping_distribution (list[float]): The bootstrapping distribution of
-                EMDs of the log to itself.
-            logs_emd (float): The EMD between the two logs.
-
         Returns:
             plt.figure: The corresponding figure.
         """
-        fig, ax = plt.subplots()
-
-        bootstrapping_distribution = self.bootstrapping_distribution
-        logs_emd = self.logs_emd
-
-        ax.hist(
-            bootstrapping_distribution,
-            bins=50,
-            edgecolor="black",
-            alpha=0.7,
-            label=r"$D_{l_1l_1}$",
-        )
-        ax.set_xlabel("Earth Mover's Distance")
-        ax.set_ylabel("Frequency")
-        ax.axvline(
-            logs_emd,
-            color="red",
-            linestyle="--",
-            linewidth=2,
-            label=r"$d_{l_1l_2}$",
-        )
-        ax.legend(fontsize=12, loc="upper right")
-
-        return fig
+        return self.comparison_result.plot()
 
 
 def compute_emd_for_split_sample(
@@ -346,6 +374,7 @@ def bootstrap_emd_population(
     """
     gen = np.random.default_rng(seed)
 
+    # Default resample size to log length
     resample_size = resample_size or len(population)
 
     reference_stoch_lang = population_to_stochastic_language(population)

@@ -1,5 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from timeit import default_timer
 from typing import Callable, Generic, TypeVar
 
@@ -18,6 +19,42 @@ from pcomp.utils.utils import (
 )
 
 T = TypeVar("T")
+
+
+@dataclass
+class PermutationTestComparisonResult:
+    pvalue: float
+    logs_emd: float
+    permutation_distribution: Numpy1DArray[np.float_]
+    runtime: float
+
+    def plot(self) -> Figure:
+        """Plot the computed distribution and the EMD between the two logs.
+
+        Returns:
+            plt.figure: The corresponding figure.
+        """
+        fig, ax = plt.subplots()
+
+        ax.hist(
+            self.permutation_distribution,
+            bins=50,
+            edgecolor="black",
+            alpha=0.7,
+            label=r"$P$",
+        )
+        ax.set_xlabel("Earth Mover's Distance")
+        ax.set_ylabel("Frequency")
+        ax.axvline(
+            self.logs_emd,
+            color="red",
+            linestyle="--",
+            linewidth=2,
+            label=r"$d_{l_1l_2}$",
+        )
+        ax.legend(fontsize=12, loc="upper right")
+
+        return fig
 
 
 class Permutation_Test_Comparator(ABC, Generic[T]):
@@ -118,14 +155,24 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
         pass
 
     @property
+    def comparison_result(self) -> PermutationTestComparisonResult:
+        """
+        The object representing the result of the comparison. Computed in `compare`.
+        If `compare` has not been called, accessing this will raise a ValueError.
+        """
+        if not hasattr(self, "_comparison_result"):
+            raise ValueError(
+                "Must call `compare` before accessing `comparison_result`."
+            )
+        return self._comparison_result
+
+    @property
     def logs_emd(self) -> float:
         """
         The Earth Mover's Distance between the two logs. Computed in `compare`.
         If `compare` has not been called, accessing this will raise a ValueError.
         """
-        if not hasattr(self, "_logs_emd"):
-            raise ValueError("Must call `compare` before accessing `logs_emd`.")
-        return self._logs_emd
+        return self.comparison_result.logs_emd
 
     @property
     def permutation_distribution(self) -> Numpy1DArray[np.float_]:
@@ -133,11 +180,7 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
         The distribution of EMDs computed for the permutation test. Computed in `compare`.
         If `compare` has not been called, accessing this will raise a ValueError.
         """
-        if not hasattr(self, "_permutation_distribution"):
-            raise ValueError(
-                "Must call `compare` before accessing `permutation_distribution`."
-            )
-        return self._permutation_distribution
+        return self.comparison_result.permutation_distribution
 
     @property
     def pval(self) -> float:
@@ -145,9 +188,7 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
         The p-value from the comparison. Computed in `compare`.
         If `compare` has not been called, accessing this will raise a ValueError.
         """
-        if not hasattr(self, "_pval"):
-            raise ValueError("Must call `compare` before accessing `pval`.")
-        return self._pval
+        return self.comparison_result.pvalue
 
     @property
     def comparison_runtime(self) -> float:
@@ -155,13 +196,9 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
         The duration of the the `compare` call.
         If accessed before calling `compare`, a ValueError will be raised.
         """
-        if not hasattr(self, "_comparison_runtime"):
-            raise ValueError(
-                "Must call `compare` before accessing `comparison_runtime`."
-            )
-        return self._comparison_runtime
+        return self.comparison_result.runtime
 
-    def compare(self) -> float:
+    def compare(self) -> PermutationTestComparisonResult:
         """Apply the full pipeline to compare the event logs.
 
         1. Extract the representations from the event logs using
@@ -171,7 +208,8 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
         4. Compute the p-value. As the fraction of permutation distribution EMDs that
            are larger than the logs EMD computed in step (2).
         Returns:
-            float: The computed p-value.
+            PermutationTestResult: The the result of the comparison: The pvalue and
+                the measures used to compute it.
         """
 
         start_time = default_timer()
@@ -205,7 +243,7 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
             stoch_lang_2.variants,
         )
 
-        self._logs_emd = emd(
+        logs_emd = emd(
             stoch_lang_1.frequencies,
             stoch_lang_2.frequencies,
             log_1_log_2_distances,
@@ -242,14 +280,24 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
 
         # TODO: Video says > not >=, using > for now.
         # Although it will likely never really matter
-        num_larger_dists = (permutation_test_distribution > self._logs_emd).sum()
+        num_larger_dists = (permutation_test_distribution > logs_emd).sum()
 
-        self._permutation_distribution = permutation_test_distribution
-        self._pval = num_larger_dists / self.distribution_size
+        pval = num_larger_dists / self.distribution_size
+        comparison_runtime = default_timer() - start_time
 
-        self._comparison_runtime = default_timer() - start_time
+        self._comparison_result = PermutationTestComparisonResult(
+            pval, logs_emd, permutation_test_distribution, comparison_runtime
+        )
 
-        return self._pval
+        # For backwards compatibility
+        self._pval = self._comparison_result.pvalue
+        self._logs_emd = self._comparison_result.logs_emd
+        self._permutation_distribution = (
+            self._comparison_result.permutation_distribution
+        )
+        self._comparison_runtime = self._comparison_result.runtime
+
+        return self._comparison_result
 
     def plot_result(self) -> Figure:
         """Plot the computed distribution and the EMD between the two logs.
@@ -257,27 +305,7 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
         Returns:
             plt.figure: The corresponding figure.
         """
-        fig, ax = plt.subplots()
-
-        ax.hist(
-            self._permutation_distribution,
-            bins=50,
-            edgecolor="black",
-            alpha=0.7,
-            label=r"$P$",
-        )
-        ax.set_xlabel("Earth Mover's Distance")
-        ax.set_ylabel("Frequency")
-        ax.axvline(
-            self.logs_emd,
-            color="red",
-            linestyle="--",
-            linewidth=2,
-            label=r"$d_{l_1l_2}$",
-        )
-        ax.legend(fontsize=12, loc="upper right")
-
-        return fig
+        return self.comparison_result.plot()
 
 
 def compute_permutation_test_distribution(

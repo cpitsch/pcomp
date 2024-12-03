@@ -1866,17 +1866,17 @@ testing = ["pytest", "pytest-benchmark"]
 
 [[package]]
 name = "pm4py"
-version = "2.7.8.2"
+version = "2.7.11.11"
 description = "Process mining for Python"
 optional = false
 python-versions = "*"
 files = [
-    {file = "pm4py-2.7.8.2-py3-none-any.whl", hash = "sha256:df921d853bccd1dce62e43c26a497fd59ca08e6c25df92fc10445e4f22c7e99c"},
-    {file = "pm4py-2.7.8.2.tar.gz", hash = "sha256:4ab5370b3e658386628794cfcbb384b33e6e4f0c19c3a3f598965f5c5ce49c48"},
+    {file = "pm4py-2.7.11.11-py3-none-any.whl", hash = "sha256:7f0985a5c948719cbb0314a45cf0dc3fb41b571286ad3ea27c3d38543bfbd37a"},
+    {file = "pm4py-2.7.11.11.tar.gz", hash = "sha256:47b0b84b23663d72893f272425ad1165c78945c8997801b524827b81d4df1608"},
 ]
 
 [package.dependencies]
-cvxopt = {version = "*", markers = "python_version < \"3.12\""}
+cvxopt = {version = "*", markers = "python_version < \"3.13\""}
 deprecation = "*"
 graphviz = "*"
 intervaltree = "*"
@@ -1888,8 +1888,52 @@ pandas = "*"
 pydotplus = "*"
 pytz = "*"
 scipy = "*"
-stringdist = "*"
+setuptools = "*"
 tqdm = "*"
+wheel = "*"
+
+[[package]]
+name = "polars"
+version = "0.20.31"
+description = "Blazingly fast DataFrame library"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "polars-0.20.31-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:86454ade5ed302bbf87f145cfcb1b14f7a5765a9440e448659e1f3dba6ac4e79"},
+    {file = "polars-0.20.31-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:67f2fe842262b7e1b9371edad21b760f6734d28b74c78dda88dff1bf031b9499"},
+    {file = "polars-0.20.31-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:24b82441f93409e0e8abd6f427b029db102f02b8de328cee9a680f84b84e3736"},
+    {file = "polars-0.20.31-cp38-abi3-manylinux_2_24_aarch64.whl", hash = "sha256:87f43bce4d41abf8c8c5658d881e4b8378e5c61010a696bfea8b4106b908e916"},
+    {file = "polars-0.20.31-cp38-abi3-win_amd64.whl", hash = "sha256:2d7567c9fd9d3b9aa93387ca9880d9e8f7acea3c0a0555c03d8c0c2f0715d43c"},
+    {file = "polars-0.20.31.tar.gz", hash = "sha256:00f62dec6bf43a4e2a5db58b99bf0e79699fe761c80ae665868eaea5168f3bbb"},
+]
+
+[package.dependencies]
+pandas = {version = "*", optional = true, markers = "extra == \"pandas\""}
+pyarrow = {version = ">=7.0.0", optional = true, markers = "extra == \"pandas\" or extra == \"pyarrow\""}
+
+[package.extras]
+adbc = ["adbc-driver-manager", "adbc-driver-sqlite"]
+all = ["polars[adbc,async,cloudpickle,connectorx,deltalake,fastexcel,fsspec,gevent,iceberg,numpy,pandas,plot,pyarrow,pydantic,sqlalchemy,timezone,xlsx2csv,xlsxwriter]"]
+async = ["nest-asyncio"]
+cloudpickle = ["cloudpickle"]
+connectorx = ["connectorx (>=0.3.2)"]
+deltalake = ["deltalake (>=0.15.0)"]
+fastexcel = ["fastexcel (>=0.9)"]
+fsspec = ["fsspec"]
+gevent = ["gevent"]
+iceberg = ["pyiceberg (>=0.5.0)"]
+matplotlib = ["matplotlib"]
+numpy = ["numpy (>=1.16.0)"]
+openpyxl = ["openpyxl (>=3.0.0)"]
+pandas = ["pandas", "pyarrow (>=7.0.0)"]
+plot = ["hvplot (>=0.9.1)"]
+pyarrow = ["pyarrow (>=7.0.0)"]
+pydantic = ["pydantic"]
+pyxlsb = ["pyxlsb (>=1.0)"]
+sqlalchemy = ["pandas", "sqlalchemy"]
+timezone = ["backports-zoneinfo", "tzdata"]
+xlsx2csv = ["xlsx2csv (>=0.8.0)"]
+xlsxwriter = ["xlsxwriter"]
 
 [[package]]
 name = "pot"
@@ -2746,6 +2790,67 @@ files = [
 ]
 
 [[package]]
+name = "rustxes"
+version = "0.2.2"
+description = "Rust-based XES/OCEL2 event log importer"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "rustxes-0.2.2-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:223dab29b64b38377e98d6bc68617f12493a39023ba92bb7829de67991e06a4e"},
+    {file = "rustxes-0.2.2-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:ec2a1630c69a5e0490545b7c7e8ab14765448866571fbd02a5948f948bf2dcb6"},
+    {file = "rustxes-0.2.2-cp310-cp310-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:7925194901c5af86cf01c4cb24cb6f336d956843c32ce4e35dc34569410058e9"},
+    {file = "rustxes-0.2.2-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2ad2643c9fd01d7d8bfa3cc901b2595bc343b0e7cbcb23e12a971fd0819804c7"},
+    {file = "rustxes-0.2.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7745569e532cf28b326cdd9fe2bc8c6428a30b462fe559d0ed238b83b799ccf7"},
+    {file = "rustxes-0.2.2-cp310-none-win32.whl", hash = "sha256:0baf68c81ba264fd3052d06559367cddf20dee4c906796528076976c861390e7"},
+    {file = "rustxes-0.2.2-cp310-none-win_amd64.whl", hash = "sha256:526c8853c065eefbadab525161ab5c140ac016efeaea33943fae724388dc828a"},
+    {file = "rustxes-0.2.2-cp311-cp311-macosx_10_12_x86_64.whl", hash = "sha256:0397de17f46612017d13e609f456c4987625627d47a8dfb7af434882fecef239"},
+    {file = "rustxes-0.2.2-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:89e0341bb00f22b70fdaa00ef8a57265ba793180fd78efb232d0496294939c34"},
+    {file = "rustxes-0.2.2-cp311-cp311-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:4692673558a407be9c1497d8623d3aab9524f3dc6e7655a41f8e390f6733885c"},
+    {file = "rustxes-0.2.2-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ea40a5cbd203fb910c8bd9f3bf3644125f1955776481407d25db99b3bb6de3dc"},
+    {file = "rustxes-0.2.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:4a7cc665a652d705fdde9d297dc01942510c5fb9e008eb4dec38fb0599164bf8"},
+    {file = "rustxes-0.2.2-cp311-none-win32.whl", hash = "sha256:11c7dfadf24513c3630d98108605986ee3eba6a0c7b7142466d514f3ba2caf85"},
+    {file = "rustxes-0.2.2-cp311-none-win_amd64.whl", hash = "sha256:6074399498801d365a39e1af058394e02e8133613d10e9c42f498a3df8c555f7"},
+    {file = "rustxes-0.2.2-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:3b97f31ef8a5b3c11586f4aef65dbb9367c4f75b8fe2a42b7a8a23e274535fa5"},
+    {file = "rustxes-0.2.2-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:53ea2486dfbfe342aacd3ffdad20ca04a6df747852aa34fb0160ab0d379c232d"},
+    {file = "rustxes-0.2.2-cp312-cp312-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:00084200cba3bd89c3a703622875bf879613ffdeb66388380c064856083478ec"},
+    {file = "rustxes-0.2.2-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:8ed4ee316465ac2b63c3bc4d9c07b8302b5660f22ae2918db4bff9535ef4cd01"},
+    {file = "rustxes-0.2.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f430ef13ac479e4abe813bef4066efc50a48f3c6692c6ba50281f9295673b01b"},
+    {file = "rustxes-0.2.2-cp312-none-win32.whl", hash = "sha256:59e41aeb384c4902543af269b2cebb669e3a6ff7bc212e0494f2b2e82e3ab97b"},
+    {file = "rustxes-0.2.2-cp312-none-win_amd64.whl", hash = "sha256:f4401f860103a35b7d7673ea7d3a4ab294d6d14a430e03ba1776b71489291be7"},
+    {file = "rustxes-0.2.2-cp37-cp37m-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:71f0b9fe1ceb9562f409355231ad4a0987bfa81d999e405719cd13290b4ae56d"},
+    {file = "rustxes-0.2.2-cp37-cp37m-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:da63eefcf9508b7b771b3ba161487aa6f74b00a5debe0a23758154c239373507"},
+    {file = "rustxes-0.2.2-cp37-cp37m-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b334b0b62c436a7a9b73cfa30fdd6830c49bc0d2c01d3e9572a4e0742f76347d"},
+    {file = "rustxes-0.2.2-cp37-none-win32.whl", hash = "sha256:6decfe4a8de8df80d7cf9b697448f0b87e916b020a29d957bd2ddb8f7b7956e7"},
+    {file = "rustxes-0.2.2-cp37-none-win_amd64.whl", hash = "sha256:db178921bc52f09408aac7e55a6962502273a16e99ca388d7ac269fb9694967b"},
+    {file = "rustxes-0.2.2-cp38-cp38-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:369638853e80f4e02b6d679a518e59e551b85d79ab595ea72ff4588c27bd17fb"},
+    {file = "rustxes-0.2.2-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ee269f86e749e7746dd77dd7fd1e503af86fc384e47065b5209f968aed1f27bf"},
+    {file = "rustxes-0.2.2-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e0db1da54d0978d6439b286826eb0feab1247f9cbe284813974f63de6bd0454d"},
+    {file = "rustxes-0.2.2-cp38-none-win32.whl", hash = "sha256:57f6f924cee90127d37a0e708eaacd464973fd054b92147d89f2454ca034c9e9"},
+    {file = "rustxes-0.2.2-cp38-none-win_amd64.whl", hash = "sha256:f61e223ebb19d2cb73d8ab3b7b2f0fdac0b586736fc3b6aa19bfc51141698ebc"},
+    {file = "rustxes-0.2.2-cp39-cp39-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:e47a64196322756a1f6d969e64c001958163af52eec810c6b50f2355e758b64f"},
+    {file = "rustxes-0.2.2-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:fbebd219825cba08d040b7bc6f2ab8e85c65bba2c04540a4184619197ba796c2"},
+    {file = "rustxes-0.2.2-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d0965ba5d1a7d0f75f6e5a60616438395d3eca7dbf381eb078cd2a1dcb3f744e"},
+    {file = "rustxes-0.2.2-cp39-none-win32.whl", hash = "sha256:3cb0702645a07ecdf1f8a1c4980570e4cd477883fcce458a3dd9f29ad973082f"},
+    {file = "rustxes-0.2.2-cp39-none-win_amd64.whl", hash = "sha256:b2abc57179b608718f844cd942681cf97214c78d44eef0e91a50d459679ed442"},
+    {file = "rustxes-0.2.2-pp310-pypy310_pp73-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:4d8993ce9e283db1282ff66badd32ad60b6088babf9ba82cc8b610a37accc49c"},
+    {file = "rustxes-0.2.2-pp310-pypy310_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:7c769bb815ef22e4810221a897084ff9a4134ffe026d81d74c9989d09c05f6e2"},
+    {file = "rustxes-0.2.2-pp310-pypy310_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:addfb1c7d3385f60a9390c38864552ca146fe5ed362f4e51ab968268dcef78c9"},
+    {file = "rustxes-0.2.2-pp37-pypy37_pp73-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:42507c6921bdbef816502171e2ad2a6cab3cad7be14117ced9e505e9516e90db"},
+    {file = "rustxes-0.2.2-pp37-pypy37_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:898704fde76ab581efda51b620425094ca483f58f1d6de02948c7738793c5752"},
+    {file = "rustxes-0.2.2-pp37-pypy37_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:9d6dac72c74a8649a2c9109b666793f4f13d5717335c50398982b2f06eeabf9d"},
+    {file = "rustxes-0.2.2-pp38-pypy38_pp73-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:d006add0c4909ee609bda658b6a6dc5a644e379caf88dedfe7854bf2ca54b9b4"},
+    {file = "rustxes-0.2.2-pp38-pypy38_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:01589b9359eea86f01a286b71735f959ca0e0a8130796af9d9cc4a03e14b8c68"},
+    {file = "rustxes-0.2.2-pp38-pypy38_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:953861b600344e18a8c1294ea018da3d9433a362c66577c69fb5c6b1d24df0dc"},
+    {file = "rustxes-0.2.2-pp39-pypy39_pp73-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:e4cb2c156bdd4f00219e472596f64c14aacaf36aff10ba9576b8597cfc2d7062"},
+    {file = "rustxes-0.2.2-pp39-pypy39_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:3a25527e4cb2f72ac5300df473e421f9dbe37524211e1d480d67f93c8d1c97e6"},
+    {file = "rustxes-0.2.2-pp39-pypy39_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:aa4975c26773f6075c9378ca658fbffa757d914e32ec2f6e7629b88b0b16858a"},
+    {file = "rustxes-0.2.2.tar.gz", hash = "sha256:6bc18a73570dc8b96936739e21cc42e79382953ead8ab1bc57e9a34cd5896a79"},
+]
+
+[package.dependencies]
+polars = {version = "*", extras = ["pandas", "pyarrow"]}
+
+[[package]]
 name = "scikit-learn"
 version = "1.3.2"
 description = "A set of python modules for machine learning and data mining"
@@ -2963,16 +3068,6 @@ watchdog = {version = ">=2.1.5", markers = "platform_system != \"Darwin\""}
 snowflake = ["snowflake-connector-python (>=2.8.0)", "snowflake-snowpark-python (>=0.9.0)"]
 
 [[package]]
-name = "stringdist"
-version = "1.0.9"
-description = "This package provides the stringdist module, which includes several functions for calculating string distances. Under the hood, a C extension module is preferentially used for optimal performance, with an automatic fallback to a Python implementation."
-optional = false
-python-versions = "*"
-files = [
-    {file = "StringDist-1.0.9.tar.gz", hash = "sha256:91e6d4a348223db094d029e7e3de9ce89c561738047555dfad60ff5ccb7a5b74"},
-]
-
-[[package]]
 name = "strsimpy"
 version = "0.2.1"
 description = "A library implementing different string similarity and distance measures"
@@ -3063,13 +3158,13 @@ files = [
 
 [[package]]
 name = "tqdm"
-version = "4.66.1"
+version = "4.66.4"
 description = "Fast, Extensible Progress Meter"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "tqdm-4.66.1-py3-none-any.whl", hash = "sha256:d302b3c5b53d47bce91fea46679d9c3c6508cf6332229aa1e7d8653723793386"},
-    {file = "tqdm-4.66.1.tar.gz", hash = "sha256:d88e651f9db8d8551a62556d3cff9e3034274ca5d66e93197cf2490e2dcb69c7"},
+    {file = "tqdm-4.66.4-py3-none-any.whl", hash = "sha256:b75ca56b413b030bc3f00af51fd2c1a1a5eac6a0c1cca83cbb37a5c52abce644"},
+    {file = "tqdm-4.66.4.tar.gz", hash = "sha256:e4d936c9de8727928f3be6079590e97d9abfe8d39a590be678eb5919ffc186bb"},
 ]
 
 [package.dependencies]
@@ -3326,6 +3421,20 @@ files = [
 ]
 
 [[package]]
+name = "wheel"
+version = "0.43.0"
+description = "A built-package format for Python"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "wheel-0.43.0-py3-none-any.whl", hash = "sha256:55c570405f142630c6b9f72fe09d9b67cf1477fcf543ae5b8dcb1f5b7377da81"},
+    {file = "wheel-0.43.0.tar.gz", hash = "sha256:465ef92c69fa5c5da2d1cf8ac40559a8c940886afcef87dcf14b9470862f1d85"},
+]
+
+[package.extras]
+test = ["pytest (>=6.0.0)", "setuptools (>=65)"]
+
+[[package]]
 name = "wurlitzer"
 version = "3.0.3"
 description = "Capture C-level output in context managers"
@@ -3354,4 +3463,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.13"
-content-hash = "925e26d569f4edb459a6c301757f0b76b370706d4b2629bcfe72c6e08fc99b0f"
+content-hash = "68079043196dbd60d088bb13d6afe96fde57cae3690cb34aef067ca18686f706"

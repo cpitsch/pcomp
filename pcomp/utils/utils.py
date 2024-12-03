@@ -1,27 +1,31 @@
 import logging
-from datetime import datetime
 
 import pandas as pd
 from pandas import DataFrame
 from pm4py import read_xes  # type: ignore
-from pm4py.utils import sample_cases  # type: ignore
+from pm4py.objects.log.util import dataframe_utils  # type: ignore
 from tqdm.auto import tqdm
 
-from . import constants
+import pcomp.utils.constants as constants
 
 
-def import_log(path: str, show_progress_bar: bool = False) -> DataFrame:
+def import_log(
+    path: str, show_progress_bar: bool = False, variant: str | None = None
+) -> DataFrame:
     """Import an event log using pm4py.
     This function is a wrapper around pm4py.read_xes.
 
     Args:
         path (str): The path to the event log file.
-        show_progress_bar (bool, optional): Should a progress bar be shown for the impor? Defaults to False.
+        show_progress_bar (bool, optional): Should a progress bar be shown for the impor?
+            Defaults to False.
+        variant (str, optional): The pm4py import variant to use. See `pm4py.read_xes`.
+            Defaults to None (use the pm4py default).
 
     Returns:
         DataFrame: The imported event log.
     """
-    return read_xes(path, show_progress_bar=show_progress_bar)
+    return read_xes(path, show_progress_bar=show_progress_bar, variant=variant)
 
 
 def log_len(log: DataFrame, traceid_key: str = constants.DEFAULT_TRACEID_KEY) -> int:
@@ -29,7 +33,8 @@ def log_len(log: DataFrame, traceid_key: str = constants.DEFAULT_TRACEID_KEY) ->
 
     Args:
         log (DataFrame): The event log.
-        traceid_key (str, optional): The column name for the trace id. Defaults to constants.DEFAULT_TRACEID_KEY.
+        traceid_key (str, optional): The column name for the trace id. Defaults to
+            constants.DEFAULT_TRACEID_KEY.
 
     Returns:
         int: The number of unqiue trace ids in the event log.
@@ -43,13 +48,16 @@ def split_log_cases(
     seed: int | None = None,
     traceid_key: str = constants.DEFAULT_TRACEID_KEY,
 ) -> tuple[DataFrame, DataFrame]:
-    """Split an event log into two parts, with the first part containing `frac` of the cases and the second part containing the rest.
+    """Split an event log into two parts, with the first part containing `frac` of the
+    cases and the second part containing the rest.
 
     Args:
         log (DataFrame): The event log.
-        frac (float): The fraction of cases to assign to the first split. For instance, 0.5 splits the event log in two halves.
+        frac (float): The fraction of cases to assign to the first split. For instance,
+            0.5 splits the event log in two halves.
         seed (int, optional): The seed for the random number generator. Defaults to None.
-        traceid_key (str, optional): The column name for the trace id. Defaults to "case:concept:name".
+        traceid_key (str, optional): The column name for the trace id. Defaults to
+            "case:concept:name".
 
     Returns:
         tuple[DataFrame, DataFrame]: The two splits of the event log.
@@ -57,14 +65,43 @@ def split_log_cases(
     num_cases = log_len(log)
     num_sample_cases = int(num_cases * frac)
 
-    shuffled_log = log.sample(
-        frac=1, random_state=seed
-    )  # Shuffle the event log so pm4py sample_cases is different every time
-
-    sample1 = sample_cases(shuffled_log, num_sample_cases, case_id_key=traceid_key)
+    sample1 = sample_cases(log, num_sample_cases, seed, traceid_key)
     sample2 = log[~log[traceid_key].isin(sample1[traceid_key].unique())]
 
     return sample1, sample2
+
+
+def sample_cases(
+    log: pd.DataFrame,
+    num_cases: int,
+    seed: int | None = None,
+    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
+) -> pd.DataFrame:
+    """Sample a number of cases from the event log.
+
+    Args:
+        log (pd.DataFrame): The event log.
+        num_cases (int): The number of cases to sample. Should not be larger than the
+            event log.
+        seed (int | None, optional): The seed to use for shuffling. Defaults to None
+            (random).
+        traceid_key (str, optional): The column name for the case id. Defaults to
+            "case:concept:name".
+
+    Returns:
+        pd.DataFrame: The sampled event log
+    """
+    shuffled_log = log.sample(frac=1, random_state=seed)
+
+    return dataframe_utils.sample_dataframe(
+        shuffled_log,
+        {
+            "max_no_cases": num_cases,
+            "deterministic": True,
+            dataframe_utils.Parameters.CASE_ID_KEY: traceid_key,
+            "pm4py:param:case_id_key": traceid_key,
+        },
+    )
 
 
 def convert_lifecycle_eventlog_to_start_timestamp_eventlog(
@@ -110,8 +147,11 @@ def convert_lifecycle_eventlog_to_start_timestamp_eventlog(
             case_df[lifecycle_key].isin(["complete", "ate_abort"])
         ].copy()
 
-        # Match each complete event to its start event (if there is one), otherwise use the timestamp of the complete event
-        ## Afterwards, the "end" events will remain, with a new attribute "start_timestamp" that contains the timestamp of the corresponding start event (or their own timestamp if there is no start event --> Instant execution)
+        # Match each complete event to its start event (if there is one), otherwise use
+        # the timestamp of the complete event
+        ## Afterwards, the "end" events will remain, with a new attribute "start_timestamp"
+        ## that contains the timestamp of the corresponding start event (or their own
+        ## timestamp if there is no start event --> Instant execution)
         def find_start_timestamp(
             row: pd.Series, start_events: DataFrame, use_instance: bool
         ):
@@ -147,16 +187,23 @@ def convert_atomic_eventlog_to_lifecycle_eventlog(
     lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
     instance_key: str = constants.DEFAULT_INSTANCE_KEY,
 ) -> DataFrame:
-    """Convert an event log with no lifecycle information or start timestamps into an equivalent one with lifecycle information.
-    In particular, this adds a lifecycle column with value "complete" for each event, and an event instance column with unique values (signifying each event corresponds to a different activity execution)
+    """Convert an event log with no lifecycle information or start timestamps into an
+    equivalent one with lifecycle information.
+    In particular, this adds a lifecycle column with value "complete" for each event, and
+    an event instance column with unique values (signifying each event corresponds to a
+    different activity execution).
 
-    The event instance id generated has the form `<caseid>:<idx>` where `idx` is the index of this event in the case
+    The event instance id generated has the form `<caseid>:<idx>` where `idx` is the
+    index of this event in the case
 
     Args:
         log (DataFrame): The Event Log.
-        traceid_key (str, optional): The column name for the trace id. Defaults to "case:concept:name".
-        lifecycle_key (str, optional): The column name to use for the lifecycle information. Defaults to "lifecycle:transition". If this column already exists, it will be overwritten.
-        instance_key (str, optional): The column name to use for the instance information. Defaults to "concept:instance". If this column already exists, it will be overwritten.
+        traceid_key (str, optional): The column name for the trace id. Defaults to
+            "case:concept:name".
+        lifecycle_key (str, optional): The column name to use for the lifecycle information.
+            Defaults to "lifecycle:transition". If this column already exists, it will be overwritten.
+        instance_key (str, optional): The column name to use for the instance information.
+            Defaults to "concept:instance". If this column already exists, it will be overwritten.
     Returns:
         DataFrame: The converted event log.
     """
@@ -169,12 +216,15 @@ def convert_atomic_eventlog_to_start_timestamp_eventlog(
     log: DataFrame,
     timestamp_key: str = constants.DEFAULT_TIMESTAMP_KEY,
 ) -> DataFrame:
-    """Convert an event log with no lifecycle information or start timestamps into an equivalent one with a "start_timestamp" column for each event.
-    In particular, this adds a new column "start_timestamp" with the same values as the "time:timestamp" column.
+    """Convert an event log with no lifecycle information or start timestamps into an
+    equivalent one with a "start_timestamp" column for each event.
+    In particular, this adds a new column "start_timestamp" with the same values as the
+    "time:timestamp" column.
 
     Args:
         log (DataFrame): The Event Log.
-        timestamp_key (str, optional): The column name for the timestamp of the event. Defaults to "time:timestamp".
+        timestamp_key (str, optional): The column name for the timestamp of the event.
+            Defaults to "time:timestamp".
 
     Returns:
         DataFrame: The converted event log
@@ -193,8 +243,10 @@ def add_event_instance_id_to_log(
 
     Args:
         log (pd.DataFrame): The event log.
-        traceid_key (str, optional): The column for the trace ids. Defaults to "case:concept:name".
-        instance_key (str, optional): The column for the instance ids. Defaults to "concept:instance".
+        traceid_key (str, optional): The column for the trace ids. Defaults to
+            "case:concept:name".
+        instance_key (str, optional): The column for the instance ids. Defaults to
+            "concept:instance".
 
     Returns:
         pd.DataFrame: The event log with instance ids.
@@ -244,12 +296,50 @@ def add_duration_column_to_log(
     return new_log
 
 
+def add_waiting_time_column_to_log(
+    log: pd.DataFrame,
+    start_time_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
+    end_time_key: str = constants.DEFAULT_TIMESTAMP_KEY,
+    traceid_key: str = constants.DEFAULT_TRACEID_KEY,
+    waiting_time_key: str = "@pcomp:waiting_time",
+) -> pd.DataFrame:
+    """Compute the waiting time for each event and add this as an attribute. The waiting
+    time is computed as the time difference between the start of the current event and the
+    completion of the previous one.
+
+    Args:
+        log (pd.DataFrame): The event log.
+        start_time_key (str, optional): The column name for the start timestamp of an event.
+            Defaults to "start_timestamp"
+        end_time_key (str, optional): The column name for the completion timestamp of an
+            event. Defaults to "time:timestamp".
+        traceid_key (str, optional): The column name for the case id. Defaults to
+            "case:concept:name".
+        waiting_time_key (str, optional): The column name to use for the computed column.
+            Defaults to "@pcomp:waiting_time".
+
+    Returns:
+        pd.DataFrame: The event log with the added column
+    """
+    new_log = log.copy()
+    new_log[waiting_time_key] = (
+        new_log.sort_values(by=[end_time_key, "concept:name"])
+        .groupby(by=traceid_key)
+        .apply(lambda group: group[start_time_key] - group[end_time_key].shift(1))
+        .reset_index(level=0, drop=True)
+        .fillna(pd.Timedelta(0))
+        .dt.total_seconds()
+    )
+
+    return new_log
+
+
 def ensure_start_timestamp_column(
     df: pd.DataFrame,
     start_timestamp_key: str = constants.DEFAULT_START_TIMESTAMP_KEY,
     lifecycle_key: str = constants.DEFAULT_LIFECYCLE_KEY,
 ) -> pd.DataFrame:
-    """Ensure that the event log has a start timestamp column.#
+    """Ensure that the event log has a start timestamp column.
     If it doesn't, try creating one using lifecycle information.
     If no lifecycle information is present, try interpret the event log as an atomic
     event log and create a start timestamp using the end timestamps (same start timestamp
@@ -283,7 +373,10 @@ def pretty_format_duration(seconds: float) -> str:
     Returns:
         str: The formatted duration.
     """
-    return datetime.strftime(datetime.utcfromtimestamp(seconds), "%H:%M:%S")
+    num_hours = int(seconds // 3600)
+    num_minutes = int((seconds % 3600) // 60)
+    num_seconds = seconds % 60
+    return f"{num_hours:02}:{num_minutes:02}:{'0' if num_seconds < 10 else ''}{num_seconds:02.2f}"
 
 
 def enable_logging(level: int = logging.INFO):
@@ -296,7 +389,10 @@ def enable_logging(level: int = logging.INFO):
 
 
 class DevNullProgressBar:
-    """A dummy progress bar that does nothing when updated/closed. Used when no progress bar should be shown."""
+    """
+    A dummy progress bar that does nothing when updated/closed. Used when no progress bar
+    should be shown.
+    """
 
     def __init__(self, *args, **_):
         if len(args) > 0:
@@ -322,10 +418,12 @@ class DevNullProgressBar:
 def create_progress_bar(
     show_progress_bar: bool = True, *args, **kwargs
 ) -> tqdm | DevNullProgressBar:
-    """Helper function to create a progress bar. If `show_progress_bar` is False, a dummy progress bar is returned that does nothing when updated/closed.
+    """Helper function to create a progress bar. If `show_progress_bar` is False, a dummy
+    progress bar is returned that does nothing when updated/closed.
 
     Args:
-        show_progress_bar (bool, optional): Return a real or dummy progress bar? Defaults to True.
+        show_progress_bar (bool, optional): Return a real or dummy progress bar?
+            Defaults to True.
         *args: Arguments to pass to the progress bar constructor
         **kwargs: Keyword arguments to pass to the progress bar constructor
 

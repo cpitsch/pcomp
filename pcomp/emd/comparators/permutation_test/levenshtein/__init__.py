@@ -1,1 +1,2 @@
+from .control_flow import ControlFlowPermutationComparator
 from .levenshtein import Timed_Levenshtein_PermutationComparator

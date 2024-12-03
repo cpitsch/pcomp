@@ -129,7 +129,4 @@ def test_symmetric_distance_matrix_computation_mp():
         population.tolist(), cost_fn, False, 6
     )
 
-    print(expected)
-    print(actual)
-    print(expected == actual)
     assert (expected == actual).all()
