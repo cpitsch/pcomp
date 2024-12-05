@@ -101,6 +101,9 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
             multiprocess_cores (int, optional): Use multiprocessing for distance computation?
                 Defaults to 0 (no multiprocessing used).
         """
+        if log_1.empty or log_2.empty:
+            raise ValueError("Cannot compare with an empty event log")
+
         self.log_1 = ensure_start_timestamp_column(log_1)
         self.log_2 = ensure_start_timestamp_column(log_2)
         self.distribution_size = distribution_size
