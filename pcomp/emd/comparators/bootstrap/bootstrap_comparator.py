@@ -135,6 +135,9 @@ class BootstrapComparator(ABC, Generic[T]):
             seed (int, optional): The seed to use for sampling in the bootstrapping
                 phase.
         """
+        if log_1.empty or log_2.empty:
+            raise ValueError("Cannot compare with an empty event log")
+
         self.log_1 = ensure_start_timestamp_column(log_1)
         self.log_2 = ensure_start_timestamp_column(log_2)
         self.bootstrapping_dist_size = bootstrapping_dist_size
@@ -342,6 +345,86 @@ def compute_emd_for_split_sample(
     )
 
 
+# def bootstrap_emd_population(
+#     population: list[T],
+#     cost_fn: Callable[[T, T], float],
+#     bootstrapping_dist_size: int = 10_000,
+#     resample_size: int | None = None,
+#     seed: int | None = None,
+#     emd_backend: EMDBackend = "wasserstein",
+#     show_progress_bar: bool = True,
+# ) -> list[float]:
+#     """Compute a distribution of EMDs from a population to samples of itself.
+#     Computed by sampling samples of size `resample_size` with replacement from the
+#     population. Then, an EMD is computed between the population and the sample.
+#     This is repeated `bootstrapping_dist_size` times.
+#
+#     Args:
+#         population (list[T]): The population. A list of items.
+#         cost_fn (Callable[[T, T], float]): A function to compute the cost between two
+#             items.
+#         bootstrapping_dist_size (int, optional): The number of EMDs to compute. Defaults
+#             to 10_000.
+#         resample_size (int | None, optional): The size of the samples. Defaults to None.
+#         seed (int, optional): The seed to use for sampling. Defaults to None.
+#         emd_backend (EMDBackend, optional): The backend to use to compute the EMD.
+#             Defaults to "wasserstein" (use the "wasserstein" module).
+#         show_progress_bar (bool, optional): Whether to show a progress bar for the
+#             sampling progress. Defaults to True.
+#
+#     Returns:
+#         list[float]: The list of computed EMDs.
+#     """
+#     gen = np.random.default_rng(seed)
+#
+#     # Default resample size to log length
+#     resample_size = resample_size or len(population)
+#
+#     reference_stoch_lang = population_to_stochastic_language(population)
+#
+#     dists_start = default_timer()
+#     # Precompute all distances as statistically, every pair of traces is needed at least once
+#     dists = compute_distance_matrix(
+#         reference_stoch_lang.variants,
+#         reference_stoch_lang.variants,
+#         cost_fn,
+#         show_progress_bar,
+#     )
+#     dists_end = default_timer()
+#
+#     with create_progress_bar(
+#         show_progress_bar,
+#         total=bootstrapping_dist_size,
+#         desc="Bootstrapping EMD Null Distribution",
+#     ) as bootstrapping_progress:
+#
+#         def _compute_emd_with_pbar(row: Numpy1DArray[np.int_]) -> float:
+#             res = compute_emd_for_index_sample(
+#                 row, dists, reference_stoch_lang.frequencies, emd_backend
+#             )
+#             bootstrapping_progress.update()
+#             return res
+#
+#         # Get the samples for the entire bootstrapping stage, respecting the frequencies of the variants
+#         samples = gen.choice(
+#             dists.shape[0],
+#             (bootstrapping_dist_size, resample_size),
+#             replace=True,
+#             p=reference_stoch_lang.frequencies,
+#         )
+#         emds: Numpy1DArray[np.float_] = np.apply_along_axis(
+#             _compute_emd_with_pbar,
+#             1,
+#             samples,
+#         )
+#
+#     emds_end = default_timer()
+#
+#     _log_bootstrapping_performance(dists_start, dists_end, emds_end)
+#
+#     return emds.tolist()
+
+
 def bootstrap_emd_population(
     population: list[T],
     cost_fn: Callable[[T, T], float],
@@ -389,31 +472,25 @@ def bootstrap_emd_population(
     )
     dists_end = default_timer()
 
-    with create_progress_bar(
+    progress_bar = create_progress_bar(
         show_progress_bar,
         total=bootstrapping_dist_size,
         desc="Bootstrapping EMD Null Distribution",
-    ) as bootstrapping_progress:
+    )
+    emds: Numpy1DArray[np.float_] = np.empty(bootstrapping_dist_size, dtype=np.float_)
 
-        def _compute_emd_with_pbar(row: Numpy1DArray[np.int_]) -> float:
-            res = compute_emd_for_index_sample(
-                row, dists, reference_stoch_lang.frequencies, emd_backend
-            )
-            bootstrapping_progress.update()
-            return res
-
-        # Get the samples for the entire bootstrapping stage, respecting the frequencies of the variants
-        samples = gen.choice(
+    for i in range(bootstrapping_dist_size):
+        # Get the samples for the bootstrapping step, respecting the frequencies of the variants
+        sample = gen.choice(
             dists.shape[0],
-            (bootstrapping_dist_size, resample_size),
+            resample_size,
             replace=True,
             p=reference_stoch_lang.frequencies,
         )
-        emds: Numpy1DArray[np.float_] = np.apply_along_axis(
-            _compute_emd_with_pbar,
-            1,
-            samples,
+        emds[i] = compute_emd_for_index_sample(
+            sample, dists, reference_stoch_lang.frequencies, emd_backend
         )
+        progress_bar.update()
 
     emds_end = default_timer()
 
