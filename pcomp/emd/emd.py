@@ -108,7 +108,7 @@ def extract_traces(
     if tiebreaker_key is not None:
         sort_by.append(tiebreaker_key)
 
-    if filter_complete_lifecycle:
+    if lifecycle_column in log.columns and filter_complete_lifecycle:
         log = log[log[lifecycle_column] == "complete"]
 
     return (
