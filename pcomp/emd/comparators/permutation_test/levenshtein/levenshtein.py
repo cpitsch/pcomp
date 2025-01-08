@@ -6,11 +6,13 @@ from pcomp.binning.Binner import BinnerFactory, BinnerManager
 from pcomp.binning.KMeans_Binner import KMeans_Binner
 from pcomp.emd.comparators.permutation_test import Permutation_Test_Comparator
 from pcomp.emd.core import EMDBackend
-from pcomp.emd.emd import (
-    BinnedServiceTimeTrace,
+from pcomp.emd.distances.levenshtein import (
     custom_postnormalized_levenshtein_distance,
-    extract_binned_service_time_traces,
     post_normalized_weighted_levenshtein_distance,
+)
+from pcomp.emd.extraction import (
+    BinnedServiceTimeTrace,
+    extract_binned_service_time_traces,
 )
 from pcomp.utils import add_duration_column_to_log, constants
 

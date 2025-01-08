@@ -5,12 +5,14 @@ import pandas as pd
 from pcomp.binning import BinnerFactory, BinnerManager, KMeans_Binner
 from pcomp.emd.comparators.classic_bootstrap import ClassicBootstrap_Comparator
 from pcomp.emd.core import EMDBackend
-from pcomp.emd.emd import (
-    BinnedServiceTimeTrace,
+from pcomp.emd.distances.levenshtein import (
     custom_postnormalized_levenshtein_distance,
+    post_normalized_weighted_levenshtein_distance,
+)
+from pcomp.emd.extraction import (
+    BinnedServiceTimeTrace,
     extract_binned_service_time_traces,
     extract_service_time_traces,
-    post_normalized_weighted_levenshtein_distance,
 )
 
 

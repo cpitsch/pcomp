@@ -10,7 +10,7 @@ from pcomp.emd.approximations.comparing_stars import (
 )
 from pcomp.emd.comparators.bootstrap import BootstrapComparator, BootstrappingStyle
 from pcomp.emd.core import EMDBackend
-from pcomp.emd.emd import (
+from pcomp.emd.extraction import (
     extract_binned_service_time_traces,
     extract_service_time_traces,
 )

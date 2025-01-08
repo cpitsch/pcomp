@@ -7,7 +7,7 @@ from pcomp.binning import BinnerFactory, BinnerManager, KMeans_Binner
 from pcomp.emd.approximations.string_edit_distance import ukkonen_distance
 from pcomp.emd.comparators.bootstrap import BootstrapComparator, BootstrappingStyle
 from pcomp.emd.core import EMDBackend, compute_time_distance_component
-from pcomp.emd.emd import (
+from pcomp.emd.extraction import (
     BinnedServiceTimeTrace,
     extract_binned_service_time_traces,
     extract_service_time_traces,
