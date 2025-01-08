@@ -3,7 +3,6 @@
 # Here, we use the idea of this approach to compare two event logs w.r.t. timed control-flow
 
 from collections.abc import Callable
-from functools import cache
 
 import pandas as pd
 from strsimpy.levenshtein import Levenshtein  # type: ignore
@@ -274,88 +273,6 @@ def weighted_levenshtein_distance(
         substitution_cost_fn=substitution_cost,
     ).distance(trace1, trace2)
     return dist
-
-
-def custom_levenshtein_distance(
-    trace1: BinnedServiceTimeTrace, trace2: BinnedServiceTimeTrace
-) -> float:
-    """Calculate the weighted levenshtein distance with the following weights:
-
-        - Rename cost: 1
-        - Insertion/Deletion cost: 1
-        - Time Match/Rename cost: Absolute difference between the times
-        - Time Insert/Delete cost: x (The value of the time)
-
-        Thanks to not taking (lambda) cost functions as inputs, caching (hashing) can
-        work correctly.
-        For the implementation with caching, see `cached_custom_levenshtein_distance`.
-
-    Args:
-        trace1 (BinnedServiceTimeTrace): The first trace.
-        trace2 (BinnedServiceTimeTrace): The second trace.
-
-    Returns:
-        float: The computed weighted Levenshtein distance for these costs.
-    """
-    return weighted_levenshtein_distance(
-        trace1,
-        trace2,
-        rename_cost=lambda *_: 1,
-        insertion_deletion_cost=lambda _: 1,
-        cost_time_match_rename=lambda x, y: abs(x - y),
-        cost_time_insert_delete=lambda x: x,
-    )
-
-
-@cache
-def cached_custom_levenshtein_distance(
-    trace1: BinnedServiceTimeTrace, trace2: BinnedServiceTimeTrace
-) -> float:
-    """A cached version of `custom_levenshtein_distance`."""
-    return custom_levenshtein_distance(trace1, trace2)
-
-
-def custom_postnormalized_levenshtein_distance(
-    trace1: BinnedServiceTimeTrace,
-    trace2: BinnedServiceTimeTrace,
-) -> float:
-    """Calculate the postnmormalized weighted levenshtein distance with the following
-    weights:
-
-        - Rename cost: 1
-        - Insertion/Deletion cost: 1
-        - Time Match/Rename cost: Absolute difference between the times
-        - Time Insert/Delete cost: x (The value of the time)
-
-        After computing the distance, it is divided by the length of the longer trace.
-
-        Thanks to not taking (lambda) cost functions as inputs, caching (hashing) can
-        work correctly.
-        For caching, see `cached_custom_postnormalized_levenshtein_distance`.
-
-    Args:
-        trace1 (BinnedServiceTimeTrace): The first trace.
-        trace2 (BinnedServiceTimeTrace): The second trace.
-
-    Returns:
-        float: The computed postnormalized weighted Levenshtein distance for these costs.
-    """
-    return post_normalized_weighted_levenshtein_distance(
-        trace1,
-        trace2,
-        rename_cost=lambda *_: 1,
-        insertion_deletion_cost=lambda _: 1,
-        cost_time_match_rename=lambda x, y: abs(x - y),
-        cost_time_insert_delete=lambda x: x,
-    )
-
-
-@cache
-def cached_custom_postnormalized_levenshtein_distance(
-    trace1: BinnedServiceTimeTrace, trace2: BinnedServiceTimeTrace
-) -> float:
-    """A cached version of `custom_postnormalized_levenshtein_distance`."""
-    return custom_postnormalized_levenshtein_distance(trace1, trace2)
 
 
 def post_normalized_weighted_levenshtein_distance(
