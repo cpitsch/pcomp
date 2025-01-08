@@ -11,8 +11,8 @@ from pcomp.emd.core import EMDBackend
 from pcomp.emd.emd import (
     BinnedServiceTimeTrace,
     custom_postnormalized_levenshtein_distance,
+    extract_binned_service_time_traces,
     extract_service_time_traces,
-    extract_traces_activity_service_times,
     post_normalized_weighted_levenshtein_distance,
 )
 
@@ -83,8 +83,8 @@ class LevenshteinDoubleBootstrapComparator(
         )
 
         return (
-            extract_traces_activity_service_times(log_1, self.binner_manager),
-            extract_traces_activity_service_times(log_2, self.binner_manager),
+            extract_binned_service_time_traces(log_1, self.binner_manager),
+            extract_binned_service_time_traces(log_2, self.binner_manager),
         )
 
     def cost_fn(

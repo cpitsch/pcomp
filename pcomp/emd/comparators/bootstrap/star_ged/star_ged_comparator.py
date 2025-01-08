@@ -11,8 +11,8 @@ from pcomp.emd.approximations.comparing_stars import (
 from pcomp.emd.comparators.bootstrap import BootstrapComparator, BootstrappingStyle
 from pcomp.emd.core import EMDBackend
 from pcomp.emd.emd import (
+    extract_binned_service_time_traces,
     extract_service_time_traces,
-    extract_traces_activity_service_times,
 )
 
 
@@ -79,12 +79,8 @@ class Timed_ApproxTraceGED_BootstrapComparator(BootstrapComparator[DiGraph]):
             **self.binner_args,
         )
 
-        binned_traces_1 = extract_traces_activity_service_times(
-            log_1, self.binner_manager
-        )
-        binned_traces_2 = extract_traces_activity_service_times(
-            log_2, self.binner_manager
-        )
+        binned_traces_1 = extract_binned_service_time_traces(log_1, self.binner_manager)
+        binned_traces_2 = extract_binned_service_time_traces(log_2, self.binner_manager)
 
         # Create the Graphs
         graphs_1 = [

@@ -9,7 +9,7 @@ from pcomp.emd.core import EMDBackend
 from pcomp.emd.emd import (
     BinnedServiceTimeTrace,
     custom_postnormalized_levenshtein_distance,
-    extract_traces_activity_service_times,
+    extract_binned_service_time_traces,
     post_normalized_weighted_levenshtein_distance,
 )
 from pcomp.utils import add_duration_column_to_log, constants
@@ -79,8 +79,8 @@ class Timed_Levenshtein_PermutationComparator(
         )
 
         return (
-            extract_traces_activity_service_times(log_1, self.binner_manager),
-            extract_traces_activity_service_times(log_2, self.binner_manager),
+            extract_binned_service_time_traces(log_1, self.binner_manager),
+            extract_binned_service_time_traces(log_2, self.binner_manager),
         )
 
     def cost_fn(

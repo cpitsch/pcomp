@@ -9,8 +9,8 @@ from pcomp.emd.comparators.bootstrap import BootstrapComparator, BootstrappingSt
 from pcomp.emd.core import EMDBackend, compute_time_distance_component
 from pcomp.emd.emd import (
     BinnedServiceTimeTrace,
+    extract_binned_service_time_traces,
     extract_service_time_traces,
-    extract_traces_activity_service_times,
 )
 
 
@@ -81,12 +81,8 @@ class Timed_Ukkonen_BootstrapComparator(BootstrapComparator[BinnedServiceTimeTra
             **self.binner_args,
         )
 
-        binned_traces_1 = extract_traces_activity_service_times(
-            log_1, self.binner_manager
-        )
-        binned_traces_2 = extract_traces_activity_service_times(
-            log_2, self.binner_manager
-        )
+        binned_traces_1 = extract_binned_service_time_traces(log_1, self.binner_manager)
+        binned_traces_2 = extract_binned_service_time_traces(log_2, self.binner_manager)
 
         return binned_traces_1, binned_traces_2
 
