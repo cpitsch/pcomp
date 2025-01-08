@@ -305,3 +305,37 @@ def post_normalized_weighted_levenshtein_distance(
         cost_time_match_rename=cost_time_match_rename,
         cost_time_insert_delete=cost_time_insert_delete,
     ) / max(len(trace1), len(trace2))
+
+
+def custom_postnormalized_levenshtein_distance(
+    trace1: BinnedServiceTimeTrace,
+    trace2: BinnedServiceTimeTrace,
+) -> float:
+    """Calculate the postnmormalized weighted levenshtein distance with the following
+    weights:
+
+        - Rename cost: 1
+        - Insertion/Deletion cost: 1
+        - Time Match/Rename cost: Absolute difference between the times
+        - Time Insert/Delete cost: x (The value of the time)
+
+        After computing the distance, it is divided by the length of the longer trace.
+
+        Thanks to not taking (lambda) cost functions as inputs, caching (hashing) can
+        work correctly.
+
+    Args:
+        trace1 (BinnedServiceTimeTrace): The first trace.
+        trace2 (BinnedServiceTimeTrace): The second trace.
+
+    Returns:
+        float: The computed postnormalized weighted Levenshtein distance for these costs.
+    """
+    return post_normalized_weighted_levenshtein_distance(
+        trace1,
+        trace2,
+        rename_cost=lambda *_: 1,
+        insertion_deletion_cost=lambda _: 1,
+        cost_time_match_rename=lambda x, y: abs(x - y),
+        cost_time_insert_delete=lambda x: x,
+    )

@@ -5,6 +5,7 @@ import numpy as np
 
 from pcomp.emd.core import EMDBackend, StochasticLanguage, compute_emd
 from pcomp.emd.emd import (
+    BinnedServiceTimeTrace,
     custom_postnormalized_levenshtein_distance,
     extract_service_time_traces,
     extract_traces,
@@ -114,7 +115,7 @@ def test_emd_normal_example():
     """Test that the EMD without time (all times are 0) is the same as what the paper has as example for non-time EMD.
     The paper did not have any examples of EMD's *with* times, so we don't have a reference for this.
     """
-    stoch_lang_1 = StochasticLanguage(
+    stoch_lang_1: StochasticLanguage[BinnedServiceTimeTrace] = StochasticLanguage(
         variants=[
             (("a", 0), ("b", 0), ("d", 0), ("f", 0)),
             (("a", 0), ("c", 0), ("f", 0)),
@@ -122,7 +123,7 @@ def test_emd_normal_example():
         ],
         frequencies=np.array([0.5, 0.4, 0.1]),
     )
-    stoch_lang_2 = StochasticLanguage(
+    stoch_lang_2: StochasticLanguage[BinnedServiceTimeTrace] = StochasticLanguage(
         variants=[
             (("a", 0), ("b", 0), ("d", 0), ("f", 0)),
             (("a", 0), ("c", 0), ("f", 0)),
@@ -131,7 +132,7 @@ def test_emd_normal_example():
         frequencies=np.array([0.5, 0.35, 0.15]),
     )
 
-    stoch_lang_3 = StochasticLanguage(
+    stoch_lang_3: StochasticLanguage[BinnedServiceTimeTrace] = StochasticLanguage(
         variants=[
             (("a", 0), ("b", 0), ("d", 0), ("f", 0)),
             (("a", 0), ("c", 0), ("f", 0)),
