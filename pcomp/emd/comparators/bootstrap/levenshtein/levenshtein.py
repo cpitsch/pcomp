@@ -14,6 +14,7 @@ from pcomp.emd.extraction import (
     extract_binned_service_time_traces,
     extract_service_time_traces,
 )
+from pcomp.utils.utils import ensure_start_timestamp_column
 
 
 class Timed_Levenshtein_BootstrapComparator(
@@ -43,8 +44,8 @@ class Timed_Levenshtein_BootstrapComparator(
         binner_args: dict[str, Any] | None = None,
     ):
         super().__init__(
-            log_1,
-            log_2,
+            ensure_start_timestamp_column(log_1),
+            ensure_start_timestamp_column(log_2),
             bootstrapping_dist_size,
             resample_size,
             verbose,

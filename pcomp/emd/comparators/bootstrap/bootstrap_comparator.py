@@ -138,8 +138,8 @@ class BootstrapComparator(ABC, Generic[T]):
         if log_1.empty or log_2.empty:
             raise ValueError("Cannot compare with an empty event log")
 
-        self.log_1 = ensure_start_timestamp_column(log_1)
-        self.log_2 = ensure_start_timestamp_column(log_2)
+        self.log_1 = log_1
+        self.log_2 = log_2
         self.bootstrapping_dist_size = bootstrapping_dist_size
 
         loglen = log_len(self.log_1)
