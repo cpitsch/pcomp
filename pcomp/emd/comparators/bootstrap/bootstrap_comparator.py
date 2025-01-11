@@ -257,6 +257,8 @@ class BootstrapComparator(ABC, Generic[T]):
         )
 
         if self.bootstrapping_style == "replacement sublogs":
+            # Create bootstrap distribution by creating samples with replacement and
+            # comparing them to their source population (behavior_1)
             self_emds = bootstrap_emd_population(
                 self.behavior_1,
                 self.cost_fn,
@@ -267,6 +269,8 @@ class BootstrapComparator(ABC, Generic[T]):
                 show_progress_bar=self.verbose,
             )
         elif self.bootstrapping_style == "split sampling":
+            # Create bootstrap distribution by splitting behavior_1 into random halves
+            # and comparing the halves
             self_emds = bootstrap_emd_population_split_sampling(
                 self.behavior_1,
                 self.cost_fn,
@@ -276,6 +280,8 @@ class BootstrapComparator(ABC, Generic[T]):
                 show_progress_bar=self.verbose,
             )
         elif self.bootstrapping_style == "resample split":
+            # Create bootstrap distribution by creating two samples of size resample_size,
+            # with replacement and comparing them
             self_emds = bootstrap_emd_population_resample_split_sampling(
                 self.behavior_1,
                 self.cost_fn,
