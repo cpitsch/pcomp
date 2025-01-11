@@ -15,6 +15,7 @@ from pcomp.emd.extraction import (
     extract_binned_service_time_traces,
 )
 from pcomp.utils import add_duration_column_to_log, constants
+from pcomp.utils.utils import ensure_start_timestamp_column
 
 
 class Timed_Levenshtein_PermutationComparator(
@@ -37,8 +38,8 @@ class Timed_Levenshtein_PermutationComparator(
         binner_args: dict[str, Any] | None = None,
     ):
         super().__init__(
-            log_1,
-            log_2,
+            ensure_start_timestamp_column(log_1),
+            ensure_start_timestamp_column(log_2),
             distribution_size,
             verbose,
             cleanup_on_del,

@@ -18,12 +18,7 @@ from pcomp.emd.core import (
     emd,
     population_to_stochastic_language,
 )
-from pcomp.utils import (
-    create_progress_bar,
-    ensure_start_timestamp_column,
-    log_len,
-    pretty_format_duration,
-)
+from pcomp.utils import create_progress_bar, log_len, pretty_format_duration
 from pcomp.utils.typing import Numpy1DArray, NumpyMatrix
 
 T = TypeVar("T")
