@@ -643,16 +643,13 @@ def bootstrap_emd_population_resample_split_sampling(
         desc="Bootstrapping EMD Null Distribution",
     )
 
-    samples_1, samples_2 = gen.choice(
-        dists.shape[0],
-        # Every iteration we need two samples of `resample_size` size
-        (2, bootstrapping_dist_size, resample_size),
-        replace=True,
-        p=stochastic_lang.frequencies,
-    )
-    for idx in range(bootstrapping_dist_size):
-        sample_1 = samples_1[idx]
-        sample_2 = samples_2[idx]
+    for _ in range(bootstrapping_dist_size):
+        sample_1 = gen.choice(
+            dists.shape[0], resample_size, replace=True, p=stochastic_lang.frequencies
+        )
+        sample_2 = gen.choice(
+            dists.shape[0], resample_size, replace=True, p=stochastic_lang.frequencies
+        )
 
         deduplicated_indices_1, counts_1 = np.unique(sample_1, return_counts=True)
         deduplicated_indices_2, counts_2 = np.unique(sample_2, return_counts=True)
