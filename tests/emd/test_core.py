@@ -8,7 +8,6 @@ from pcomp.emd.core import (
     StochasticLanguage,
     compute_emd_for_index_sample,
     compute_emd_for_sample,
-    compute_time_distance_component,
     emd,
     population_to_stochastic_language,
 )
@@ -80,21 +79,3 @@ def test_compute_emd_for_index_sample():
         compute_emd_for_index_sample(np.array([0, 1, 0]), dists, np.ones(3) / 3)
         == 1 / 3
     )
-
-
-def test_compute_time_distance_component_simple():
-    trace_1 = (("a", 1), ("b", 1), ("c", 2), ("d", 3))
-    trace_2 = (("a", 1), ("c", 2), ("b", 1), ("d", 1))
-
-    # Just d incurs a cost
-    assert compute_time_distance_component(trace_1, trace_2) == 2.0
-
-
-def test_compute_time_distance_component_complex():
-    trace_1 = (("a", 5), ("b", 1), ("a", 1), ("c", 5), ("c", 1), ("d", 1))
-    trace_2 = (("a", 1), ("b", 1), ("a", 4), ("c", 1), ("d", 1))
-
-    # Everything is matched
-    assert (
-        compute_time_distance_component(trace_1, trace_2) == 1 + 5
-    )  # Costs for a (5-4) and c insert of time 5
