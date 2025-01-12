@@ -159,41 +159,6 @@ def population_to_stochastic_language(
     )
 
 
-def compute_emd_for_sample(
-    dists: NumpyMatrix[np.float_],
-    reference_frequencies: Numpy1DArray[np.float_],
-    resample_size: int,
-    emd_backend: EMDBackend = "wasserstein",
-) -> float:
-    """Sample a sample of size `resample_size` from the population with replacement and
-    compute the EMD between the sample and the source population.
-
-    Args:
-        dists (NumpyMatrix[np.float_]): The distance matrix of the source population to
-            itself.
-        reference_frequencies (Numpy1DArray[np.float_]): The 1D histogram of the source
-            population.
-        resample_size (int): The size of the sample to draw from the population.
-        emd_backend (EMDBackend, optional): The backend to use for EMD computation.
-            Defaults to "wasserstein" (use the "wasserstein" module).
-
-    Returns:
-        float: The computed EMD.
-    """
-    # TODO: This doesn't respect the frequencies of the variants. All variants (rows) are created equal...
-    sample_indices = np.random.choice(dists.shape[0], resample_size, replace=True)
-
-    deduplicated_indices, counts = np.unique(sample_indices, return_counts=True)
-    dists_for_sample = dists[deduplicated_indices, :]
-
-    return emd(
-        counts / resample_size,
-        reference_frequencies,
-        dists_for_sample,
-        backend=emd_backend,
-    )
-
-
 def compute_emd_for_index_sample(
     indices: Numpy1DArray[np.int_],
     dists: NumpyMatrix[np.float_],
