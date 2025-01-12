@@ -18,9 +18,8 @@ from pcomp.emd.core import (
     emd,
     population_to_stochastic_language,
 )
-from pcomp.utils import ensure_start_timestamp_column
+from pcomp.utils import create_progress_bar, pretty_format_duration
 from pcomp.utils.typing import Numpy1DArray, NumpyMatrix
-from pcomp.utils.utils import create_progress_bar, pretty_format_duration
 
 T = TypeVar("T")
 
@@ -66,8 +65,8 @@ class ClassicBootstrap_Comparator(ABC, Generic[T]):
             seed (int, optional): The seed to use for sampling in the bootstrapping
                 phase.
         """
-        self.log_1 = ensure_start_timestamp_column(log_1)
-        self.log_2 = ensure_start_timestamp_column(log_2)
+        self.log_1 = log_1
+        self.log_2 = log_2
         self.bootstrapping_dist_size = bootstrapping_dist_size
 
         self.verbose = verbose
