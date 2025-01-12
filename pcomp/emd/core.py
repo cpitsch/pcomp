@@ -5,7 +5,6 @@ Core functionality pertaining to EMD computations for various kinds of samples o
 import logging
 from collections import Counter
 from dataclasses import dataclass
-from itertools import zip_longest
 from timeit import default_timer
 from typing import Callable, Generic, Literal, TypeVar
 
@@ -259,70 +258,3 @@ def compute_distance_matrix(
                 dists_progress_bar.update()
 
     return dists
-
-
-Event = tuple[str, float | int]
-Trace = tuple[Event, ...]
-
-
-def compute_time_distance_component(trace_1: Trace, trace_2: Trace) -> float:
-    """Compute the time distance component of the edit distance between two traces.
-    Used as an alternative to including the time distance in edit distance cost function.
-
-    Computed by first matching equally labelled events and summing up the absolute time
-    differences.
-    For duplicate labels, the time differences are sorted and matched in order of
-    increasing duration.
-    Then, the remaining events are also sorted by duration and matched in order of
-    increasing duration.
-
-    Args:
-        trace_1 (Trace): The first trace.
-        trace_2 (Trace): The second trace.
-
-    Returns:
-        float: The computed time distance component.
-    """
-
-    # Sort traces alphabetically, then by duration
-    # Complexity (Tim-sort): O(n log n)
-    t_1 = sorted(list(trace_1))
-    t_2 = sorted(list(trace_2))
-
-    # Now iterate through the traces matching equally labelled events
-    # The secondary sort by duration ensures that within equally labelled activities,
-    # we match small durations to small durations and large durations to large durations
-    # Complexity: O(n)
-    index_1 = 0
-    index_2 = 0
-    matched_cost = 0.0
-    not_matched_durs_1: list[float] = []
-    not_matched_durs_2: list[float] = []
-    while index_1 < len(t_1) and index_2 < len(t_2):
-        activity_1, duration_1 = t_1[index_1]
-        activity_2, duration_2 = t_2[index_2]
-
-        if activity_1 == activity_2:
-            # We have a match, add the time difference to the distance
-            matched_cost += abs(duration_1 - duration_2)
-            index_1 += 1
-            index_2 += 1
-        elif activity_1 < activity_2:
-            not_matched_durs_1.append(duration_1)
-            index_1 += 1
-
-        else:
-            not_matched_durs_2.append(duration_2)
-            index_2 += 1
-
-    # For the non-matched events, we sort by timestamp for the same reason as above
-    # Complexity (Tim-Sort): O(n log n)
-    not_matched_durs_1 = sorted(not_matched_durs_1)
-    not_matched_durs_2 = sorted(not_matched_durs_2)
-
-    return matched_cost + sum(
-        abs(dur_1 - dur_2)
-        for dur_1, dur_2 in zip_longest(
-            not_matched_durs_1, not_matched_durs_2, fillvalue=0.0
-        )
-    )
