@@ -19,7 +19,7 @@ from pcomp.emd.core import (
     population_to_stochastic_language,
 )
 from pcomp.utils import create_progress_bar, log_len, pretty_format_duration
-from pcomp.utils.typing import Numpy1DArray, NumpyMatrix
+from pcomp.utils.typing import Numpy1DArray
 
 T = TypeVar("T")
 
@@ -313,37 +313,6 @@ class BootstrapComparator(ABC, Generic[T]):
             plt.figure: The corresponding figure.
         """
         return self.comparison_result.plot()
-
-
-def compute_emd_for_split_sample(
-    dists: NumpyMatrix[np.float_], emd_backend: EMDBackend = "wasserstein"
-) -> float:
-    """Randomly split the population in two and compute the EMD between the two halves.
-
-    Args:
-        dists (NumpyMatrix[np.float_]): The distance matrix.
-        emd_backend (EMDBackend, optional): The backend to use to compute the EMD.
-            Defaults to "wasserstein" (use the "wasserstein" module).
-
-    Returns:
-        float: The computed EMD.
-    """
-    sample_1_indices = np.random.choice(
-        dists.shape[0], dists.shape[0] // 2, replace=False
-    )
-    sample_2_indices = np.setdiff1d(
-        range(dists.shape[0]), sample_1_indices
-    )  # Complement of sample_1_indices
-
-    deduplicated_indices_1, counts_1 = np.unique(sample_1_indices, return_counts=True)
-    deduplicated_indices_2, counts_2 = np.unique(sample_2_indices, return_counts=True)
-
-    return emd(
-        counts_1 / deduplicated_indices_1.size,
-        counts_2 / deduplicated_indices_2.size,
-        dists[deduplicated_indices_1, :][:, deduplicated_indices_2],
-        backend=emd_backend,
-    )
 
 
 def bootstrap_emd_population(
