@@ -173,9 +173,7 @@ class ClassicBootstrap_Comparator(ABC, Generic[T]):
         The Earth Mover's Distance between the two logs. Computed in `compare`.
         If `compare` has not been called, accessing this will raise a ValueError.
         """
-        if not hasattr(self, "_logs_emd"):
-            raise ValueError("Must call `compare` before accessing `logs_emd`.")
-        return self._logs_emd
+        return self.comparison_result.logs_emd
 
     @property
     def bootstrapping_distribution(self) -> Numpy1DArray[np.float_]:
