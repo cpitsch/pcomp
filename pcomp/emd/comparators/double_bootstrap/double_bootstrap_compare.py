@@ -1,3 +1,15 @@
+"""
+Compare two event logs by first bootstrapping a distribution of distances between Log 1
+and samples of itself. Then, bootstrap a distribution of distances between samples of Log 1
+and Log 2. Then, use the mean of the second distribution to compute a p-value in the same way
+as the classic bootstrap.
+
+In essence, the key difference is that instead of using the EMD between Log 1 and Log 2,
+we bootstrap a distribution of these distances, and use the mean instead.
+
+NOTE: This technique has no foundation in statistics, and is just the result of experimentation.
+Also, preliminary experiments showed that this technique _does not work well_.
+"""
 from abc import ABC, abstractmethod
 from statistics import mean
 from timeit import default_timer

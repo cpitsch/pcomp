@@ -1,3 +1,12 @@
+"""
+Compare two event logs by first bootstrapping a distribution of distances between Log 1
+and samples of itself. Then, bootstrap a distribution of distances between samples of Log 1
+and Log 2, sampling half their size in each step, with replacement. Then compute a p-value
+from these distributions by applying a two-sample Kolmogorov-Smirnov test.
+
+NOTE: This technique has no foundation in statistics, and is just the result of experimentation.
+Also, preliminary experiments showed that this technique _does not work well_.
+"""
 from abc import ABC, abstractmethod
 from timeit import default_timer
 from typing import Callable, Generic, Literal, TypeVar
