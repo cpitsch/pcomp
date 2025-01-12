@@ -1,5 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from timeit import default_timer
 from typing import Callable, Generic, TypeVar
 
@@ -22,6 +23,45 @@ from pcomp.utils import create_progress_bar, pretty_format_duration
 from pcomp.utils.typing import Numpy1DArray, NumpyMatrix
 
 T = TypeVar("T")
+
+
+@dataclass
+class ClassicBootstrapTestComparisonResult:
+    pvalue: float
+    logs_emd: float
+    bootstrap_distribution: Numpy1DArray[np.float_]
+    runtime: float
+
+    def plot(self) -> Figure:
+        """Plot the bootstrapping distribution and the EMD between the two logs.
+
+        Returns:
+            plt.figure: The corresponding figure.
+        """
+        fig, ax = plt.subplots()
+
+        bootstrapping_distribution = self.bootstrap_distribution
+        logs_emd = self.logs_emd
+
+        ax.hist(
+            bootstrapping_distribution,
+            bins=50,
+            edgecolor="black",
+            alpha=0.7,
+            label=r"$D$",
+        )
+        ax.set_xlabel("Earth Mover's Distance")
+        ax.set_ylabel("Frequency")
+        ax.axvline(
+            logs_emd,
+            color="red",
+            linestyle="--",
+            linewidth=2,
+            label=r"$d_{l_1l_2}$",
+        )
+        ax.legend(fontsize=12, loc="upper right")
+
+        return fig
 
 
 class ClassicBootstrap_Comparator(ABC, Generic[T]):
@@ -118,6 +158,16 @@ class ClassicBootstrap_Comparator(ABC, Generic[T]):
         pass
 
     @property
+    def comparison_result(self) -> ClassicBootstrapTestComparisonResult:
+        """
+        The object representing the result of the comparison. Computed in `compare`.
+        If `compare` has not been called, accessing this will raise a ValueError.
+        """
+        if not hasattr(self, "_comparison_result"):
+            raise ValueError("Must call `compare` before accessing comparison result.")
+        return self._comparison_result
+
+    @property
     def logs_emd(self) -> float:
         """
         The Earth Mover's Distance between the two logs. Computed in `compare`.
@@ -134,11 +184,7 @@ class ClassicBootstrap_Comparator(ABC, Generic[T]):
         `compare`. If `compare` has not been called, accessing this will raise a
         ValueError.
         """
-        if not hasattr(self, "_bootstrapping_distribution"):
-            raise ValueError(
-                "Must call `compare` before accessing `bootstrapping_distribution`."
-            )
-        return self._bootstrapping_distribution
+        return self.comparison_result.bootstrap_distribution
 
     @property
     def pval(self) -> float:
@@ -146,11 +192,9 @@ class ClassicBootstrap_Comparator(ABC, Generic[T]):
         The p-value from the comparison. Computed in `compare`.
         If `compare` has not been called, accessing this will raise a ValueError.
         """
-        if not hasattr(self, "_pval"):
-            raise ValueError("Must call `compare` before accessing `pval`.")
-        return self._pval
+        return self.comparison_result.pvalue
 
-    def compare(self) -> float:
+    def compare(self) -> ClassicBootstrapTestComparisonResult:
         """Apply the full pipeline to compare the event logs.
 
         1. Extract the representations from the event logs using
@@ -159,8 +203,10 @@ class ClassicBootstrap_Comparator(ABC, Generic[T]):
         3. Bootstrap a Null distribution of EMDs using bootstrapping.
         4. Compute the p-value.
         Returns:
-            float: The computed p-value.
+            ClassicBootstrapTestComparisonResult: The result of the comparison: The pvalue
+                and the measures used to compute it.
         """
+        start_time = default_timer()
         self.behavior_1, self.behavior_2 = self.extract_representations(
             self.log_1, self.log_2
         )
@@ -208,8 +254,16 @@ class ClassicBootstrap_Comparator(ABC, Generic[T]):
 
         self._bootstrapping_distribution = bootstrap_dist
         self._pval = num_larger_or_equal_bootstrap_dists / self.bootstrapping_dist_size
+        self._comparison_runtime = default_timer() - start_time
 
-        return self._pval
+        self._comparison_result = ClassicBootstrapTestComparisonResult(
+            self._pval,
+            self._logs_emd,
+            np.array(self._bootstrapping_distribution),
+            self._comparison_runtime,
+        )
+
+        return self._comparison_result
 
     def plot_result(self) -> Figure:
         """Plot the bootstrapping distribution and the EMD between the two logs.
@@ -222,30 +276,7 @@ class ClassicBootstrap_Comparator(ABC, Generic[T]):
         Returns:
             plt.figure: The corresponding figure.
         """
-        fig, ax = plt.subplots()
-
-        bootstrapping_distribution = self.bootstrapping_distribution
-        logs_emd = self.logs_emd
-
-        ax.hist(
-            bootstrapping_distribution,
-            bins=50,
-            edgecolor="black",
-            alpha=0.7,
-            label=r"$D_{l_1l_1}$",
-        )
-        ax.set_xlabel("Earth Mover's Distance")
-        ax.set_ylabel("Frequency")
-        ax.axvline(
-            logs_emd,
-            color="red",
-            linestyle="--",
-            linewidth=2,
-            label=r"$d_{l_1l_2}$",
-        )
-        ax.legend(fontsize=12, loc="upper right")
-
-        return fig
+        return self.comparison_result.plot()
 
 
 def bootstrap_emd_population_classic(
