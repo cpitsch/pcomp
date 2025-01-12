@@ -1,9 +1,5 @@
 """
-Core functionality pertaining to the standard EMD Bootstrapping comparison.
-
-This includes the EMD_ProcessComparator abstract class which can be implemented
-for any data extraction and distance functions.
-Apart from that, other important helper functions are also defined.
+Core functionality pertaining to EMD computations for various kinds of samples of the data.
 """
 
 import logging
@@ -100,7 +96,7 @@ def emd(
     backend: EMDBackend = "wasserstein",
     fall_back: bool = True,
 ) -> float:
-    """A wrapper around the EMD computation call.
+    """A wrapper around the EMD computation.
 
     Args:
         freqs_1 (Numpy1DArray[np.float_]): 1D histogram of the first distribution. All

@@ -48,7 +48,9 @@ class ClassicBootstrap_Comparator(ABC, Generic[T]):
         emd_backend: EMDBackend = "wasserstein",
         seed: int | None = None,
     ):
-        """Create an instance.
+        """Create an instance. The classic bootstrap comparator performs a "classic" two-sample
+        bootstrap test. This is done by pooling both event logs together and then computing the
+        EMD between samples (with replacement) and the pooled observations.
 
         Args:
             log_1 (pd.DataFrame): The first event log in the comparison.
