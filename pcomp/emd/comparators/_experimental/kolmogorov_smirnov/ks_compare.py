@@ -5,7 +5,8 @@ and Log 2, sampling half their size in each step, with replacement. Then compute
 from these distributions by applying a two-sample Kolmogorov-Smirnov test.
 
 NOTE: This technique has no foundation in statistics, and is just the result of experimentation.
-Also, preliminary experiments showed that this technique _does not work well_.
+Also, preliminary experiments showed that this technique _does not work well_, and pretty
+much always detects a difference.
 """
 from abc import ABC, abstractmethod
 from timeit import default_timer
