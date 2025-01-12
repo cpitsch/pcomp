@@ -494,7 +494,7 @@ def get_permutation_sample(
     sample_range: int,
     number_of_samples: int,
     seed: int | None | np.random.Generator = None,
-) -> NumpyMatrix[np.float_]:
+) -> NumpyMatrix[np.int_]:
     """Get a number of permutations of numbers from 0..sample_range.
 
     Args:
@@ -505,7 +505,7 @@ def get_permutation_sample(
         seed (int | None | np.random.Generator, optional): The seed to use for sampling.
 
     Returns:
-        NumpyMatrix[np.float_]: The permutation samples. Has the diimensions
+        NumpyMatrix[np.int_]: The permutation samples. Has the diimensions
             sample_range x number_of_samples. Each row contains numbers from the
             interval [0, sample_range) in a random order.
     """
