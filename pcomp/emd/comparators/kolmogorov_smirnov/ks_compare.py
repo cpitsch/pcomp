@@ -20,7 +20,7 @@ from pcomp.emd.core import (
     emd,
     population_to_stochastic_language,
 )
-from pcomp.utils import create_progress_bar, ensure_start_timestamp_column
+from pcomp.utils import create_progress_bar
 
 Self_Bootstrapping_Style = Literal["split", "replacement"]
 
@@ -76,8 +76,8 @@ class EMD_KS_ProcessComparator(ABC, Generic[T]):
                 "ot" or "pot" will use the "Python Optimal Transport" package.
             seed: (int, optional): The seed to use for sampling in the bootstrapping phase.
         """
-        self.log_1 = ensure_start_timestamp_column(log_1)
-        self.log_2 = ensure_start_timestamp_column(log_2)
+        self.log_1 = log_1
+        self.log_2 = log_2
         self.bootstrapping_dist_size = bootstrapping_dist_size
         self.self_emds_bootstrapping_style = self_emds_bootstrapping_style
 

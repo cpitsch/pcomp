@@ -19,7 +19,7 @@ from pcomp.emd.core import (
     emd,
     population_to_stochastic_language,
 )
-from pcomp.utils import ensure_start_timestamp_column, log_len
+from pcomp.utils import log_len
 from pcomp.utils.typing import Numpy1DArray
 from pcomp.utils.utils import create_progress_bar
 
@@ -80,8 +80,8 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
                 "ot" or "pot" will use the "Python Optimal Transport" package.
             seed (int, optional): The seed to use for sampling in the bootstrapping phase
         """
-        self.log_1 = ensure_start_timestamp_column(log_1)
-        self.log_2 = ensure_start_timestamp_column(log_2)
+        self.log_1 = log_1
+        self.log_2 = log_2
 
         # Ensure that log_1 is the larger event log
         if log_len(log_1) < log_len(log_2):
