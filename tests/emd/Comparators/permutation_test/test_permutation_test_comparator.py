@@ -125,8 +125,6 @@ def test_symmetric_distance_matrix_computation_mp():
     # Diagonal: 0, outwards from the 0 we count up in both directions, e.g., 2 1 0 1 2 3
     expected = np.abs(np.arange(10) - np.arange(10)[:, np.newaxis]).astype(np.float_)
 
-    actual = compute_symmetric_distance_matrix_mp(
-        population.tolist(), cost_fn, False, 6
-    )
+    actual = compute_symmetric_distance_matrix_mp(population.tolist(), cost_fn, 6)
 
     assert (expected == actual).all()
