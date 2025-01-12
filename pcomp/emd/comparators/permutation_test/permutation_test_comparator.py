@@ -227,7 +227,6 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
             large_distance_matrix = compute_symmetric_distance_matrix_mp(
                 combined_variants,
                 self.cost_fn,
-                self.verbose,
                 num_cores=self.multiprocess_cores,
             )
         else:
@@ -359,7 +358,6 @@ def compute_permutation_test_distribution(
 def compute_symmetric_distance_matrix_mp(
     population: list[T],
     cost_fn: Callable[[T, T], float],
-    show_progress_bar: bool = True,
     num_cores: int | None = None,
 ) -> NumpyMatrix[np.float_]:
     """Compute the distance matrix from the population to itself, assuming a symmetric
@@ -370,8 +368,6 @@ def compute_symmetric_distance_matrix_mp(
         population (list[T]): The population of behavior to compute the distance_matrix
             for. Assumed to hold unique values.
         cost_fn (Callable[[T, T], float]): The _symmetric_ cost function to use.
-        show_progress_bar (bool, optional): Show a progress bar for the computation?
-            Defaults to True.
 
     Returns:
         NumpyMatrix[np.float_]: The distance matrix using the indices of values in
