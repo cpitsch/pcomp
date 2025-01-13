@@ -1,5 +1,6 @@
+from dataclasses import dataclass
+
 import pandas as pd
-import pydantic
 import pytest
 
 from pcomp.utils import (
@@ -10,7 +11,8 @@ from pcomp.utils import (
 from tests.testing_utilities import Case, create_event_log
 
 
-class AtomicCase(pydantic.BaseModel):
+@dataclass
+class AtomicCase:
     caseid: str
     activities: list[str]
     timestamps: list[int]
