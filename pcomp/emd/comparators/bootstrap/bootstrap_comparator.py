@@ -1,3 +1,13 @@
+"""
+This module contains the implementation of the Bootstrap Comparator, as described in
+Leemans et al. "Statistical Tests and Association Measures for Processes".
+
+In particular, the BootstrapComparator class contains various sampling techniques that
+were the result of experimentation. The different `bootstrapping_style` techniques differ
+only in the way the bootstrapping distribution is created. The "replacement sublogs" technique
+samples as described by Leemans et al.. For more information, see the documentation of the
+BootstrapComparator class.
+"""
 import logging
 import math
 from abc import ABC, abstractmethod
