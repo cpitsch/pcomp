@@ -258,7 +258,6 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
                     self.distribution_size,
                     seed=self.seed,
                     emd_backend=self.emd_backend,
-                    show_progress_bar=self.verbose,
                     num_cores=self.multiprocess_cores,
                 )
             )
@@ -614,7 +613,6 @@ def compute_permutation_test_distribution_precomputed_distances_mp(
     distribution_size: int = 10_000,
     seed: int | None = None,
     emd_backend: EMDBackend = "wasserstein",
-    show_progress_bar: bool = True,
     num_cores: int | None = None,
 ) -> Numpy1DArray[np.float_]:
     """Compute the distribution for a permutation test.
@@ -635,7 +633,8 @@ def compute_permutation_test_distribution_precomputed_distances_mp(
         emd_backend (EMDBackend, optional): The backend to use for EMD computation.
             Defaults to "wasserstein" (use the wasserstein package). Alternatively,
             "pot" uses "Python Optimal Transport" to compute the EMD.
-        show_progress_bar (bool, optional): Show a progress bar? Defaults to True.
+        num_cores (int | None, optional): The number of cores to use for multiplrocessing.
+            Defaults to cpu_count - 4.
 
     Returns:
         Numpy1DArray[np.float_]: The computed EMDs.
