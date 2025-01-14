@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from pcomp.emd.comparators.permutation_test.permutation_test_comparator import (
     compute_permutation_test_distribution,
@@ -32,7 +31,9 @@ def test_permutation_test_distribution_computation():
     population_0 = [0] * 10
     population_1 = [1] * 10
 
-    cost_fn = lambda x, y: abs(x - y)  # 0 if same, 1 if different
+    def cost_fn(x, y):
+        # 0 if same, 1 if different
+        return abs(x - y)
 
     DIST_SIZE = 1  # 1 Permutation sample
     SEED = 42
@@ -76,7 +77,9 @@ def test_permutation_test_distribution_computation():
     # Multiply cost_fn by 7 so the EMD isn't 1 since its probably more likely to
     # accidentally get EMD 1 than EMD 7
     DIFF_COST = 7
-    cost_fn_2 = lambda x, y: DIFF_COST * cost_fn(x, y)
+
+    def cost_fn_2(x, y):
+        return DIFF_COST * cost_fn(x, y)
 
     result_2 = compute_permutation_test_distribution(
         total_input[:10].tolist(),
