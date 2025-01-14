@@ -1,2 +1,2 @@
-from .ks_compare import EMD_KS_ProcessComparator, Self_Bootstrapping_Style
-from .levenshtein import LevenshteinKSComparator
+from .ks_compare import KolmogorovSmirnovBootstrapComparator, Self_Bootstrapping_Style
+from .levenshtein import Timed_Levenshtein_KSComparator

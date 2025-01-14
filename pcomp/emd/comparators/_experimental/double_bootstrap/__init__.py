@@ -1,2 +1,2 @@
-from .double_bootstrap_compare import DoubleBootstrapEMDComparator, DoubleBootstrapStyle
-from .levenshtein import LevenshteinDoubleBootstrapComparator
+from .double_bootstrap_compare import DoubleBootstrap_Comparator, DoubleBootstrapStyle
+from .levenshtein import Timed_Levenshtein_DoubleBootstrapComparator

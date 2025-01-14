@@ -11,6 +11,7 @@ NOTE: This technique has no foundation in statistics, and is just the result of 
 Also, preliminary experiments showed that this technique _does not work well_.
 """
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from statistics import mean
 from timeit import default_timer
 from typing import Callable, Generic, Literal, TypeVar
@@ -40,7 +41,59 @@ T = TypeVar("T")
 DoubleBootstrapStyle = Literal["sample_smaller_log_size", "splitted_resampling"]
 
 
-class DoubleBootstrapEMDComparator(ABC, Generic[T]):
+@dataclass
+class DoubleBootstrapTestComparisonResult:
+    reference_emds_distribution: Numpy1DArray[np.float_]
+    logs_emds_distribution: Numpy1DArray[np.float_]
+    pvalue: float
+    runtime: float
+
+    def plot(self) -> Figure:
+        """Plot the computed distributions.
+
+        Returns:
+            Figure: The corresponding figure
+        """
+        fig, ax = plt.subplots()
+
+        N_BINS = 25
+        ALPHA = 0.7
+        LINEWIDTH = 0.5
+        ax.hist(
+            self.reference_emds_distribution,
+            label=r"$D_{l_1l_1}$",
+            bins=N_BINS,
+            edgecolor="black",
+            alpha=ALPHA,
+            linewidth=LINEWIDTH,
+        )
+        ax.hist(
+            self.logs_emds_distribution,
+            label=r"$D_{l_1l_2}$",
+            bins=N_BINS,
+            edgecolor="black",
+            alpha=ALPHA,
+            linewidth=LINEWIDTH,
+        )
+
+        ax.set_xlabel("Earth Mover's Distance")
+        ax.set_ylabel("Frequency")
+
+        logs_emd_mean = np.mean(self.logs_emds_distribution)
+        ax.axvline(
+            logs_emd_mean,
+            color="red",
+            linestyle="--",
+            linewidth=2,
+            label=r"$\mu_{D_{l_1l_2}}$",
+        )
+        ax.legend(fontsize=12, loc="upper right")
+        fig.show()
+
+        return fig
+
+
+class DoubleBootstrap_Comparator(ABC, Generic[T]):
     log_1: pd.DataFrame
     log_2: pd.DataFrame
 
@@ -150,24 +203,32 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
         pass
 
     @property
-    def reference_emds_distribution(self) -> list[float]:
+    def comparison_result(self) -> DoubleBootstrapTestComparisonResult:
+        """
+        The object representing the result of the comparison. Computed in `compare`.
+        If `compare` has not been called, accessing this will raise a ValueError.
+        """
+        if not hasattr(self, "_comparison_result"):
+            raise ValueError(
+                "Must call `compare` before accessing `comparison_result`."
+            )
+        return self._comparison_result
+
+    @property
+    def reference_emds_distribution(self) -> Numpy1DArray[np.float_]:
         """
         The boostrapped distribution of self-emds of log_1 to itself. Computed in `compare`.
         If `compare` has not been called, accessing this will raise a ValueError.
         """
-        if not hasattr(self, "_reference_emds_distribution"):
-            raise ValueError("Must call `compare` before accessing `pval`.")
-        return self._reference_emds_distribution
+        return self.comparison_result.reference_emds_distribution
 
     @property
-    def logs_emds_distribution(self) -> list[float]:
+    def logs_emds_distribution(self) -> Numpy1DArray[np.float_]:
         """
         The distribution of emds from log_1 to log_2. Computed in `compare`.
         If `compare` has not been called, accessing this will raise a ValueError.
         """
-        if not hasattr(self, "_logs_emds_distribution"):
-            raise ValueError("Must call `compare` before accessing `pval`.")
-        return self._logs_emds_distribution
+        return self.comparison_result.logs_emds_distribution
 
     @property
     def pval(self) -> float:
@@ -175,11 +236,17 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
         The p-value from the comparison. Computed in `compare`.
         If `compare` has not been called, accessing this will raise a ValueError.
         """
-        if not hasattr(self, "_pval"):
-            raise ValueError("Must call `compare` before accessing `pval`.")
-        return self._pval
+        return self.comparison_result.pvalue
 
-    def compare(self) -> float:
+    @property
+    def comparison_runtime(self) -> float:
+        """
+        The duration of the the `compare` call.
+        If accessed before calling `compare`, a ValueError will be raised.
+        """
+        return self.comparison_result.runtime
+
+    def compare(self) -> DoubleBootstrapTestComparisonResult:
         """Apply the full pipeline to compare the event logs.
 
         1. Extract the representations from the event logs using `self.extract_representations`.
@@ -191,6 +258,8 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
         Returns:
             float: The computed p-value.
         """
+        start_time = default_timer()
+
         self.behavior_1, self.behavior_2 = self.extract_representations(
             self.log_1, self.log_2
         )
@@ -248,7 +317,16 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
             [d for d in self._reference_emds_distribution if d >= mean_logs_emds]
         )
         self._pval = num_larger_or_equal_bootstrap_dists / self.bootstrapping_dist_size
-        return self._pval
+
+        comparison_runtime = default_timer() - start_time
+
+        self._comparison_result = DoubleBootstrapTestComparisonResult(
+            np.array(self._reference_emds_distribution),
+            np.array(self._logs_emds_distribution),
+            self._pval,
+            comparison_runtime,
+        )
+        return self._comparison_result
 
     def plot_result(self) -> Figure:
         """Plot the result of the comparison.
@@ -257,43 +335,7 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
         Returns:
             Figure: The figure with the plot.
         """
-        fig, ax = plt.subplots()
-
-        N_BINS = 25
-        ALPHA = 0.7
-        LINEWIDTH = 0.5
-        ax.hist(
-            self.reference_emds_distribution,
-            label=r"$D_{l_1l_1}$",
-            bins=N_BINS,
-            edgecolor="black",
-            alpha=ALPHA,
-            linewidth=LINEWIDTH,
-        )
-        ax.hist(
-            self.logs_emds_distribution,
-            label=r"$D_{l_1l_2}$",
-            bins=N_BINS,
-            edgecolor="black",
-            alpha=ALPHA,
-            linewidth=LINEWIDTH,
-        )
-
-        ax.set_xlabel("Earth Mover's Distance")
-        ax.set_ylabel("Frequency")
-
-        logs_emd_mean = np.mean(self.logs_emds_distribution)
-        ax.axvline(
-            logs_emd_mean,
-            color="red",
-            linestyle="--",
-            linewidth=2,
-            label=r"$\mu_{D_{l_1l_2}}$",
-        )
-        ax.legend(fontsize=12, loc="upper right")
-        fig.show()
-
-        return fig
+        return self.comparison_result.plot()
 
 
 def bootstrap_emd_distribution_with_smaller_log(

@@ -1,1 +1,1 @@
-from .levenshtein import LevenshteinDoubleBootstrapComparator
+from .levenshtein import Timed_Levenshtein_DoubleBootstrapComparator

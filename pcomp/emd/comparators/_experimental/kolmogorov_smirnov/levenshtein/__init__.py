@@ -1,1 +1,1 @@
-from .levenshtein import LevenshteinKSComparator
+from .levenshtein import Timed_Levenshtein_KSComparator

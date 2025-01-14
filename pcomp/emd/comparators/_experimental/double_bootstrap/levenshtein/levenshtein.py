@@ -4,7 +4,7 @@ import pandas as pd
 
 from pcomp.binning import BinnerFactory, BinnerManager, KMeans_Binner
 from pcomp.emd.comparators._experimental.double_bootstrap import (
-    DoubleBootstrapEMDComparator,
+    DoubleBootstrap_Comparator,
     DoubleBootstrapStyle,
 )
 from pcomp.emd.core import EMDBackend
@@ -20,8 +20,8 @@ from pcomp.emd.extraction import (
 from pcomp.utils.preparation import ensure_start_timestamp_column
 
 
-class LevenshteinDoubleBootstrapComparator(
-    DoubleBootstrapEMDComparator[BinnedServiceTimeTrace]
+class Timed_Levenshtein_DoubleBootstrapComparator(
+    DoubleBootstrap_Comparator[BinnedServiceTimeTrace]
 ):
     """
     A class to compare two processes by comparing distributions of calculated EMDs. For more information, see the documentation of the abstract class `DoubleBootstrapEMDComparator`.

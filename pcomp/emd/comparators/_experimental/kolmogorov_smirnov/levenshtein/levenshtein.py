@@ -4,7 +4,7 @@ import pandas as pd
 
 from pcomp.binning import BinnerFactory, BinnerManager, KMeans_Binner
 from pcomp.emd.comparators._experimental.kolmogorov_smirnov import (
-    EMD_KS_ProcessComparator,
+    KolmogorovSmirnovBootstrapComparator,
     Self_Bootstrapping_Style,
 )
 from pcomp.emd.core import EMDBackend
@@ -20,7 +20,9 @@ from pcomp.emd.extraction import (
 from pcomp.utils.preparation import ensure_start_timestamp_column
 
 
-class LevenshteinKSComparator(EMD_KS_ProcessComparator[BinnedServiceTimeTrace]):
+class Timed_Levenshtein_KSComparator(
+    KolmogorovSmirnovBootstrapComparator[BinnedServiceTimeTrace]
+):
     """
     A class to compare two processes by comparing distributions of calculated EMDs.
     For more information, see the documentation of the abstract class `EMD_KS_ProcessComparator`.
