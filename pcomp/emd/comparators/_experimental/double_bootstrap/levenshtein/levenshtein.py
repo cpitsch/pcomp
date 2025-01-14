@@ -107,7 +107,7 @@ class Timed_Levenshtein_DoubleBootstrapComparator(
                 / max(self.binner_manager.num_bins - 1, 1),
                 cost_time_insert_delete=lambda x: x
                 / max(self.binner_manager.num_bins - 1, 1),
-            )
+            ) / (2 if self.binner_manager.num_bins > 0 else 1)
         else:
             return custom_postnormalized_levenshtein_distance(item1, item2)
 
