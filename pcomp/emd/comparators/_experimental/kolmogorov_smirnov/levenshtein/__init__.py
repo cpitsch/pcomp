@@ -1,2 +1,2 @@
 from .control_flow import ControlFlowKSComparator
-from .levenshtein import Timed_Levenshtein_KSComparator
+from .timed_control_flow import Timed_Levenshtein_KSComparator

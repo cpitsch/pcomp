@@ -1,2 +1,2 @@
 from .control_flow import ControlFlowDoubleBootstrapComparator
-from .levenshtein import Timed_Levenshtein_DoubleBootstrapComparator
+from .timed_control_flow import Timed_Levenshtein_DoubleBootstrapComparator
