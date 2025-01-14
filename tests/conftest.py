@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import pandas as pd
 import pytest
 
@@ -58,7 +60,7 @@ def create_large_log(seed_cases: list[Case], num_repeats: int) -> pd.DataFrame:
     """Create a large event log by repeating the given cases multiple times with different case ids"""
     cases: list[Case] = []
     for i in range(num_repeats):
-        altered_cases = [case for case in seed_cases]
+        altered_cases = [deepcopy(case) for case in seed_cases]
         for case in altered_cases:
             case.caseid = f"{case.caseid}_repetition_{i}"
         cases += altered_cases
@@ -114,3 +116,10 @@ def simple_event_log():
         event_instances=["i1", "i2", "i3", "i2", "i3", "i4"],
     )
     return create_event_log([case])
+
+
+def assert_almost_equal(a, b, delta, msg: str | None = None):
+    if msg is None:
+        assert abs(a - b) < delta
+    else:
+        assert abs(a - b) < delta, msg

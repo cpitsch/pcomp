@@ -1,10 +1,12 @@
 import numpy as np
+from numpy.testing import assert_array_equal
 
 from pcomp.emd.comparators.permutation_test.permutation_test_comparator import (
     compute_permutation_test_distribution,
     compute_symmetric_distance_matrix,
     compute_symmetric_distance_matrix_mp,
     get_permutation_sample,
+    project_large_distance_matrix,
 )
 
 
@@ -131,3 +133,68 @@ def test_symmetric_distance_matrix_computation_mp():
     actual = compute_symmetric_distance_matrix_mp(population.tolist(), cost_fn, 6)
 
     assert (expected == actual).all()
+
+
+def test_distance_matrix_projection():
+    # fmt: off
+    dists = np.array([ # np.arange(16).reshape((4, 4))
+        [ 0,  1,  2,  3],
+        [ 4,  5,  6,  7],
+        [ 8,  9, 10, 11],
+        [12, 13, 14, 15]
+    ])
+    # fmt: on
+
+    # Strings to higlight that these are objects, not indices
+    source_pop = ["0", "1", "2", "3"]
+    pop_1 = ["1", "2", "3"]
+    pop_2 = ["0", "1", "2"]
+
+    result = project_large_distance_matrix(dists, source_pop, pop_1, pop_2)
+
+    # fmt: off
+    expected = np.array([
+        [ 4, 5, 6],
+        [ 8, 9,10],
+        [12,13,14]
+    ])
+    # fmt: on
+
+    assert_array_equal(result, expected)
+
+    result_2 = project_large_distance_matrix(dists, source_pop, ["0", "3"], ["1", "2"])
+
+    # fmt: off
+    expected_2 = np.array([
+        [ 1, 2],
+        [13,14]
+    ])
+    # fmt: on
+    assert_array_equal(result_2, expected_2)
+
+
+def test_distance_matrix_projection_out_of_order_indices():
+    # fmt: off
+    dists = np.array([ # np.arange(16).reshape((4, 4))
+        [ 0,  1,  2,  3],
+        [ 4,  5,  6,  7],
+        [ 8,  9, 10, 11],
+        [12, 13, 14, 15]
+    ])
+    # fmt: on
+
+    # Strings to higlight that these are objects, not indices
+    source_pop = ["0", "1", "2", "3"]
+    pop_1 = ["3", "1"]
+    pop_2 = ["2", "0"]
+
+    result = project_large_distance_matrix(dists, source_pop, pop_1, pop_2)
+
+    # fmt: off
+    expected = np.array([
+        [14, 12],
+        [ 6,  4],
+    # fmt: on
+    ])
+
+    assert_array_equal(result, expected)

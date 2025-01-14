@@ -5,6 +5,10 @@ def test_log_len(event_log):
     assert log_len(event_log) == 2
 
 
+def test_large_log_len(large_event_log):
+    assert log_len(large_event_log) == 200
+
+
 def test_log_splitting(large_event_log):
     """
     Test that log splitting is random, i.e., multiple runs return different results.
