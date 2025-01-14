@@ -1418,28 +1418,6 @@ files = [
 ]
 
 [[package]]
-name = "mpire"
-version = "2.10.0"
-description = "A Python package for easy multiprocessing, but faster than multiprocessing"
-optional = false
-python-versions = "*"
-files = [
-    {file = "mpire-2.10.0-py3-none-any.whl", hash = "sha256:0b3c01b1df2105634bb760db5213903777cc2935c46847d9f5202d5512cdc3ed"},
-    {file = "mpire-2.10.0.tar.gz", hash = "sha256:029d2d3ef7de4e04866f76ca9141ec4e8bf0d39b5a1128289c85e04257613ccd"},
-]
-
-[package.dependencies]
-pygments = ">=2.0"
-pywin32 = {version = ">=301", markers = "platform_system == \"Windows\""}
-tqdm = ">=4.27"
-
-[package.extras]
-dashboard = ["flask"]
-dill = ["multiprocess", "multiprocess (>=0.70.15)"]
-docs = ["docutils (==0.17.1)", "sphinx (==3.2.1)", "sphinx-autodoc-typehints (==1.11.0)", "sphinx-rtd-theme (==0.5.0)", "sphinx-versions (==1.0.1)", "sphinxcontrib-images (==0.9.2)"]
-testing = ["ipywidgets", "multiprocess", "multiprocess (>=0.70.15)", "numpy", "pywin32 (>=301)", "rich"]
-
-[[package]]
 name = "multiprocess"
 version = "0.70.16"
 description = "better multiprocessing and multithreading in Python"
@@ -3286,4 +3264,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.13"
-content-hash = "bda7ccaf16b943bf11687b4ba9e2401d7dfa701f5f1b2820475d411b353a2b49"
+content-hash = "55ff5c8b161f950c288f1b335d6d55caa2f31b1d252e598021e796de38cc697e"
