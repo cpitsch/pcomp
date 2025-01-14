@@ -14,8 +14,11 @@ from pcomp.emd.extraction import (
     BinnedServiceTimeTrace,
     extract_binned_service_time_traces,
 )
-from pcomp.utils import add_duration_column_to_log, constants
-from pcomp.utils.utils import ensure_start_timestamp_column
+from pcomp.utils import (
+    add_duration_column_to_log,
+    constants,
+    ensure_start_timestamp_column,
+)
 
 
 class Timed_Levenshtein_PermutationComparator(

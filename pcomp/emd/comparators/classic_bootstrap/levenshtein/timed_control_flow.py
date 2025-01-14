@@ -14,7 +14,7 @@ from pcomp.emd.extraction import (
     extract_binned_service_time_traces,
     extract_service_time_traces,
 )
-from pcomp.utils.utils import ensure_start_timestamp_column
+from pcomp.utils import ensure_start_timestamp_column
 
 
 class Timed_Levenshtein_ClassicBootstrapComparator(
