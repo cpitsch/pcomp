@@ -1,2 +1,6 @@
-from .ks_compare import KolmogorovSmirnovBootstrapComparator, Self_Bootstrapping_Style
-from .levenshtein import Timed_Levenshtein_KSComparator
+from .ks_compare import (
+    KolmogorovSmirnovBootstrapComparator,
+    KSTest_ComparisonResult,
+    Self_Bootstrapping_Style,
+)
+from .levenshtein import ControlFlowKSComparator, Timed_Levenshtein_KSComparator
