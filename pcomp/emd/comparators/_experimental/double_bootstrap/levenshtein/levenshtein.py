@@ -3,7 +3,7 @@ from typing import Any
 import pandas as pd
 
 from pcomp.binning import BinnerFactory, BinnerManager, KMeans_Binner
-from pcomp.emd.comparators.double_bootstrap import (
+from pcomp.emd.comparators._experimental.double_bootstrap import (
     DoubleBootstrapEMDComparator,
     DoubleBootstrapStyle,
 )
