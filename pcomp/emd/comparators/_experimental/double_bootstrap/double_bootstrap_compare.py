@@ -18,7 +18,6 @@ from typing import Callable, Generic, Literal, TypeVar
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 from matplotlib.figure import Figure
 
 from pcomp.emd.comparators.bootstrap.bootstrap_comparator import (
@@ -260,28 +259,40 @@ class DoubleBootstrapEMDComparator(ABC, Generic[T]):
         """
         fig, ax = plt.subplots()
 
-        reference_emds_distribution = self.reference_emds_distribution
-        logs_emds_distribution = self.logs_emds_distribution
-
-        data: pd.DataFrame = pd.DataFrame(
-            {
-                "EMD": reference_emds_distribution + logs_emds_distribution,
-                "Distribution": ["Reference Distribution"]
-                * len(reference_emds_distribution)
-                + ["Logs EMD Distribution"] * len(logs_emds_distribution),
-            }
+        N_BINS = 25
+        ALPHA = 0.7
+        LINEWIDTH = 0.5
+        ax.hist(
+            self.reference_emds_distribution,
+            label=r"$D_{l_1l_1}$",
+            bins=N_BINS,
+            edgecolor="black",
+            alpha=ALPHA,
+            linewidth=LINEWIDTH,
+        )
+        ax.hist(
+            self.logs_emds_distribution,
+            label=r"$D_{l_1l_2}$",
+            bins=N_BINS,
+            edgecolor="black",
+            alpha=ALPHA,
+            linewidth=LINEWIDTH,
         )
 
-        sns.histplot(data, ax=ax, x="EMD", hue="Distribution", common_bins=False)
+        ax.set_xlabel("Earth Mover's Distance")
+        ax.set_ylabel("Frequency")
 
-        logs_emds_mean = np.mean(logs_emds_distribution)
+        logs_emd_mean = np.mean(self.logs_emds_distribution)
         ax.axvline(
-            logs_emds_mean,
+            logs_emd_mean,
             color="red",
             linestyle="--",
             linewidth=2,
-            label="Mean Logs Distance",
+            label=r"$\mu_{D_{l_1l_2}}$",
         )
+        ax.legend(fontsize=12, loc="upper right")
+        fig.show()
+
         return fig
 
 
