@@ -21,5 +21,31 @@ comparator = Timed_Levenshtein_PermutationComparator(
 )
 result = comparator.compare()
 print(f"P-Value: {result.pvalue}")
+result.plot().show()
 ```
 
+The project also contains an implementation of the P-P-UP (Process-Process-Unknown Process)
+test proposed in "Statistical Tests and Association Measures for Business Processes" by
+Leemans et al.:
+
+
+```py
+from pm4py import read_xes
+
+from pcomp.emd.comparators.bootstrap import Timed_Levenshtein_BootstrapComparator
+
+log_1 = read_xes("path/to/log_1.xes")
+log_2 = read_xes("path/to/log_2.xes")
+
+comparator = Timed_Levenshtein_BootstrapComparator(
+    log_1,
+    log_2,
+    bootstrapping_dist_size=10_000,
+    resample_size=1.0,
+    seed=1337,
+    weighted_time_cost=True,
+)
+result = comparator.compare()
+print(f"P-Value: {result.pvalue}")
+result.plot().show()
+```
