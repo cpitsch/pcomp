@@ -1,6 +1,6 @@
 """
 This module contains the implementation of the Bootstrap Comparator, as described in
-Leemans et al. "Statistical Tests and Association Measures for Processes".
+Leemans et al. "Statistical Tests and Association Measures for Business Processes".
 
 In particular, the BootstrapComparator class contains various sampling techniques that
 were the result of experimentation. The different `bootstrapping_style` techniques differ
