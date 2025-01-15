@@ -48,3 +48,11 @@ result = comparator.compare()
 print(f"P-Value: {result.pvalue}")
 result.plot().show()
 ```
+
+## Dependencies
+This project uses [poetry](https://python-poetry.org/docs/) for dependency management.
+After installing poetry, the dependencies can be installed using `poetry install`. Then:
+
+- The environment can be activated using `poetry shell`
+- Alternatively, commands can be run using, e.g., `poetry run python app.py` without activating the environment manually
+- A requirements file can be generated using `poetry export -o requirements.txt`
