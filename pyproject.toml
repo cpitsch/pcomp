@@ -1,9 +1,11 @@
 [tool.poetry]
 name = "pcomp"
 version = "0.2.0"
-description = ""
+description = "A library for Process Hypothesis Testing"
 authors = ["Cameron Pitsch <cameron.pitsch@rwth-aachen.de>"]
 readme = "README.md"
+repository = "https://github.com/cpitsch/pcomp"
+keywords = ["process mining", "hypothesis testing", "process hypothesis testing"]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
