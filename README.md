@@ -3,7 +3,7 @@ and a permutation test.
 
 - This is the process hypothesis testing technique proposed in my Master's Thesis "Hypothesis
 Testing for Processes: Bridging Statistical Methods and Treatment Disparities in Healthcare"
-    - The thesis is based on the commit hash [9aaac7994ed0e026d63df216f56649de73a4692a](https://github.com/cpitsch/pcomp/tree/9aaac7994ed0e026d63df216f56649de73a4692a)
+    - The thesis is based on the commit hash [9aaac7994ed0e026d63df216f56649de73a4692a](https://github.com/cpitsch/pcomp/tree/9aaac7994ed0e026d63df216f56649de73a4692a) ([v0.1.0](https://github.com/cpitsch/pcomp/releases/tag/v0.1.0))
     - The experiments conducted in the thesis are in the [cpitsch/pcomp-experiments](https://github.com/cpitsch/pcomp-experiments) repository
 
 ## Examples
