@@ -5,7 +5,8 @@ An implementation of the BootstrapComparator which only coimpares w.r.t. the con
 import pandas as pd
 
 from pcomp.emd.comparators.bootstrap import BootstrapComparator
-from pcomp.emd.emd import Trace, extract_traces, postnormalized_levenshtein_distance
+from pcomp.emd.distances.levenshtein import postnormalized_levenshtein_distance
+from pcomp.emd.extraction import Trace, extract_traces
 
 
 class ControlFlowBootstrapComparator(BootstrapComparator[Trace]):

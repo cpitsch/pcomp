@@ -1,15 +1,10 @@
 """
-Core functionality pertaining to the standard EMD Bootstrapping comparison.
-
-This includes the EMD_ProcessComparator abstract class which can be implemented
-for any data extraction and distance functions.
-Apart from that, other important helper functions are also defined.
+Core functionality pertaining to EMD computations for various kinds of samples of the data.
 """
 
 import logging
 from collections import Counter
 from dataclasses import dataclass
-from itertools import zip_longest
 from timeit import default_timer
 from typing import Callable, Generic, Literal, TypeVar
 
@@ -100,7 +95,7 @@ def emd(
     backend: EMDBackend = "wasserstein",
     fall_back: bool = True,
 ) -> float:
-    """A wrapper around the EMD computation call.
+    """A wrapper around the EMD computation.
 
     Args:
         freqs_1 (Numpy1DArray[np.float_]): 1D histogram of the first distribution. All
@@ -164,41 +159,6 @@ def population_to_stochastic_language(
     )
 
 
-def compute_emd_for_sample(
-    dists: NumpyMatrix[np.float_],
-    reference_frequencies: Numpy1DArray[np.float_],
-    resample_size: int,
-    emd_backend: EMDBackend = "wasserstein",
-) -> float:
-    """Sample a sample of size `resample_size` from the population with replacement and
-    compute the EMD between the sample and the source population.
-
-    Args:
-        dists (NumpyMatrix[np.float_]): The distance matrix of the source population to
-            itself.
-        reference_frequencies (Numpy1DArray[np.float_]): The 1D histogram of the source
-            population.
-        resample_size (int): The size of the sample to draw from the population.
-        emd_backend (EMDBackend, optional): The backend to use for EMD computation.
-            Defaults to "wasserstein" (use the "wasserstein" module).
-
-    Returns:
-        float: The computed EMD.
-    """
-    # TODO: This doesn't respect the frequencies of the variants. All variants (rows) are created equal...
-    sample_indices = np.random.choice(dists.shape[0], resample_size, replace=True)
-
-    deduplicated_indices, counts = np.unique(sample_indices, return_counts=True)
-    dists_for_sample = dists[deduplicated_indices, :]
-
-    return emd(
-        counts / resample_size,
-        reference_frequencies,
-        dists_for_sample,
-        backend=emd_backend,
-    )
-
-
 def compute_emd_for_index_sample(
     indices: Numpy1DArray[np.int_],
     dists: NumpyMatrix[np.float_],
@@ -225,37 +185,6 @@ def compute_emd_for_index_sample(
         counts / len(indices),
         reference_frequencies,
         dists[deduplicated_indices],
-        backend=emd_backend,
-    )
-
-
-def compute_emd_for_split_sample(
-    dists: NumpyMatrix[np.float_], emd_backend: EMDBackend = "wasserstein"
-) -> float:
-    """Randomly split the population in two and compute the EMD between the two halves.
-
-    Args:
-        dists (NumpyMatrix[np.float_]): The distance matrix.
-        emd_backend (EMDBackend, optional): The backend to use to compute the EMD.
-            Defaults to "wasserstein" (use the "wasserstein" module).
-
-    Returns:
-        float: The computed EMD.
-    """
-    sample_1_indices = np.random.choice(
-        dists.shape[0], dists.shape[0] // 2, replace=False
-    )
-    sample_2_indices = np.setdiff1d(
-        range(dists.shape[0]), sample_1_indices
-    )  # Complement of sample_1_indices
-
-    deduplicated_indices_1, counts_1 = np.unique(sample_1_indices, return_counts=True)
-    deduplicated_indices_2, counts_2 = np.unique(sample_2_indices, return_counts=True)
-
-    return emd(
-        counts_1 / deduplicated_indices_1.size,
-        counts_2 / deduplicated_indices_2.size,
-        dists[deduplicated_indices_1, :][:, deduplicated_indices_2],
         backend=emd_backend,
     )
 
@@ -294,70 +223,3 @@ def compute_distance_matrix(
                 dists_progress_bar.update()
 
     return dists
-
-
-Event = tuple[str, float | int]
-Trace = tuple[Event, ...]
-
-
-def compute_time_distance_component(trace_1: Trace, trace_2: Trace) -> float:
-    """Compute the time distance component of the edit distance between two traces.
-    Used as an alternative to including the time distance in edit distance cost function.
-
-    Computed by first matching equally labelled events and summing up the absolute time
-    differences.
-    For duplicate labels, the time differences are sorted and matched in order of
-    increasing duration.
-    Then, the remaining events are also sorted by duration and matched in order of
-    increasing duration.
-
-    Args:
-        trace_1 (Trace): The first trace.
-        trace_2 (Trace): The second trace.
-
-    Returns:
-        float: The computed time distance component.
-    """
-
-    # Sort traces alphabetically, then by duration
-    # Complexity (Tim-sort): O(n log n)
-    t_1 = sorted(list(trace_1))
-    t_2 = sorted(list(trace_2))
-
-    # Now iterate through the traces matching equally labelled events
-    # The secondary sort by duration ensures that within equally labelled activities,
-    # we match small durations to small durations and large durations to large durations
-    # Complexity: O(n)
-    index_1 = 0
-    index_2 = 0
-    matched_cost = 0.0
-    not_matched_durs_1: list[float] = []
-    not_matched_durs_2: list[float] = []
-    while index_1 < len(t_1) and index_2 < len(t_2):
-        activity_1, duration_1 = t_1[index_1]
-        activity_2, duration_2 = t_2[index_2]
-
-        if activity_1 == activity_2:
-            # We have a match, add the time difference to the distance
-            matched_cost += abs(duration_1 - duration_2)
-            index_1 += 1
-            index_2 += 1
-        elif activity_1 < activity_2:
-            not_matched_durs_1.append(duration_1)
-            index_1 += 1
-
-        else:
-            not_matched_durs_2.append(duration_2)
-            index_2 += 1
-
-    # For the non-matched events, we sort by timestamp for the same reason as above
-    # Complexity (Tim-Sort): O(n log n)
-    not_matched_durs_1 = sorted(not_matched_durs_1)
-    not_matched_durs_2 = sorted(not_matched_durs_2)
-
-    return matched_cost + sum(
-        abs(dur_1 - dur_2)
-        for dur_1, dur_2 in zip_longest(
-            not_matched_durs_1, not_matched_durs_2, fillvalue=0.0
-        )
-    )

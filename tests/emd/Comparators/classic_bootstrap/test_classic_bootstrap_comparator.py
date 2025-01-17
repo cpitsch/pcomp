@@ -10,7 +10,9 @@ def test_bootstrap_dist_computation():
     population_0 = [0] * 10
     population_1 = [1] * 10
 
-    cost_fn = lambda x, y: abs(x - y)  # 0 if same, 1 if different
+    def cost_fn(x, y):
+        # 0 if same, 1 if different
+        return abs(x - y)
 
     DIST_SIZE = 2
     SEED = 42

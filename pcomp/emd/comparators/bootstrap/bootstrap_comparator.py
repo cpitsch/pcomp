@@ -1,3 +1,13 @@
+"""
+This module contains the implementation of the Bootstrap Comparator, as described in
+Leemans et al. "Statistical Tests and Association Measures for Business Processes".
+
+In particular, the BootstrapComparator class contains various sampling techniques that
+were the result of experimentation. The different `bootstrapping_style` techniques differ
+only in the way the bootstrapping distribution is created. The "replacement sublogs" technique
+samples as described by Leemans et al.. For more information, see the documentation of the
+BootstrapComparator class.
+"""
 import logging
 import math
 from abc import ABC, abstractmethod
@@ -18,13 +28,8 @@ from pcomp.emd.core import (
     emd,
     population_to_stochastic_language,
 )
-from pcomp.utils import (
-    create_progress_bar,
-    ensure_start_timestamp_column,
-    log_len,
-    pretty_format_duration,
-)
-from pcomp.utils.typing import Numpy1DArray, NumpyMatrix
+from pcomp.utils import create_progress_bar, log_len, pretty_format_duration
+from pcomp.utils.typing import Numpy1DArray
 
 T = TypeVar("T")
 
@@ -135,8 +140,11 @@ class BootstrapComparator(ABC, Generic[T]):
             seed (int, optional): The seed to use for sampling in the bootstrapping
                 phase.
         """
-        self.log_1 = ensure_start_timestamp_column(log_1)
-        self.log_2 = ensure_start_timestamp_column(log_2)
+        if log_1.empty or log_2.empty:
+            raise ValueError("Cannot compare with an empty event log")
+
+        self.log_1 = log_1
+        self.log_2 = log_2
         self.bootstrapping_dist_size = bootstrapping_dist_size
 
         loglen = log_len(self.log_1)
@@ -254,6 +262,8 @@ class BootstrapComparator(ABC, Generic[T]):
         )
 
         if self.bootstrapping_style == "replacement sublogs":
+            # Create bootstrap distribution by creating samples with replacement and
+            # comparing them to their source population (behavior_1)
             self_emds = bootstrap_emd_population(
                 self.behavior_1,
                 self.cost_fn,
@@ -264,6 +274,8 @@ class BootstrapComparator(ABC, Generic[T]):
                 show_progress_bar=self.verbose,
             )
         elif self.bootstrapping_style == "split sampling":
+            # Create bootstrap distribution by splitting behavior_1 into random halves
+            # and comparing the halves
             self_emds = bootstrap_emd_population_split_sampling(
                 self.behavior_1,
                 self.cost_fn,
@@ -273,6 +285,8 @@ class BootstrapComparator(ABC, Generic[T]):
                 show_progress_bar=self.verbose,
             )
         elif self.bootstrapping_style == "resample split":
+            # Create bootstrap distribution by creating two samples of size resample_size,
+            # with replacement and comparing them
             self_emds = bootstrap_emd_population_resample_split_sampling(
                 self.behavior_1,
                 self.cost_fn,
@@ -309,37 +323,6 @@ class BootstrapComparator(ABC, Generic[T]):
             plt.figure: The corresponding figure.
         """
         return self.comparison_result.plot()
-
-
-def compute_emd_for_split_sample(
-    dists: NumpyMatrix[np.float_], emd_backend: EMDBackend = "wasserstein"
-) -> float:
-    """Randomly split the population in two and compute the EMD between the two halves.
-
-    Args:
-        dists (NumpyMatrix[np.float_]): The distance matrix.
-        emd_backend (EMDBackend, optional): The backend to use to compute the EMD.
-            Defaults to "wasserstein" (use the "wasserstein" module).
-
-    Returns:
-        float: The computed EMD.
-    """
-    sample_1_indices = np.random.choice(
-        dists.shape[0], dists.shape[0] // 2, replace=False
-    )
-    sample_2_indices = np.setdiff1d(
-        range(dists.shape[0]), sample_1_indices
-    )  # Complement of sample_1_indices
-
-    deduplicated_indices_1, counts_1 = np.unique(sample_1_indices, return_counts=True)
-    deduplicated_indices_2, counts_2 = np.unique(sample_2_indices, return_counts=True)
-
-    return emd(
-        counts_1 / deduplicated_indices_1.size,
-        counts_2 / deduplicated_indices_2.size,
-        dists[deduplicated_indices_1, :][:, deduplicated_indices_2],
-        backend=emd_backend,
-    )
 
 
 def bootstrap_emd_population(
@@ -389,35 +372,31 @@ def bootstrap_emd_population(
     )
     dists_end = default_timer()
 
-    with create_progress_bar(
+    progress_bar = create_progress_bar(
         show_progress_bar,
         total=bootstrapping_dist_size,
         desc="Bootstrapping EMD Null Distribution",
-    ) as bootstrapping_progress:
+    )
+    emds: Numpy1DArray[np.float_] = np.empty(bootstrapping_dist_size, dtype=np.float_)
 
-        def _compute_emd_with_pbar(row: Numpy1DArray[np.int_]) -> float:
-            res = compute_emd_for_index_sample(
-                row, dists, reference_stoch_lang.frequencies, emd_backend
-            )
-            bootstrapping_progress.update()
-            return res
-
-        # Get the samples for the entire bootstrapping stage, respecting the frequencies of the variants
-        samples = gen.choice(
+    for i in range(bootstrapping_dist_size):
+        # Get the samples for the bootstrapping step, respecting the frequencies of the variants
+        sample = gen.choice(
             dists.shape[0],
-            (bootstrapping_dist_size, resample_size),
+            resample_size,
             replace=True,
             p=reference_stoch_lang.frequencies,
         )
-        emds: Numpy1DArray[np.float_] = np.apply_along_axis(
-            _compute_emd_with_pbar,
-            1,
-            samples,
+        emds[i] = compute_emd_for_index_sample(
+            sample, dists, reference_stoch_lang.frequencies, emd_backend
         )
+        progress_bar.update()
 
     emds_end = default_timer()
 
-    _log_bootstrapping_performance(dists_start, dists_end, emds_end)
+    _log_bootstrapping_performance(
+        dists_start, dists_end, emds_end, "bootstrap_emd_population"
+    )
 
     return emds.tolist()
 
@@ -511,7 +490,9 @@ def bootstrap_emd_population_split_sampling(
     progress_bar.close()
     emds_end = default_timer()
 
-    _log_bootstrapping_performance(dists_start, dists_end, emds_end)
+    _log_bootstrapping_performance(
+        dists_start, dists_end, emds_end, "bootstrap_emd_population_split_sampling"
+    )
 
     return emds
 
@@ -566,16 +547,13 @@ def bootstrap_emd_population_resample_split_sampling(
         desc="Bootstrapping EMD Null Distribution",
     )
 
-    samples_1, samples_2 = gen.choice(
-        dists.shape[0],
-        # Every iteration we need two samples of `resample_size` size
-        (2, bootstrapping_dist_size, resample_size),
-        replace=True,
-        p=stochastic_lang.frequencies,
-    )
-    for idx in range(bootstrapping_dist_size):
-        sample_1 = samples_1[idx]
-        sample_2 = samples_2[idx]
+    for _ in range(bootstrapping_dist_size):
+        sample_1 = gen.choice(
+            dists.shape[0], resample_size, replace=True, p=stochastic_lang.frequencies
+        )
+        sample_2 = gen.choice(
+            dists.shape[0], resample_size, replace=True, p=stochastic_lang.frequencies
+        )
 
         deduplicated_indices_1, counts_1 = np.unique(sample_1, return_counts=True)
         deduplicated_indices_2, counts_2 = np.unique(sample_2, return_counts=True)
@@ -591,13 +569,21 @@ def bootstrap_emd_population_resample_split_sampling(
         progress_bar.update()
     progress_bar.close()
     emds_end = default_timer()
-    _log_bootstrapping_performance(dists_start, dists_end, emds_end)
+    _log_bootstrapping_performance(
+        dists_start,
+        dists_end,
+        emds_end,
+        "bootstrap_emd_population_resample_split_sampling",
+    )
 
     return emds
 
 
 def _log_bootstrapping_performance(
-    dists_start: float, dists_end: float, emds_end: float
+    dists_start: float,
+    dists_end: float,
+    emds_end: float,
+    func_name: str = "bootstrap_emd_population",
 ):
     """Log performance information about the bootstrapping stage using the logging module.
 
@@ -610,6 +596,7 @@ def _log_bootstrapping_performance(
             `timeit.default_timer()`).
         emds_end (float): The end time of the EMD computation (Output of
             `timeit.default_timer()`).
+        func_name (str, optional): The name of the function that is logging. Defaults to "bootstrap_emd_population".
     """
     total_time = emds_end - dists_start
     dists_dur = dists_end - dists_start
@@ -618,11 +605,11 @@ def _log_bootstrapping_performance(
     logger = logging.getLogger("@pcomp")
 
     logger.info(
-        f"bootstrap_emd_population:Distances took {pretty_format_duration(dists_dur)} ({(dists_dur / total_time * 100):.2f}%)"
+        f"{func_name}:Distances took {pretty_format_duration(dists_dur)} ({(dists_dur / total_time * 100):.2f}%)"
     )
     logger.info(
-        f"bootstrap_emd_population:EMDs took {pretty_format_duration(emds_end - dists_end)} ({(emds_dur / total_time * 100):.2f}%)"
+        f"{func_name}:EMDs took {pretty_format_duration(emds_end - dists_end)} ({(emds_dur / total_time * 100):.2f}%)"
     )
     logger.info(
-        f"bootstrap_emd_population:Bootstrapping total time: {pretty_format_duration(total_time)}"
+        f"{func_name}:Bootstrapping total time: {pretty_format_duration(total_time)}"
     )

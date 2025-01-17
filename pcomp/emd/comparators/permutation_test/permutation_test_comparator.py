@@ -12,11 +12,7 @@ from pathos.multiprocessing import ProcessingPool, cpu_count  # type: ignore
 
 from pcomp.emd.core import EMDBackend, emd, population_to_stochastic_language
 from pcomp.utils.typing import Numpy1DArray, NumpyMatrix
-from pcomp.utils.utils import (
-    create_progress_bar,
-    ensure_start_timestamp_column,
-    pretty_format_duration,
-)
+from pcomp.utils.utils import create_progress_bar, pretty_format_duration
 
 T = TypeVar("T")
 
@@ -101,8 +97,11 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
             multiprocess_cores (int, optional): Use multiprocessing for distance computation?
                 Defaults to 0 (no multiprocessing used).
         """
-        self.log_1 = ensure_start_timestamp_column(log_1)
-        self.log_2 = ensure_start_timestamp_column(log_2)
+        if log_1.empty or log_2.empty:
+            raise ValueError("Cannot compare with an empty event log")
+
+        self.log_1 = log_1
+        self.log_2 = log_2
         self.distribution_size = distribution_size
 
         self.verbose = verbose
@@ -228,7 +227,6 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
             large_distance_matrix = compute_symmetric_distance_matrix_mp(
                 combined_variants,
                 self.cost_fn,
-                self.verbose,
                 num_cores=self.multiprocess_cores,
             )
         else:
@@ -260,7 +258,6 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
                     self.distribution_size,
                     seed=self.seed,
                     emd_backend=self.emd_backend,
-                    show_progress_bar=self.verbose,
                     num_cores=self.multiprocess_cores,
                 )
             )
@@ -360,7 +357,6 @@ def compute_permutation_test_distribution(
 def compute_symmetric_distance_matrix_mp(
     population: list[T],
     cost_fn: Callable[[T, T], float],
-    show_progress_bar: bool = True,
     num_cores: int | None = None,
 ) -> NumpyMatrix[np.float_]:
     """Compute the distance matrix from the population to itself, assuming a symmetric
@@ -371,8 +367,6 @@ def compute_symmetric_distance_matrix_mp(
         population (list[T]): The population of behavior to compute the distance_matrix
             for. Assumed to hold unique values.
         cost_fn (Callable[[T, T], float]): The _symmetric_ cost function to use.
-        show_progress_bar (bool, optional): Show a progress bar for the computation?
-            Defaults to True.
 
     Returns:
         NumpyMatrix[np.float_]: The distance matrix using the indices of values in
@@ -499,7 +493,7 @@ def get_permutation_sample(
     sample_range: int,
     number_of_samples: int,
     seed: int | None | np.random.Generator = None,
-) -> NumpyMatrix[np.float_]:
+) -> NumpyMatrix[np.int_]:
     """Get a number of permutations of numbers from 0..sample_range.
 
     Args:
@@ -510,7 +504,7 @@ def get_permutation_sample(
         seed (int | None | np.random.Generator, optional): The seed to use for sampling.
 
     Returns:
-        NumpyMatrix[np.float_]: The permutation samples. Has the diimensions
+        NumpyMatrix[np.int_]: The permutation samples. Has the diimensions
             sample_range x number_of_samples. Each row contains numbers from the
             interval [0, sample_range) in a random order.
     """
@@ -619,7 +613,6 @@ def compute_permutation_test_distribution_precomputed_distances_mp(
     distribution_size: int = 10_000,
     seed: int | None = None,
     emd_backend: EMDBackend = "wasserstein",
-    show_progress_bar: bool = True,
     num_cores: int | None = None,
 ) -> Numpy1DArray[np.float_]:
     """Compute the distribution for a permutation test.
@@ -640,7 +633,8 @@ def compute_permutation_test_distribution_precomputed_distances_mp(
         emd_backend (EMDBackend, optional): The backend to use for EMD computation.
             Defaults to "wasserstein" (use the wasserstein package). Alternatively,
             "pot" uses "Python Optimal Transport" to compute the EMD.
-        show_progress_bar (bool, optional): Show a progress bar? Defaults to True.
+        num_cores (int | None, optional): The number of cores to use for multiplrocessing.
+            Defaults to cpu_count - 4.
 
     Returns:
         Numpy1DArray[np.float_]: The computed EMDs.

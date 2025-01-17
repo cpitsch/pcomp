@@ -1,15 +1,17 @@
 """
-An implementation of the PermutationTestComparator which only compares w.r.t. the control flow
+An implementation of the KolmogorovSmirnov comparator which only compares w.r.t. the control flow
 """
 
 import pandas as pd
 
-from pcomp.emd.comparators.permutation_test import Permutation_Test_Comparator
+from pcomp.emd.comparators._experimental.kolmogorov_smirnov import (
+    KolmogorovSmirnovBootstrapComparator,
+)
 from pcomp.emd.distances.levenshtein import postnormalized_levenshtein_distance
 from pcomp.emd.extraction import Trace, extract_traces
 
 
-class ControlFlowPermutationComparator(Permutation_Test_Comparator[Trace]):
+class ControlFlowKSComparator(KolmogorovSmirnovBootstrapComparator[Trace]):
     def extract_representations(
         self, log_1: pd.DataFrame, log_2: pd.DataFrame
     ) -> tuple[list[Trace], list[Trace]]:
