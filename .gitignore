@@ -14,6 +14,9 @@ Notebooks/*
 # Saved Pickle Files
 *.pkl
 
+# Other:
+.python-version
+
 # Languages: python (1)
 
 
