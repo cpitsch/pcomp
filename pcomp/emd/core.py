@@ -117,7 +117,7 @@ def emd(
             return solver(freqs_1, freqs_2, dists)
         except Exception as e:
             logging.getLogger("@pcomp").warning(
-                f"Error thrown by wasserstein package: \"{e}\". {' Falling back to ot package.' if fall_back else ''}",
+                f'Error thrown by wasserstein package: "{e}". {" Falling back to ot package." if fall_back else ""}',
             )
             if fall_back:
                 # Apparently, the wasserstein package sometimes runs into issues on small inputs
