@@ -1,2 +1,4 @@
 from .control_flow import ControlFlowBootstrapComparator
 from .timed_control_flow import Timed_Levenshtein_BootstrapComparator
+
+__all__ = ["ControlFlowBootstrapComparator, Timed_Levenshtein_BootstrapComparator"]

@@ -3,3 +3,9 @@ from .levenshtein import (
     ControlFlowClassicBootstrapComparator,
     Timed_Levenshtein_ClassicBootstrapComparator,
 )
+
+__all__ = [
+    "ClassicBootstrap_Comparator",
+    "ControlFlowClassicBootstrapComparator",
+    "Timed_Levenshtein_ClassicBootstrapComparator",
+]
