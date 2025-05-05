@@ -50,9 +50,10 @@ result.plot().show()
 ```
 
 ## Dependencies
-This project uses [poetry](https://python-poetry.org/docs/) for dependency management.
-After installing poetry, the dependencies can be installed using `poetry install`. Then:
+This project uses [uv](https://docs.astral.sh/uv/) for dependency management.
+After installing `uv`, the dependencies can be installed using `uv sync`. This
+creates a virtual environment. 
 
-- The environment can be activated using `poetry shell`
-- Alternatively, commands can be run using, e.g., `poetry run python app.py` without activating the environment manually
-- A requirements file can be generated using `poetry export -o requirements.txt`
+- The environment can be activated using `source .venv/bin/activate` (linux) or `.venv/Scripts/activate`
+- Alternatively, commands can be run using, e.g., `uv run app.py` without activating the environment manually
+- A requirements file can be generated using `uv export > requirements.txt`
