@@ -2,12 +2,12 @@ import numpy as np
 from sklearn.cluster import kmeans_plusplus  # type: ignore
 
 from pcomp.binning.Binner import Binner
-from pcomp.utils.typing import Numpy1DArray
+from pcomp.utils.typing import NP_FLOAT, Numpy1DArray
 
 
 class KMeans_Binner(Binner):
     k: int
-    centroids: Numpy1DArray[np.float_]
+    centroids: Numpy1DArray[NP_FLOAT]
 
     def __init__(self, data: list[float], k: int, seed: int | None = None):
         super().__init__(data, seed)

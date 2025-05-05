@@ -4,6 +4,7 @@ import pytest
 from pcomp.emd.comparators.classic_bootstrap.classic_bootstrap_comparator import (
     bootstrap_emd_population_classic,
 )
+from pcomp.utils.typing import NP_FLOAT
 
 
 def test_bootstrap_dist_computation():
@@ -54,4 +55,4 @@ def test_bootstrap_dist_computation():
     # So we map 0.2 units from 1 to 0 at cost 1 per unit, i.e., incur a cost of 0.2
     # Thus, the second EMD is 0.2
 
-    assert result == pytest.approx(np.array([0.0, 0.2], dtype=np.float_))
+    assert result == pytest.approx(np.array([0.0, 0.2], dtype=NP_FLOAT))
