@@ -8,6 +8,7 @@ from pcomp.emd.comparators.permutation_test.permutation_test_comparator import (
     get_permutation_sample,
     project_large_distance_matrix,
 )
+from pcomp.utils.typing import NP_FLOAT
 
 
 def test_get_permutation_sample_is_seeded():
@@ -63,7 +64,7 @@ def test_permutation_test_distribution_computation():
     #
     # Which should trivially give an EMD of 0. (Bad example I guess)
 
-    assert result == np.array([0.0], dtype=np.float_)
+    assert result == np.array([0.0], dtype=NP_FLOAT)
 
     # Now, using the same permutation as before, we choose the input populations such
     # that the permutation splits the variants exactly into the two samples. That means,
@@ -103,7 +104,7 @@ def test_permutation_test_distribution_computation():
     # So intuitively, in the EMD transport problem, we have a source of 1 unit and a
     # sink of 1 unit, with a cost of DIFF_COST per unit transferred, so trivially, the
     # EMD is DIFF_COST (or more generally, the value of cost_fn(0, 1)).
-    assert result_2 == np.array([cost_fn_2(0, 1)], dtype=np.float_)
+    assert result_2 == np.array([cost_fn_2(0, 1)], dtype=NP_FLOAT)
 
 
 def test_symmetric_distance_matrix_computation():
@@ -128,7 +129,7 @@ def test_symmetric_distance_matrix_computation_mp():
 
     # expected = np.array([np.roll(population - 1, i) for i in range(10)])
     # Diagonal: 0, outwards from the 0 we count up in both directions, e.g., 2 1 0 1 2 3
-    expected = np.abs(np.arange(10) - np.arange(10)[:, np.newaxis]).astype(np.float_)
+    expected = np.abs(np.arange(10) - np.arange(10)[:, np.newaxis]).astype(NP_FLOAT)
 
     actual = compute_symmetric_distance_matrix_mp(population.tolist(), cost_fn, 6)
 

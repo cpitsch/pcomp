@@ -8,6 +8,7 @@ NOTE: This technique has no foundation in statistics, and is just the result of 
 Also, preliminary experiments showed that this technique _does not work well_, and pretty
 much always detects a difference.
 """
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from timeit import default_timer
@@ -31,7 +32,7 @@ from pcomp.emd.core import (
     population_to_stochastic_language,
 )
 from pcomp.utils import create_progress_bar
-from pcomp.utils.typing import Numpy1DArray
+from pcomp.utils.typing import NP_FLOAT, Numpy1DArray
 
 Self_Bootstrapping_Style = Literal["split", "replacement"]
 
@@ -40,8 +41,8 @@ T = TypeVar("T")
 
 @dataclass
 class KSTest_ComparisonResult:
-    reference_emds_distribution: Numpy1DArray[np.float_]
-    logs_emds_distribution: Numpy1DArray[np.float_]
+    reference_emds_distribution: Numpy1DArray[NP_FLOAT]
+    logs_emds_distribution: Numpy1DArray[NP_FLOAT]
     pvalue: float
     runtime: float
 
@@ -195,7 +196,7 @@ class KolmogorovSmirnovBootstrapComparator(ABC, Generic[T]):
         return self._comparison_result
 
     @property
-    def reference_emds_distribution(self) -> Numpy1DArray[np.float_]:
+    def reference_emds_distribution(self) -> Numpy1DArray[NP_FLOAT]:
         """
         The boostrapped distribution of self-emds of log_1 to itself. Computed in `compare`.
         If `compare` has not been called, accessing this will raise a ValueError.
@@ -203,7 +204,7 @@ class KolmogorovSmirnovBootstrapComparator(ABC, Generic[T]):
         return self.comparison_result.reference_emds_distribution
 
     @property
-    def logs_emds_distribution(self) -> Numpy1DArray[np.float_]:
+    def logs_emds_distribution(self) -> Numpy1DArray[NP_FLOAT]:
         """
         The distribution of emds from log_1 to log_2. Computed in `compare`.
         If `compare` has not been called, accessing this will raise a ValueError.

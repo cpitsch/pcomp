@@ -11,7 +11,7 @@ from matplotlib.figure import Figure
 from pathos.multiprocessing import ProcessingPool, cpu_count  # type: ignore
 
 from pcomp.emd.core import EMDBackend, emd, population_to_stochastic_language
-from pcomp.utils.typing import Numpy1DArray, NumpyMatrix
+from pcomp.utils.typing import NP_FLOAT, Numpy1DArray, NumpyMatrix
 from pcomp.utils.utils import create_progress_bar, pretty_format_duration
 
 T = TypeVar("T")
@@ -21,7 +21,7 @@ T = TypeVar("T")
 class PermutationTestComparisonResult:
     pvalue: float
     logs_emd: float
-    permutation_distribution: Numpy1DArray[np.float_]
+    permutation_distribution: Numpy1DArray[NP_FLOAT]
     runtime: float
 
     def plot(self) -> Figure:
@@ -174,7 +174,7 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
         return self.comparison_result.logs_emd
 
     @property
-    def permutation_distribution(self) -> Numpy1DArray[np.float_]:
+    def permutation_distribution(self) -> Numpy1DArray[NP_FLOAT]:
         """
         The distribution of EMDs computed for the permutation test. Computed in `compare`.
         If `compare` has not been called, accessing this will raise a ValueError.
@@ -313,7 +313,7 @@ def compute_permutation_test_distribution(
     seed: int | None = None,
     emd_backend: EMDBackend = "wasserstein",
     show_progress_bar: bool = True,
-) -> Numpy1DArray[np.float_]:
+) -> Numpy1DArray[NP_FLOAT]:
     """Compute the distribution for a permutation test. Computes the distance matrix
     for all behavior. If some distances are already computed before this, it is likely
     worth precomputing all distances and calling
@@ -333,7 +333,7 @@ def compute_permutation_test_distribution(
         show_progress_bar (bool, optional): Show a progress bar? Defaults to True.
 
     Returns:
-        Numpy1DArray[np.float_]: The distribution of permutation test EMDs
+        Numpy1DArray[NP_FLOAT]: The distribution of permutation test EMDs
     """
     combined_variants = population_to_stochastic_language(
         population_1 + population_2
@@ -358,7 +358,7 @@ def compute_symmetric_distance_matrix_mp(
     population: list[T],
     cost_fn: Callable[[T, T], float],
     num_cores: int | None = None,
-) -> NumpyMatrix[np.float_]:
+) -> NumpyMatrix[NP_FLOAT]:
     """Compute the distance matrix from the population to itself, assuming a symmetric
     cost function. Due to this assumption, we can cut the computation workload in half,
     only needing to compute one half of the matrix explicitly.
@@ -369,17 +369,17 @@ def compute_symmetric_distance_matrix_mp(
         cost_fn (Callable[[T, T], float]): The _symmetric_ cost function to use.
 
     Returns:
-        NumpyMatrix[np.float_]: The distance matrix using the indices of values in
+        NumpyMatrix[NP_FLOAT]: The distance matrix using the indices of values in
             `population`.
     """
     dists_start = default_timer()
-    dists = np.empty((len(population), len(population)), dtype=np.float_)
+    dists = np.empty((len(population), len(population)), dtype=NP_FLOAT)
 
     def compute_distance_matrix_row(
-        args: tuple[int, list[T], Callable[[T, T], float]]
-    ) -> Numpy1DArray[np.float_]:
+        args: tuple[int, list[T], Callable[[T, T], float]],
+    ) -> Numpy1DArray[NP_FLOAT]:
         i, population, cost_fn = args
-        row = np.empty(len(population) - i, dtype=np.float_)
+        row = np.empty(len(population) - i, dtype=NP_FLOAT)
         for j, item in enumerate(population[i:]):
             row[j] = cost_fn(population[i], item)
 
@@ -419,7 +419,7 @@ def compute_symmetric_distance_matrix(
     population: list[T],
     cost_fn: Callable[[T, T], float],
     show_progress_bar: bool = True,
-) -> NumpyMatrix[np.float_]:
+) -> NumpyMatrix[NP_FLOAT]:
     """Compute the distance matrix from the population to itself, assuming a symmetric
     cost function. Due to this assumption, we can cut the computation workload in half,
     only needing to compute one half of the matrix explicitly.
@@ -432,11 +432,11 @@ def compute_symmetric_distance_matrix(
             Defaults to True.
 
     Returns:
-        NumpyMatrix[np.float_]: The distance matrix using the indices of values in
+        NumpyMatrix[NP_FLOAT]: The distance matrix using the indices of values in
             `population`.
     """
     dists_start = default_timer()
-    dists = np.empty((len(population), len(population)), dtype=np.float_)
+    dists = np.empty((len(population), len(population)), dtype=NP_FLOAT)
     with create_progress_bar(
         show_progress_bar,
         total=dists.shape[0] * dists.shape[1],
@@ -457,16 +457,16 @@ def compute_symmetric_distance_matrix(
 
 
 def project_large_distance_matrix(
-    dist_matrix: NumpyMatrix[np.float_],
+    dist_matrix: NumpyMatrix[NP_FLOAT],
     dist_matrix_source_population: list[T],
     population_1: list[T],
     population_2: list[T],
-) -> NumpyMatrix[np.float_]:
+) -> NumpyMatrix[NP_FLOAT]:
     """Project a large distance matrix to the distance matrix induced by the two given
     populations.
 
     Args:
-        dist_matrix (NumpyMatrix[np.float_]): The large distance matrix.
+        dist_matrix (NumpyMatrix[NP_FLOAT]): The large distance matrix.
         dist_matrix_source_population (list[T]): The population used to generate the
             distance matrix. The distance matrix should have dimension
             |source_population|x|source_population. Used to find the indices in the
@@ -477,7 +477,7 @@ def project_large_distance_matrix(
             Defines the columns to project to.
 
     Returns:
-        NumpyMatrix[np.float_]: The projected distance matrix
+        NumpyMatrix[NP_FLOAT]: The projected distance matrix
     """
     population_1_matrix_indices = [
         dist_matrix_source_population.index(item) for item in population_1
@@ -520,12 +520,12 @@ def compute_permutation_test_distribution_precomputed_distances(
     behavior_1: list[T],
     behavior_2: list[T],
     distance_matrix_source_population: list[T],
-    distance_matrix: NumpyMatrix[np.float_],
+    distance_matrix: NumpyMatrix[NP_FLOAT],
     distribution_size: int = 10_000,
     seed: int | None = None,
     emd_backend: EMDBackend = "wasserstein",
     show_progress_bar: bool = True,
-) -> Numpy1DArray[np.float_]:
+) -> Numpy1DArray[NP_FLOAT]:
     """Compute the distribution for a permutation test.
 
 
@@ -537,7 +537,7 @@ def compute_permutation_test_distribution_precomputed_distances(
         distance_matrix_source_population (list[T]): The population used to compute the
             distance matrix. Used to map indices in the behavior lists to indices in the
             distance matrix.
-        distance_matrix (NumpyMatrix[np.float_]): The distance matrix.
+        distance_matrix (NumpyMatrix[NP_FLOAT]): The distance matrix.
         distribution_size (int, optional): The number of EMDs to compute. Defaults to
             10_000.
         seed (int | None, optional): The seed to use for sampling. Defaults to None.
@@ -547,7 +547,7 @@ def compute_permutation_test_distribution_precomputed_distances(
         show_progress_bar (bool, optional): Show a progress bar? Defaults to True.
 
     Returns:
-        Numpy1DArray[np.float_]: The computed EMDs.
+        Numpy1DArray[NP_FLOAT]: The computed EMDs.
     """
 
     gen = np.random.default_rng(seed)
@@ -570,7 +570,7 @@ def compute_permutation_test_distribution_precomputed_distances(
     sample_size = len(behavior_1) + len(behavior_2)
 
     emds_start = default_timer()
-    emds = np.empty(distribution_size, dtype=np.float_)
+    emds = np.empty(distribution_size, dtype=NP_FLOAT)
     for idx in range(distribution_size):
         sample = gen.permutation(sample_size)
 
@@ -609,12 +609,12 @@ def compute_permutation_test_distribution_precomputed_distances_mp(
     behavior_1: list[T],
     behavior_2: list[T],
     distance_matrix_source_population: list[T],
-    distance_matrix: NumpyMatrix[np.float_],
+    distance_matrix: NumpyMatrix[NP_FLOAT],
     distribution_size: int = 10_000,
     seed: int | None = None,
     emd_backend: EMDBackend = "wasserstein",
     num_cores: int | None = None,
-) -> Numpy1DArray[np.float_]:
+) -> Numpy1DArray[NP_FLOAT]:
     """Compute the distribution for a permutation test.
 
 
@@ -626,7 +626,7 @@ def compute_permutation_test_distribution_precomputed_distances_mp(
         distance_matrix_source_population (list[T]): The population used to compute the
             distance matrix. Used to map indices in the behavior lists to indices in the
             distance matrix.
-        distance_matrix (NumpyMatrix[np.float_]): The distance matrix.
+        distance_matrix (NumpyMatrix[NP_FLOAT]): The distance matrix.
         distribution_size (int, optional): The number of EMDs to compute. Defaults to
             10_000.
         seed (int | None, optional): The seed to use for sampling. Defaults to None.
@@ -637,7 +637,7 @@ def compute_permutation_test_distribution_precomputed_distances_mp(
             Defaults to cpu_count - 4.
 
     Returns:
-        Numpy1DArray[np.float_]: The computed EMDs.
+        Numpy1DArray[NP_FLOAT]: The computed EMDs.
     """
 
     # Matrix of rows of 1...size_of_logs
@@ -656,12 +656,12 @@ def compute_permutation_test_distribution_precomputed_distances_mp(
 
     def compute_permutation_emd(
         args: tuple[
-            NumpyMatrix[np.float_], Numpy1DArray[np.int_], NumpyMatrix[np.float_], int
-        ]
+            NumpyMatrix[NP_FLOAT], Numpy1DArray[np.int_], NumpyMatrix[NP_FLOAT], int
+        ],
     ):
         samples, sample_translator, dists, separation_index = args
 
-        out = np.empty(samples.shape[0], dtype=np.float_)
+        out = np.empty(samples.shape[0], dtype=NP_FLOAT)
 
         for idx in range(samples.shape[0]):
             sample_1 = samples[idx][:separation_index]

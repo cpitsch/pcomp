@@ -20,7 +20,7 @@ from pcomp.emd.core import (
     population_to_stochastic_language,
 )
 from pcomp.utils import create_progress_bar, pretty_format_duration
-from pcomp.utils.typing import Numpy1DArray, NumpyMatrix
+from pcomp.utils.typing import NP_FLOAT, Numpy1DArray, NumpyMatrix
 
 T = TypeVar("T")
 
@@ -29,7 +29,7 @@ T = TypeVar("T")
 class ClassicBootstrapTestComparisonResult:
     pvalue: float
     logs_emd: float
-    bootstrap_distribution: Numpy1DArray[np.float_]
+    bootstrap_distribution: Numpy1DArray[NP_FLOAT]
     runtime: float
 
     def plot(self) -> Figure:
@@ -176,7 +176,7 @@ class ClassicBootstrap_Comparator(ABC, Generic[T]):
         return self.comparison_result.logs_emd
 
     @property
-    def bootstrapping_distribution(self) -> Numpy1DArray[np.float_]:
+    def bootstrapping_distribution(self) -> Numpy1DArray[NP_FLOAT]:
         """
         The bootstrapping distribution of EMDs of the log to itself. Computed in
         `compare`. If `compare` has not been called, accessing this will raise a
@@ -285,7 +285,7 @@ def bootstrap_emd_population_classic(
     seed: int | None = None,
     emd_backend: EMDBackend = "wasserstein",
     show_progress_bar: bool = True,
-) -> Numpy1DArray[np.float_]:
+) -> Numpy1DArray[NP_FLOAT]:
     """Compute a bootstrapping distribution using standard bootstrapping. Computes the
     distances between all behavior and then computes the bootstrapping distribution. If
     some distances between or within `behavior_1` or `behavior_2` are already computed,
@@ -310,7 +310,7 @@ def bootstrap_emd_population_classic(
             bootstrap distribution computation? Defaults to True.
 
     Returns:
-        Numpy1DArray[np.float_]: The computed EMDs.
+        Numpy1DArray[NP_FLOAT]: The computed EMDs.
     """
     stoch_lang_all = population_to_stochastic_language(behavior_1 + behavior_2)
     dists = compute_symmetric_distance_matrix(
@@ -333,12 +333,12 @@ def bootstrap_classic_emd_population_precomputed_distances(
     behavior_1: list[T],
     behavior_2: list[T],
     distance_matrix_source_stoch_lang: StochasticLanguage,
-    distance_matrix: NumpyMatrix[np.float_],
+    distance_matrix: NumpyMatrix[NP_FLOAT],
     bootstrapping_dist_size: int = 10_000,
     seed: int | None = None,
     emd_backend: EMDBackend = "wasserstein",
     show_progress_bar: bool = True,
-) -> Numpy1DArray[np.float_]:
+) -> Numpy1DArray[NP_FLOAT]:
     """Compute a bootstrapping distribution using standard bootstrapping.
     Leverages precomputed distances in order to save on computation time.
 
@@ -351,7 +351,7 @@ def bootstrap_classic_emd_population_precomputed_distances(
         distance_matrix_source_stoch_lang (StochasticLanguage): The stochastic
             language that was used to compute the distance matrix. Used for the
             frequencies and sampling range.
-        distance_matrix (NumpyMatrix[np.float_]): The distance matrix.
+        distance_matrix (NumpyMatrix[NP_FLOAT]): The distance matrix.
         bootstrapping_dist_size (int, optional): The number of samples to compute.
             Defaults to 10_000.
         seed (int | None, optional): The seed to use for sampling. Defaults to None.
@@ -362,7 +362,7 @@ def bootstrap_classic_emd_population_precomputed_distances(
             Defaults to True.
 
     Returns:
-        Numpy1DArray[np.float_]: The computed EMDs
+        Numpy1DArray[NP_FLOAT]: The computed EMDs
     """
     gen = np.random.default_rng(seed)
 
@@ -375,7 +375,7 @@ def bootstrap_classic_emd_population_precomputed_distances(
         p=distance_matrix_source_stoch_lang.frequencies,
     )
 
-    emds = np.empty(bootstrapping_dist_size, dtype=np.float_)
+    emds = np.empty(bootstrapping_dist_size, dtype=NP_FLOAT)
     progress = create_progress_bar(
         show_progress_bar,
         total=bootstrapping_dist_size,

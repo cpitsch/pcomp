@@ -8,6 +8,7 @@ only in the way the bootstrapping distribution is created. The "replacement subl
 samples as described by Leemans et al.. For more information, see the documentation of the
 BootstrapComparator class.
 """
+
 import logging
 import math
 from abc import ABC, abstractmethod
@@ -29,7 +30,7 @@ from pcomp.emd.core import (
     population_to_stochastic_language,
 )
 from pcomp.utils import create_progress_bar, log_len, pretty_format_duration
-from pcomp.utils.typing import Numpy1DArray
+from pcomp.utils.typing import NP_FLOAT, Numpy1DArray
 
 T = TypeVar("T")
 
@@ -41,7 +42,7 @@ BootstrappingStyle = Literal["replacement sublogs", "split sampling", "resample 
 class BootstrapTestComparisonResult:
     pvalue: float
     logs_emd: float
-    bootstrap_distribution: Numpy1DArray[np.float_]
+    bootstrap_distribution: Numpy1DArray[NP_FLOAT]
     runtime: float
 
     def plot(self) -> Figure:
@@ -221,7 +222,7 @@ class BootstrapComparator(ABC, Generic[T]):
         return self.comparison_result.logs_emd
 
     @property
-    def bootstrapping_distribution(self) -> Numpy1DArray[np.float_]:
+    def bootstrapping_distribution(self) -> Numpy1DArray[NP_FLOAT]:
         """
         The bootstrapping distribution of EMDs of the log to itself. Computed in
         `compare`.
@@ -377,7 +378,7 @@ def bootstrap_emd_population(
         total=bootstrapping_dist_size,
         desc="Bootstrapping EMD Null Distribution",
     )
-    emds: Numpy1DArray[np.float_] = np.empty(bootstrapping_dist_size, dtype=np.float_)
+    emds: Numpy1DArray[NP_FLOAT] = np.empty(bootstrapping_dist_size, dtype=NP_FLOAT)
 
     for i in range(bootstrapping_dist_size):
         # Get the samples for the bootstrapping step, respecting the frequencies of the variants

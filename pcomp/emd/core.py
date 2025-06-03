@@ -13,7 +13,7 @@ import ot  # type: ignore
 import wasserstein  # type: ignore
 
 from pcomp.utils import create_progress_bar, pretty_format_duration
-from pcomp.utils.typing import Numpy1DArray, NumpyMatrix
+from pcomp.utils.typing import NP_FLOAT, Numpy1DArray, NumpyMatrix
 
 T = TypeVar("T")
 
@@ -24,7 +24,7 @@ EMDBackend = Literal["wasserstein", "ot", "pot"]
 @dataclass
 class StochasticLanguage(Generic[T]):
     variants: list[T]
-    frequencies: Numpy1DArray[np.float_]
+    frequencies: Numpy1DArray[NP_FLOAT]
 
 
 def compute_emd(
@@ -89,20 +89,20 @@ def compute_emd(
 
 
 def emd(
-    freqs_1: Numpy1DArray[np.float_],
-    freqs_2: Numpy1DArray[np.float_],
-    dists: NumpyMatrix[np.float_],
+    freqs_1: Numpy1DArray[NP_FLOAT],
+    freqs_2: Numpy1DArray[NP_FLOAT],
+    dists: NumpyMatrix[NP_FLOAT],
     backend: EMDBackend = "wasserstein",
     fall_back: bool = True,
 ) -> float:
     """A wrapper around the EMD computation.
 
     Args:
-        freqs_1 (Numpy1DArray[np.float_]): 1D histogram of the first distribution. All
+        freqs_1 (Numpy1DArray[NP_FLOAT]): 1D histogram of the first distribution. All
             positive, sums up to 1.
-        freqs_2 (Numpy1DArray[np.float_]): 1D histogram of the second distribution. All
+        freqs_2 (Numpy1DArray[NP_FLOAT]): 1D histogram of the second distribution. All
             positive, sums up to 1.
-        dists (NumpyMatrix[np.float_]): The cost matrix.
+        dists (NumpyMatrix[NP_FLOAT]): The cost matrix.
         backend ("wasserstein" | "ot" | "pot"): The backend to use to compute the EMD.
             Defaults to "wasserstein" (use the wasserstein package). Alternatively,
             "ot"/"pot" refers to the Python Optimal Transport package.
@@ -117,7 +117,7 @@ def emd(
             return solver(freqs_1, freqs_2, dists)
         except Exception as e:
             logging.getLogger("@pcomp").warning(
-                f"Error thrown by wasserstein package: \"{e}\". {' Falling back to ot package.' if fall_back else ''}",
+                f'Error thrown by wasserstein package: "{e}". {" Falling back to ot package." if fall_back else ""}',
             )
             if fall_back:
                 # Apparently, the wasserstein package sometimes runs into issues on small inputs
@@ -153,16 +153,14 @@ def population_to_stochastic_language(
 
     return StochasticLanguage(
         variants=[item for item, _ in stochastic_language],
-        frequencies=np.array(
-            [freq for _, freq in stochastic_language], dtype=np.float_
-        ),
+        frequencies=np.array([freq for _, freq in stochastic_language], dtype=NP_FLOAT),
     )
 
 
 def compute_emd_for_index_sample(
     indices: Numpy1DArray[np.int_],
-    dists: NumpyMatrix[np.float_],
-    reference_frequencies: Numpy1DArray[np.float_],
+    dists: NumpyMatrix[NP_FLOAT],
+    reference_frequencies: Numpy1DArray[NP_FLOAT],
     emd_backend: EMDBackend = "wasserstein",
 ) -> float:
     """Given a sample of indices of rows in the distance matrix, compute the EMD between
@@ -171,8 +169,8 @@ def compute_emd_for_index_sample(
     Args:
         indices (Numpy1DArray[np.int_]): The sampled indices (possibly containing
             duplicates)
-        dists (NumpyMatrix[np.float_]): The distance matrix.
-        reference_frequencies (Numpy1DArray[np.float_]): 1D Histogram of the source
+        dists (NumpyMatrix[NP_FLOAT]): The distance matrix.
+        reference_frequencies (Numpy1DArray[NP_FLOAT]): 1D Histogram of the source
             population. Used for EMD computation
         emd_backend (EMDBackend, optional): The backend to use for EMD computation.
             Defaults to "wasserstein" (Use the "wasserstein" package).
@@ -194,7 +192,7 @@ def compute_distance_matrix(
     population_2: list[T],
     cost_fn: Callable[[T, T], float],
     show_progress_bar: bool = True,
-) -> NumpyMatrix[np.float_]:
+) -> NumpyMatrix[NP_FLOAT]:
     """Compute the distance matrix for two populations.
 
     Args:
@@ -205,7 +203,7 @@ def compute_distance_matrix(
         show_progress_bar (bool, optional): Show a progress bar? Defaults to True.
 
     Returns:
-        NumpyMatrix[np.float_]: The distance matrix. The (i, j)-th element is the
+        NumpyMatrix[NP_FLOAT]: The distance matrix. The (i, j)-th element is the
             distance between the i-th element of population_1 and the j-th element of
             population_2.
     """
