@@ -31,13 +31,16 @@ def create_event_log(cases: list[Case]) -> pd.DataFrame:
                 constants.DEFAULT_LIFECYCLE_KEY: transition,
                 constants.DEFAULT_TIMESTAMP_KEY: base_date
                 + (date_increment * timestamp),
-                constants.DEFAULT_INSTANCE_KEY: case.event_instances[i]
-                if case.event_instances is not None
-                else None,
-                constants.DEFAULT_START_TIMESTAMP_KEY: base_date
-                + (date_increment * case.start_timestamps[i])
-                if case.start_timestamps is not None
-                else None,
+                constants.DEFAULT_INSTANCE_KEY: (
+                    case.event_instances[i]
+                    if case.event_instances is not None
+                    else None
+                ),
+                constants.DEFAULT_START_TIMESTAMP_KEY: (
+                    base_date + (date_increment * case.start_timestamps[i])
+                    if case.start_timestamps is not None
+                    else None
+                ),
             }
         )
         for case in cases
