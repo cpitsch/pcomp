@@ -122,18 +122,18 @@ class BootstrapComparator(ABC, Generic[T]):
                 strategies work as follows:
 
                 - "replacement sublogs": Randomly sample sublogs of `resample_size`
-                of log_1, and compute their EMD to log_1. This is done
-                `bootstrapping_dist_size` times. This is the approach used by Leemans
-                et al. in "Statistical Tests and Association Measures for Business
-                Processes"
+                    of log_1, and compute their EMD to log_1. This is done
+                    `bootstrapping_dist_size` times. This is the approach used by Leemans
+                    et al. in "Statistical Tests and Association Measures for Business
+                    Processes".
                 - "split sampling": Randomly split the log_1 in two halves and compute
-                the EMD between them. This is done `bootstrapping_dist_size` times.
+                    the EMD between them. This is done `bootstrapping_dist_size` times.
                 - "resample split": Randomly sample 2 sublogs of `resample_size` of
-                log_1 and compute their EMD. This is done `bootstrapping_dist_size`
-                times. This is a kind of mixture of the "replacement sublogs" and
-                "split sampling" approaches, taking the sampling with replacement from
-                the first, and taking the "split" comparison idea from the latter, as
-                opposed to comparing what effectively converges towards a subset.
+                    log_1 and compute their EMD. This is done `bootstrapping_dist_size`
+                    times. This is a kind of mixture of the "replacement sublogs" and
+                    "split sampling" approaches, taking the sampling with replacement from
+                    the first, and taking the "split" comparison idea from the latter, as
+                    opposed to comparing what effectively converges towards a subset.
 
             emd_backend (EMDBackend, optional): The backend to use for EMD computation.
                 Defaults to "wasserstein" (use the "wasserstein" module). Alternatively,

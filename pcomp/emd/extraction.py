@@ -102,16 +102,16 @@ def extract_service_time_traces(
     Args:
         log (pd.DataFrame): The event log.
         activity_key (str, optional): The key for the activity label in the event log.
-            Defaults to constants.DEFAULT_NAME_KEY.
+            Defaults to "concept:name".
         start_time_key (str, optional): The key for the start timestamp in the event log.
-            Defaults to constants.DEFAULT_START_TIMESTAMP_KEY.
+            Defaults to "start_timestamp".
         end_time_key (str, optional): The key for the end timestamp in the event log.
-            Defaults to constants.DEFAULT_TIMESTAMP_KEY.
+            Defaults to "time:timestamp".
         traceid_key (str, optional): The key for the trace id in the event log. Defaults
-            to constants.DEFAULT_TRACEID_KEY.
+            to "case:concept:name".
         tiebreaker_key (str | None, optional): The key to use for sorting two events with
             identical completion timestamps. Ensures consistent ordering across traces.
-            Defaults to constants.DEFAULT_NAME_KEY.
+            Defaults to "concept:name".
 
     Returns:
         list[ServiceTimeTrace]: The list of ServiceTimeTraces extracted from the event log.
@@ -176,11 +176,11 @@ def extract_binned_service_time_traces(
         binner_manager (BinnerManager): The binner manager to use for binning the
             service times.
         activity_key (str, optional): The key for the activity value in the event log.
-            Defaults to xes.DEFAULT_NAME_KEY.
+            Defaults to "concept:name".
         start_time_key (str, optional): The key in the event log for the start timestamp
-            of the event. Defaults to xes.DEFAULT_START_TIMESTAMP_KEY.
+            of the event. Defaults to "start_timestamp".
         end_time_key (str, optional): The key in the event log for the completion
-            timestamp of the event. Defaults to xes.DEFAULT_TIMESTAMP_KEY.
+            timestamp of the event. Defaults to "time:timestamp".
     Returns:
         list[ServiceTimeTrace]: A sequence of traces, represented as a tuple of activity
             and binned duration. Same order as in the original event log.

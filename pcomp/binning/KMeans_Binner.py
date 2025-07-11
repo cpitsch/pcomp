@@ -6,6 +6,9 @@ from pcomp.utils.typing import NP_FLOAT, Numpy1DArray
 
 
 class KMeans_Binner(Binner):
+    """Bins values using KMeans++ binning. For this, the resulting centroids are sorted
+    ascendingly, and a value is binned to the index of the closest centroid."""
+
     k: int
     centroids: Numpy1DArray[NP_FLOAT]
 

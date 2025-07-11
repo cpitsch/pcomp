@@ -1,5 +1,5 @@
 """
-An implementation of the BootstrapComparator which only coimpares w.r.t. the control flow
+An implementation of the BootstrapComparator which only compares w.r.t. the control flow
 """
 
 import pandas as pd
@@ -10,6 +10,8 @@ from pcomp.emd.extraction import Trace, extract_traces
 
 
 class ControlFlowBootstrapComparator(BootstrapComparator[Trace]):
+    """An implementation of the BootstrapComparator which compares the control flow"""
+
     def extract_representations(
         self, log_1: pd.DataFrame, log_2: pd.DataFrame
     ) -> tuple[list[Trace], list[Trace]]:

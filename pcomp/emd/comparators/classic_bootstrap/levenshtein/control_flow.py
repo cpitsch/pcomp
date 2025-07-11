@@ -10,6 +10,10 @@ from pcomp.emd.extraction import Trace, extract_traces
 
 
 class ControlFlowClassicBootstrapComparator(ClassicBootstrap_Comparator[Trace]):
+    """
+    An implementation of the ClassicBootstrap_Comparator which compares the control flow
+    """
+
     def extract_representations(
         self, log_1: pd.DataFrame, log_2: pd.DataFrame
     ) -> tuple[list[Trace], list[Trace]]:

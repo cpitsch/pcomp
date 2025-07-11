@@ -9,8 +9,8 @@ from timeit import default_timer
 from typing import Callable, Generic, Literal, TypeVar
 
 import numpy as np
-import ot  # type: ignore
-import wasserstein  # type: ignore
+import ot
+import wasserstein
 
 from pcomp.utils import create_progress_bar, pretty_format_duration
 from pcomp.utils.typing import NP_FLOAT, Numpy1DArray, NumpyMatrix
@@ -113,7 +113,7 @@ def emd(
     """
     if backend == "wasserstein":
         try:
-            solver = wasserstein.EMD()
+            solver = wasserstein.EMD()  # type: ignore
             return solver(freqs_1, freqs_2, dists)
         except Exception as e:
             logging.getLogger("@pcomp").warning(
@@ -122,13 +122,13 @@ def emd(
             if fall_back:
                 # Apparently, the wasserstein package sometimes runs into issues on small inputs
                 # In that case, we fall back to the ot package
-                return ot.emd2(freqs_1, freqs_2, dists)
+                return ot.emd2(freqs_1, freqs_2, dists)  # type: ignore
             else:
                 raise e
     elif backend in ["ot", "pot"]:
         # This seems to be slower than the wasserstein package
         # But this could be due to different settings, such as num processes, etc.
-        return ot.emd2(freqs_1, freqs_2, dists)
+        return ot.emd2(freqs_1, freqs_2, dists)  # type: ignore
     else:
         raise ValueError(
             f"Invalid backend: {backend}. Must be 'wasserstein', 'ot', or 'pot'."

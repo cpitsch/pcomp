@@ -21,7 +21,7 @@ class Timed_Levenshtein_BootstrapComparator(
     BootstrapComparator[BinnedServiceTimeTrace]
 ):
     """
-    An implementation of the EMD_ProcessComparator for comparing event logs w.r.t. the
+    An implementation of the BootstrapComparator for comparing event logs w.r.t. the
     timed-control-flow using a weighted post-normalized levenshtein distance as the cost
     function.
     """
