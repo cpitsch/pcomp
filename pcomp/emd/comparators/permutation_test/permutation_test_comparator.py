@@ -83,8 +83,8 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
         Args:
             log_1 (pd.DataFrame): The first event log in the comparison.
             log_2 (pd.DataFrame): The second event log in the comparison.
-            distribution_size (int, optional): The number of samples to compute the
-                Self-EMD for. Defaults to 10_000.
+            distribution_size (int, optional): The number of permutations to compute the
+                EMD for. Defaults to 10_000.
             verbose (bool, optional): If True, show progress bars. Defaults to True.
             cleanup_on_del (bool, optional): If True, call `cleanup` upon destruction,
                 e.g., when the object goes out of scope. Defaults to True.
@@ -94,8 +94,8 @@ class Permutation_Test_Comparator(ABC, Generic[T]):
                     package.
             seed (int, optional): The seed to use for sampling in the permutation test
                 phase.
-            multiprocess_cores (int, optional): Use multiprocessing for distance computation?
-                Defaults to 0 (no multiprocessing used).
+            multiprocess_cores (int, optional): The number of cores to use for
+                multiprocessing. Defaults to 0 (no multiprocessing used).
         """
         if log_1.empty or log_2.empty:
             raise ValueError("Cannot compare with an empty event log")
@@ -634,7 +634,7 @@ def compute_permutation_test_distribution_precomputed_distances_mp(
             Defaults to "wasserstein" (use the wasserstein package). Alternatively,
             "pot" uses "Python Optimal Transport" to compute the EMD.
         num_cores (int | None, optional): The number of cores to use for multiplrocessing.
-            Defaults to cpu_count - 4.
+            Defaults to `cpu_count - 4`.
 
     Returns:
         Numpy1DArray[NP_FLOAT]: The computed EMDs.

@@ -65,6 +65,12 @@ class ClassicBootstrapTestComparisonResult:
 
 
 class ClassicBootstrap_Comparator(ABC, Generic[T]):
+    """
+    A comparator using the "classical" definition of the two-sample Bootstrap test. This
+    is done by pooling both event logs together and then repeatedly taking pairs of samples
+    with replacement and comparing them
+    """
+
     log_1: pd.DataFrame
     log_2: pd.DataFrame
 

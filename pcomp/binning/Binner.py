@@ -27,20 +27,24 @@ class Binner(abc.ABC, Generic[T]):
         pass
 
 
-# Binner factory is either the class itself or a function that,
-# given a list of datapoints, returns a Binner
-# Using this, any kind of binner could be wrapped appropriately
-# for use in a BinnerManager
 BinnerFactory = type[Binner] | Callable[[list[float]], Binner]
+"""
+Binner factory is either the class itself (i.e., calling it calls `__init__`) or a
+function that, given a list of datapoints, returns a Binner Using this, any kind of binner
+could be wrapped appropriately for use in a BinnerManager
+"""
 
 
 class BinnerManager:
-    """Manages a collection of binners, used for different classes"""
+    """
+    Manages a collection of binners, used for different classes. Given a label and a value,
+    the value is binned using the respective binner trained for that label.
+    """
 
-    binners: dict[
-        str, Binner
-    ]  # Maps "class names" (in our case activity labels) to Binners
-    num_bins: int  # The largest number of bins of all binners
+    # Maps "class names" (in our case: activities) to Binners
+    binners: dict[str, Binner]
+    # The largest number of bins of all binners
+    num_bins: int
 
     def __init__(
         self,
@@ -76,11 +80,22 @@ class BinnerManager:
         self.num_bins = max(binner.num_bins for binner in self.binners.values())
 
     def bin(self, label: str, data: float) -> int:
+        """Bin a data point using the respective binner trained for the label. If the label
+        wasn't seen in the training data, bin 0 is returned.
+
+        Args:
+            label (str): The class (activity) of the data point.
+            data (float): The data point.
+
+        Returns:
+            int: The bin index
+        """
         if label in self.binners:
             return self.binners[label].bin(data)
         else:
             # Idea: This activity does not occur in our reference log
             # So: Give it bin number 0 = Don't care about it
-            # Then again, this raises the question we had before about
-            # if an activity rename should take into account the time or not
+            # Then again, this raises the question we had before about if an activity
+            # rename should take into account the time or not. However, since we train
+            # the binners on both event logs, this case won't happen anyways.
             return 0

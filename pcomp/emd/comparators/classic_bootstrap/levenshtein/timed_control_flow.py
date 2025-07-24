@@ -41,6 +41,34 @@ class Timed_Levenshtein_ClassicBootstrapComparator(
         binner_factory: BinnerFactory | None = None,
         binner_args: dict[str, Any] | None = None,
     ):
+        """Create an instance. The classic bootstrap comparator performs a "classic" two-sample
+        bootstrap test. This is done by pooling both event logs together and then computing the
+        EMD between samples (with replacement) and the pooled observations.
+
+        Args:
+            log_1 (pd.DataFrame): The first event log in the comparison.
+            log_2 (pd.DataFrame): The second event log in the comparison.
+            bootstrapping_dist_size (int, optional): The number of samples to compute
+                the Self-EMD for. Defaults to 10_000.
+            verbose (bool, optional): If True, show progress bars. Defaults to True.
+            cleanup_on_del (bool, optional): If True, call `cleanup` upon destruction,
+                e.g., when the object goes out of scope. Defaults to True.
+            emd_backend (EMDBackend, optional): The backend to use for EMD computation.
+                Defaults to "wasserstein" (use the "wasserstein" module). Alternatively,
+                "ot" or "pot" will use the "Python Optimal Transport" package.
+            seed (int, optional): The seed to use for sampling in the bootstrapping
+                phase.
+            weighted_time_cost (bool, optional): In the trace distance computation, divide
+                the time cost by the maximal number of bins, ensuring an equal cost contribution
+                of both dimensions (control flow and time). If False, the "normalized" distance
+                can still exceed `1`. Setting to True is strongly recommended, and will be
+                the default in future versions. Defaults to False.
+            binner_factory (BinnerFactory | None, optional): How to create the binners for the
+                time dimension. If None, KMeans++ binning will be used. Defaults to None.
+            binner_args (dict[str, Any] | None, optional): The arguments to pass to the
+                binner factory. If None, k=3 will be used (sets the number of clusters for
+                KMeans++). Defaults to None.
+        """
         super().__init__(
             ensure_start_timestamp_column(log_1),
             ensure_start_timestamp_column(log_2),

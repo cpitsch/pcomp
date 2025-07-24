@@ -4,6 +4,14 @@ from .Binner import Binner
 
 
 class OuterPercentileBinner(Binner):
+    """Bins data into three bins:
+    1. The lower `outer_percent`% of values
+    2. The middle
+    3. The upper `outer_percent`% of values
+
+    The `IQR_Binner` would be an OuterPercentileBinner with outer_percent = 25
+    """
+
     lower_boundary: float
     upper_boundary: float
     num_bins: int = 3

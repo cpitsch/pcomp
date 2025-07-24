@@ -4,6 +4,9 @@ from .Binner import Binner
 
 
 class IQR_Binner(Binner):
+    """Bins values based on the interquartile range. I.e., the 25th percentile is binned to
+    bin 0, the 75th percentile is binned to bin 1, and the rest is binned to bin 3"""
+
     Q_1: float
     Q_3: float
     num_bins: int = 3
